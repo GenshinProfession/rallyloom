@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { ArrowLeft, ArrowRight, Building2, Check, ChevronDown, CircleAlert, ExternalLink, Globe2, LayoutGrid } from 'lucide-react'
 import officePreview from '@/assets/office-preview.webp'
 import { Logo } from '@/components/Logo'
@@ -50,6 +51,20 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
   const previousStage = useRef(stage)
   const title = useRef<HTMLHeadingElement>(null)
   const addressField = useRef<HTMLInputElement>(null)
+  const content = useRef<HTMLDivElement>(null)
+  const transition = useRef<Animation | null>(null)
+
+  function changeStage(next: Stage) {
+    transition.current?.cancel()
+    flushSync(() => setStage(next))
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !content.current) return
+    const tokens = getComputedStyle(content.current)
+    transition.current = content.current.animate(
+      [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
+      { duration: parseFloat(tokens.getPropertyValue('--motion-panel')) || 220,
+        easing: tokens.getPropertyValue('--ease-out').trim() || 'ease-out' },
+    )
+  }
 
   useEffect(() => {
     if (previousStage.current === stage) return
@@ -113,7 +128,7 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
       if (signal.aborted) return
       setCandidate(found)
       reviewReturn.current = 'address'
-      setStage('review')
+      changeStage('review')
     })
   }
 
@@ -134,7 +149,7 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
       }
       setCandidate(found)
       reviewReturn.current = 'home'
-      setStage('review')
+      changeStage('review')
     })
   }
 
@@ -146,15 +161,18 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
   function back() {
     cancel()
     setError('')
-    setStage(stage === 'review' ? reviewReturn.current : 'home')
+    changeStage(stage === 'review' ? reviewReturn.current : 'home')
   }
 
   return (
     <main className="workspace-entry" data-workspace-entry={stage}>
+      <div className="entry-background" aria-hidden="true">
+        <img src={officePreview} alt="" draggable={false} />
+      </div>
       <div className="entry-frame">
         <section className="entry-form" aria-labelledby="entry-title">
           <div className="entry-brand"><Logo className="size-7" /><span>Rallyloom</span></div>
-          <div className="entry-content">
+          <div ref={content} className="entry-content">
             {stage !== 'home' && <div className="entry-navigation">
               <button className="entry-back ui-press" type="button" onClick={back}><ArrowLeft size={14} /> 返回</button>
               <ol className="entry-steps" aria-label="绑定进度">
@@ -174,13 +192,13 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
                   </div>}
                   <Button type="button" data-entry-main className="entry-primary" disabled={!!busy || !bridge} onClick={() => {
                     if (saved) resume()
-                    else { setError(''); setStage('address') }
+                    else { setError(''); changeStage('address') }
                   }}>
                     {busy === 'resume' ? '正在验证工作区…' : saved ? '进入公司工作区' : '绑定公司工作区'}
                     {busy !== 'resume' && <ArrowRight aria-hidden />}
                   </Button>
                   {saved && <div className="entry-inline-actions">
-                    <button type="button" disabled={!!busy} onClick={() => { setAddress(saved.baseUrl); setError(''); setStage('address') }}>更换工作区</button>
+                    <button type="button" disabled={!!busy} onClick={() => { setAddress(saved.baseUrl); setError(''); changeStage('address') }}>更换工作区</button>
                     <button type="button" disabled={!!busy} onClick={() => void run('detect', async (signal) => {
                       workspaceValue(await bridge!.forget())
                       if (!signal.aborted) { setSaved(null); setAddress(''); setCandidate(null) }
@@ -264,7 +282,8 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
                 <Button type="button" variant="outline" className="entry-demo-role" aria-label="选择演示角色" title="选择演示角色"
                   aria-expanded={chooseRole} aria-controls="entry-roles" disabled={busy === 'demo'} onClick={() => setChooseRole(!chooseRole)}><ChevronDown aria-hidden /></Button>
               </div>
-              <div className="entry-roles" id="entry-roles" hidden={!chooseRole}>
+              <div className="entry-role-reveal" data-open={chooseRole} inert={!chooseRole}>
+              <div className="entry-roles" id="entry-roles" aria-hidden={!chooseRole}>
                 {roleGroups.map((group) => (
                   <section key={group.tenantId} aria-labelledby={`entry-role-${group.tenantId}`}>
                     <h2 id={`entry-role-${group.tenantId}`} data-tenant={group.tenantId}>{group.label}</h2>
@@ -274,15 +293,10 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
                   </section>
                 ))}
               </div>
+              </div>
             </aside>
           </div>
         </section>
-        <figure className="entry-preview">
-          <div className="entry-preview-mat">
-            <img src={officePreview} width="1260" height="731" alt="Rallyloom 中包含工位、会议室和休息区的虚拟办公室楼层" draggable={false} />
-          </div>
-          <figcaption><LayoutGrid size={15} aria-hidden /> 办公室预览</figcaption>
-        </figure>
       </div>
     </main>
   )

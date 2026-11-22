@@ -29,10 +29,10 @@ function Glyph({ kind }: { kind: 'min' | 'max' | 'close' }) {
 export function TitleBar({ demo = false, login = false }: { demo?: boolean; login?: boolean }) {
   const electron = isElectron()
   return (
-    <header className={cn('drag relative flex h-8 shrink-0 items-center border-b pl-3', login ? 'border-[#deded6] bg-[#f7f6f2]' : 'border-[#dde2e8] bg-[#edf0f4]')}>
+    <header className={cn('drag relative flex h-8 shrink-0 items-center border-b pl-3', login ? 'border-[#ffffff14] bg-[#14201d] [&_img]:brightness-0 [&_img]:invert' : 'border-[#dde2e8] bg-[#edf0f4]')}>
       <div className="flex items-center gap-2">
         <Logo className="size-[18px]" />
-        <span className={cn('text-ui-label font-semibold tracking-[0.01em]', login ? 'text-[#343b34]' : 'text-[#34445a]')}>Rallyloom</span>
+        <span className={cn('text-ui-label font-semibold tracking-[0.01em]', login ? 'text-[#e0e9e1]' : 'text-[#34445a]')}>Rallyloom</span>
         {demo && <span className="rounded border border-[#d4dce5] px-1.5 text-ui-meta text-[#4b5a6d]">演示模式</span>}
       </div>
 
