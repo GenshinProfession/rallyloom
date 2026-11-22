@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rallyloom/ingest/task-remove/v1",
+  "title": "Rallyloom task.remove payload",
+  "description": "从 Rallyloom 任务看板移除一条任务。禁止用清空字段冒充删除——任务在你系统里删除/作废时必须显式发本事件。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "external_task_id"],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-_]*$",
+      "maxLength": 64
+    },
+    "external_task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "与 task.upsert 同一幂等锚点；查无此任务返回 200（移除幂等）"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rallyloom/ingest/person-remove/v1",
+  "title": "person.remove payload",
+  "description": "按同步锚点移除成员；禁止用空 attrs 或改名代替删除。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "external_user_id"],
+  "properties": {
+    "source_id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9][a-z0-9-_]*$" },
+    "external_user_id": { "type": "string", "minLength": 1, "maxLength": 128 }
+  }
+}

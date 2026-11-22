@@ -1,0 +1,781 @@
+/* 文档中心 —— 全页面编辑 / 阅读样式（类钉钉文档） */
+
+.doc-page {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  background: #f4f4f6;
+}
+
+/* ---------- 顶部栏 ---------- */
+
+.doc-page-top {
+  display: flex;
+  min-height: 52px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(17, 18, 22, 0.07);
+  background: #fff;
+  padding: 0 16px;
+}
+
+.doc-back {
+  display: inline-flex;
+  height: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 0 8px 0 6px;
+  font-size: 12px;
+  color: #5c6470;
+}
+.doc-back:hover { background: #f2f3f5; color: #1a2230; }
+
+.doc-breadcrumb {
+  display: flex;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: #8a909a;
+}
+
+.doc-unsaved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #b45309;
+}
+.doc-unsaved::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #f59e0b;
+}
+
+.doc-page-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: stretch;
+}
+
+/* ---------- 左侧编辑区 ---------- */
+
+.doc-editor-main {
+  min-width: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 40px 40px;
+}
+
+.doc-editor-meta {
+  display: flex;
+  max-width: 860px;
+  margin: 0 auto 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+  color: #8a909a;
+}
+.doc-meta-field { display: inline-flex; align-items: center; gap: 6px; }
+.doc-meta-field > span:first-child { color: #a3a8b0; }
+.doc-meta-folder { display: inline-flex; align-items: center; gap: 4px; }
+
+.doc-editor-title {
+  display: block;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto 6px;
+  border: 0;
+  background: transparent;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  color: #14181f;
+  outline: none;
+}
+.doc-editor-title::placeholder { color: #c3c7ce; }
+
+/* ---------- 工具栏 ---------- */
+
+.doc-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  display: flex;
+  max-width: 860px;
+  margin: 10px auto 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid rgba(17, 18, 22, 0.08);
+  border-radius: 9px;
+  background: #fff;
+  padding: 3px 5px;
+  box-shadow: 0 1px 2px rgba(17, 18, 22, 0.04);
+}
+.doc-toolbar-skeleton { min-height: 32px; }
+
+.doc-tool {
+  display: inline-flex;
+  height: 26px;
+  width: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: #49505b;
+}
+.doc-tool:hover { background: #f2f3f5; color: #1a2230; }
+.doc-tool.is-active { background: #eaf1fe; color: #1d4ed8; }
+.doc-tool:disabled { opacity: 0.38; pointer-events: none; }
+
+.doc-tool-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: rgba(17, 18, 22, 0.08);
+}
+
+.doc-tool-select {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 4px;
+  border-radius: 5px;
+  padding: 0 5px;
+  color: #49505b;
+}
+.doc-tool-select:hover { background: #f2f3f5; }
+.doc-tool-select select {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-size: 11.5px;
+  color: #3c434d;
+  outline: none;
+  cursor: pointer;
+}
+
+.doc-tool-relative { position: relative; display: inline-flex; }
+
+.doc-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  width: 178px;
+  flex-direction: column;
+  gap: 1px;
+  border: 1px solid rgba(17, 18, 22, 0.08);
+  border-radius: 8px;
+  background: #fff;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(17, 18, 22, 0.12);
+}
+.doc-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 5px;
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 11.5px;
+  color: #3c434d;
+}
+.doc-pop-item:hover { background: #f4f5f7; }
+.doc-pop-item:disabled { opacity: 0.4; pointer-events: none; }
+.doc-pop-danger { color: #b91c1c; }
+.doc-pop-danger:hover { background: #fdecec; }
+
+.doc-link-bar {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(17, 18, 22, 0.1);
+  border-radius: 6px;
+  padding: 0 5px;
+}
+.doc-link-input {
+  width: 170px;
+  border: 0;
+  background: transparent;
+  font-size: 11.5px;
+  color: #1a2230;
+  outline: none;
+}
+.doc-link-confirm {
+  border-radius: 4px;
+  background: #2563eb;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #fff;
+}
+
+/* ---------- 编辑正文 ---------- */
+
+.doc-editor-content { max-width: 860px; margin: 0 auto; }
+
+.doc-editor-foot {
+  display: flex;
+  max-width: 860px;
+  margin: 26px auto 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid rgba(17, 18, 22, 0.06);
+  padding-top: 10px;
+  font-size: 10.5px;
+  color: #a3a8b0;
+}
+.doc-shortcuts kbd {
+  display: inline-block;
+  min-width: 16px;
+  border: 1px solid rgba(17, 18, 22, 0.12);
+  border-radius: 3px;
+  background: #fff;
+  padding: 0 3px;
+  font-family: inherit;
+  font-size: 9.5px;
+  color: #6b7280;
+  text-align: center;
+}
+.doc-editor-error {
+  max-width: 860px;
+  margin: 8px auto 0;
+  font-size: 11.5px;
+  color: #b91c1c;
+}
+
+/* ---------- 阅读页 ---------- */
+
+.doc-reader-body { overflow-y: auto; }
+.doc-reader-main {
+  min-width: 0;
+  flex: 1;
+  padding: 30px 44px 60px;
+}
+.doc-reader-main > .doc-reader-title,
+.doc-reader-main > .doc-reader-meta,
+.doc-reader-main > .doc-reader-content,
+.doc-reader-main > .doc-attach-list,
+.doc-reader-main > .doc-link-card {
+  max-width: 780px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.doc-reader-title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.32;
+  color: #14181f;
+}
+.doc-reader-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px !important;
+  font-size: 11px;
+  color: #8a909a;
+}
+.doc-reader-content { margin-top: 20px; }
+
+.doc-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 26px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a2230;
+}
+.doc-section-title span {
+  border-radius: 999px;
+  background: #f2f3f5;
+  padding: 0 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.doc-attach-list ul { display: flex; flex-direction: column; gap: 6px; }
+.doc-attach-item,
+.doc-attach {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(17, 18, 22, 0.08);
+  border-radius: 9px;
+  background: #fff;
+  padding: 9px 10px;
+}
+.doc-attach-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 8px;
+}
+.doc-attach-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1f2732;
+}
+.doc-attach-meta { display: block; font-size: 10.5px; color: #8a909a; }
+.doc-attach-action {
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 1px solid rgba(17, 18, 22, 0.1);
+  padding: 3px 8px;
+  font-size: 11px;
+  color: #3c434d;
+}
+.doc-attach-action:hover { background: #f2f3f5; }
+.doc-attach-remove {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 5px;
+  color: #9aa0a9;
+}
+.doc-attach-remove:hover { background: #fdecec; color: #b91c1c; }
+.doc-attach.ProseMirror-selectednode { outline: 2px solid #93b4f8; outline-offset: 1px; }
+
+.doc-link-card {
+  margin-top: 20px;
+  border: 1px dashed rgba(17, 18, 22, 0.14);
+  border-radius: 10px;
+  background: #fafbfc;
+  padding: 22px;
+  text-align: center;
+}
+.doc-link-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  background: #eef2f8;
+  color: #3b5bdb;
+}
+.doc-link-title { margin-top: 10px; font-size: 13px; font-weight: 600; color: #1a2230; }
+.doc-link-url {
+  margin: 4px auto 0;
+  max-width: 460px;
+  word-break: break-all;
+  font-size: 11.5px;
+  color: #8a909a;
+}
+.doc-link-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
+.doc-link-invalid { margin-top: 8px; font-size: 11px; color: #b91c1c; }
+
+/* ---------- 大纲 ---------- */
+
+.doc-outline {
+  width: 216px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-left: 1px solid rgba(17, 18, 22, 0.06);
+  background: #fafafa;
+  padding: 22px 14px;
+}
+.doc-outline-title {
+  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #9aa0a9;
+}
+.doc-outline ol { display: flex; flex-direction: column; gap: 1px; }
+.doc-outline-item {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 5px;
+  border-left: 2px solid transparent;
+  padding: 4px 8px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: #5c6470;
+}
+.doc-outline-item:hover { background: #f0f1f3; color: #1a2230; }
+.doc-outline-item.level-1 { font-weight: 500; color: #3c434d; }
+.doc-outline-item.level-2 { padding-left: 18px; }
+.doc-outline-item.level-3 { padding-left: 30px; font-size: 11px; color: #8a909a; }
+.doc-outline-empty {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #a3a8b0;
+}
+
+/* ---------- 斜杠菜单 ---------- */
+
+.doc-slash {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  width: 272px;
+  max-height: 320px;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  border: 1px solid rgba(17, 18, 22, 0.09);
+  border-radius: 9px;
+  background: #fff;
+  padding: 4px;
+  box-shadow: 0 12px 32px rgba(17, 18, 22, 0.16);
+}
+.doc-slash-empty { padding: 8px 10px; font-size: 11.5px; color: #9aa0a9; }
+.doc-slash-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: #3c434d;
+}
+.doc-slash-item.is-active { background: #eef4ff; }
+.doc-slash-label { font-size: 12px; color: #1f2732; }
+.doc-slash-hint { margin-left: auto; font-size: 10.5px; color: #a3a8b0; }
+
+/* ---------- 文档列表（list 视图） ---------- */
+
+.doc-list-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(17, 18, 22, 0.06);
+  padding: 10px 16px;
+}
+.doc-list-title { font-size: 12.5px; font-weight: 600; color: #1a2230; }
+.doc-list-body { padding: 6px 14px 18px; }
+.doc-list-empty { padding: 40px 0; text-align: center; font-size: 12px; color: #9aa0a9; }
+.doc-list-group { padding-top: 10px; }
+.doc-list-space {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+.doc-list-space span {
+  border-radius: 999px;
+  background: #f2f3f5;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #8a909a;
+}
+.doc-list-cards { display: flex; flex-direction: column; gap: 4px; }
+
+.doc-card {
+  display: flex;
+  width: 100%;
+  gap: 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 9px 10px;
+  text-align: left;
+}
+.doc-card:hover { border-color: rgba(17, 18, 22, 0.07); background: #fafbfc; }
+.doc-card-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 7px;
+  background: #eef2f8;
+  color: #3b5bdb;
+}
+.doc-card-icon.is-link { background: #f2f3f5; color: #6b7280; }
+.doc-card-body { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
+.doc-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #1a2230;
+}
+.doc-card-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  color: #9aa0a9;
+}
+.doc-card-excerpt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #8a909a;
+}
+.doc-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 1px;
+  font-size: 10.5px;
+  color: #a3a8b0;
+}
+.doc-card-attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 999px;
+  background: #f2f3f5;
+  padding: 0 5px;
+  font-size: 10px;
+  color: #6b7280;
+}
+
+/* ---------- 正文排版（编辑器与阅读器共用） ---------- */
+
+.doc-prose {
+  font-size: 14px;
+  line-height: 1.85;
+  color: #2b323c;
+  outline: none;
+  word-break: break-word;
+}
+.doc-prose > * + * { margin-top: 0.7em; }
+.doc-prose p { margin: 0; }
+.doc-prose h1 { margin: 1.15em 0 0.35em; font-size: 26px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.35; color: #14181f; }
+.doc-prose h2 { margin: 1.05em 0 0.3em; font-size: 20px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.4; color: #1a2230; }
+.doc-prose h3 { margin: 0.95em 0 0.25em; font-size: 16px; font-weight: 650; line-height: 1.45; color: #1f2732; }
+.doc-prose h1:first-child, .doc-prose h2:first-child, .doc-prose h3:first-child { margin-top: 0; }
+.doc-prose strong { font-weight: 600; color: #1a2230; }
+.doc-prose em { font-style: italic; }
+.doc-prose s { color: #8a909a; }
+.doc-prose mark { background: #fff3bf; border-radius: 3px; padding: 0 2px; }
+.doc-prose a { color: #2563eb; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.doc-prose ul, .doc-prose ol { padding-left: 1.4em; }
+.doc-prose ul { list-style: disc; }
+.doc-prose ol { list-style: decimal; }
+.doc-prose li { margin: 0.15em 0; }
+.doc-prose li > p { margin: 0; }
+.doc-prose blockquote {
+  border-left: 3px solid #c8d2e6;
+  border-radius: 0 6px 6px 0;
+  background: #f7f9fc;
+  padding: 8px 14px;
+  color: #5c6470;
+}
+.doc-prose blockquote p { margin: 0; }
+.doc-prose code {
+  border-radius: 4px;
+  background: #f2f3f5;
+  padding: 0.15em 0.35em;
+  font-family: 'Geist Mono', 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.88em;
+  color: #b4340f;
+}
+.doc-prose pre code { background: transparent; padding: 0; color: inherit; }
+.doc-prose hr { margin: 1.6em 0; border: 0; border-top: 1px solid rgba(17, 18, 22, 0.1); }
+.doc-prose img { max-width: 100%; border-radius: 8px; }
+.doc-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  border: 1px solid rgba(17, 18, 22, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.doc-prose th, .doc-prose td {
+  border: 1px solid rgba(17, 18, 22, 0.08);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 13px;
+}
+.doc-prose th { background: #f7f8fa; font-weight: 600; color: #1f2732; }
+.doc-prose .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(37, 99, 235, 0.08);
+  pointer-events: none;
+}
+.doc-prose .column-resize-handle { display: none; }
+
+/* 待办清单 */
+.doc-prose ul[data-type='taskList'] { padding-left: 0; list-style: none; }
+.doc-prose ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0.2em 0;
+}
+.doc-prose ul[data-type='taskList'] li > label { margin-top: 0.32em; }
+.doc-prose ul[data-type='taskList'] input[type='checkbox'] { width: 13px; height: 13px; accent-color: #2563eb; }
+.doc-prose ul[data-type='taskList'] li > div { flex: 1; min-width: 0; }
+.doc-prose ul[data-type='taskList'] li[data-checked='true'] > div { color: #9aa0a9; text-decoration: line-through; }
+
+/* 空文档占位 */
+.doc-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: #b9bec6;
+}
+
+/* ---------- 代码块 ---------- */
+
+.doc-code {
+  margin: 0.9em 0;
+  overflow: hidden;
+  border: 1px solid rgba(17, 18, 22, 0.08);
+  border-radius: 9px;
+  background: #0f172a;
+}
+.doc-code-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 3px 8px 3px 10px;
+}
+.doc-code-lang {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-size: 10.5px;
+  color: #9fb0c9;
+  outline: none;
+  cursor: pointer;
+}
+.doc-code-lang option { color: #1a2230; }
+.doc-code-copy {
+  display: inline-flex;
+  margin-left: auto;
+  align-items: center;
+  gap: 3px;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10.5px;
+  color: #9fb0c9;
+}
+.doc-code-copy:hover { background: rgba(255, 255, 255, 0.08); color: #e2e8f0; }
+.doc-code-pre {
+  margin: 0;
+  overflow-x: auto;
+  padding: 12px 14px;
+}
+.doc-code-body {
+  display: block;
+  font-family: 'Geist Mono', 'Cascadia Mono', Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #d7e1f0;
+  tab-size: 2;
+  white-space: pre;
+}
+
+/* highlight.js token（低饱和暗色主题） */
+.doc-code .hljs-comment, .doc-code .hljs-quote { color: #64748b; font-style: italic; }
+.doc-code .hljs-keyword, .doc-code .hljs-selector-tag, .doc-code .hljs-literal { color: #c792ea; }
+.doc-code .hljs-string, .doc-code .hljs-regexp, .doc-code .hljs-addition { color: #a5d6a7; }
+.doc-code .hljs-number, .doc-code .hljs-built_in, .doc-code .hljs-symbol { color: #f0a868; }
+.doc-code .hljs-title, .doc-code .hljs-section, .doc-code .hljs-function .hljs-title { color: #82aaff; }
+.doc-code .hljs-attr, .doc-code .hljs-attribute, .doc-code .hljs-variable { color: #d7e1f0; }
+.doc-code .hljs-type, .doc-code .hljs-class .hljs-title, .doc-code .hljs-params { color: #ffcb6b; }
+.doc-code .hljs-meta, .doc-code .hljs-tag { color: #89ddff; }
+.doc-code .hljs-deletion { color: #f87171; }
+
+/* ---------- 弹窗编辑器（办公桌面板内使用） ---------- */
+
+.doc-dialog { display: flex; max-height: 88vh; flex-direction: column; }
+.doc-dialog-head { border-bottom: 1px solid rgba(17, 18, 22, 0.07); padding: 12px 16px 10px; }
+.doc-dialog-heading { font-size: 13px; font-weight: 600; color: #1a2230; }
+.doc-dialog-sub { margin-top: 2px; font-size: 10.5px; color: #9aa0a9; }
+.doc-dialog-body { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 10px; padding: 12px 16px 14px; }
+.doc-dialog-title {
+  height: 34px;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #14181f;
+}
+.doc-dialog-title:focus-visible { outline: none; }
+.doc-dialog-meta { display: flex; flex-wrap: wrap; gap: 12px; }
+.doc-dialog-field { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: #8a909a; }
+.doc-dialog-field > span { white-space: nowrap; }
+.doc-dialog-field input { width: 150px; height: 28px; font-size: 12px; }
+.doc-dialog-toolbar .doc-toolbar { margin: 0; max-width: none; }
+.doc-dialog-scroll {
+  min-height: 220px;
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid rgba(17, 18, 22, 0.08);
+  border-radius: 9px;
+  padding: 14px 16px;
+  background: #fff;
+}
+.doc-dialog-scroll .ProseMirror { min-height: 200px; }
+.doc-dialog-prose { font-size: 13.5px; }
+.doc-dialog-count { margin-top: 8px; font-size: 10.5px; color: #9aa0a9; }
+.doc-dialog-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.doc-dialog-hint { font-size: 10.5px; color: #a3a8b0; }
+.doc-dialog-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+/* ---------- 文档纸面（编辑与阅读共用的白色稿纸） ---------- */
+
+.doc-paper {
+  max-width: 1000px;
+  margin: 0 auto;
+  min-height: 100%;
+  border: 1px solid rgba(17, 18, 22, 0.07);
+  border-radius: 14px;
+  background: #fff;
+  padding: 22px 44px 40px;
+  box-shadow: 0 1px 2px rgba(17, 18, 22, 0.03);
+}
+.doc-reader-paper { padding: 34px 48px 56px; }
+.doc-editor-main { padding: 16px 28px 40px; }
+.doc-editor-main .doc-toolbar { background: #fff; }
+
+@media (max-width: 1180px) {
+  .doc-editor-main { padding: 12px 16px 32px; }
+  .doc-paper { padding: 18px 24px 32px; }
+  .doc-reader-paper { padding: 26px 28px 44px; }
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rallyloom/ingest/person-upsert/v1",
+  "title": "person.upsert payload",
+  "description": "中性身份容器：必填仅三元组，attrs 自由键值，groups 中性组；禁止夹带角色语义。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "external_user_id", "display_name", "groups"],
+  "properties": {
+    "source_id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9][a-z0-9-_]*$" },
+    "external_user_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "display_name": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "email": { "type": "string", "format": "email", "maxLength": 254 },
+    "attrs": {
+      "type": "object",
+      "description": "自由属性键值对，全部字符串；源系统有什么就给什么，没有就省略整个字段",
+      "additionalProperties": { "type": "string", "maxLength": 512 },
+      "propertyNames": { "maxLength": 64 },
+      "maxProperties": 32
+    },
+    "groups": {
+      "type": "array",
+      "description": "中性组 ID 列表，可为空数组；不是部门，角色映射由 Rallyloom 侧配置",
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+      "maxItems": 64,
+      "uniqueItems": true
+    }
+  }
+}

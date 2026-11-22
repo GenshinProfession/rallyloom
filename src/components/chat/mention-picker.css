@@ -1,0 +1,25 @@
+.chat-mention-anchor { position: relative; min-width: 0; }
+.chat-mention-picker {
+  position: absolute;
+  z-index: 3;
+  inset-inline-start: 0;
+  bottom: calc(100% + 4px);
+  width: min(320px, 100%);
+  max-height: min(212px, 26vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fff;
+  color: #293e53;
+  box-shadow: 0 6px 18px #263e5a24;
+  font-size: var(--ui-size-label);
+}
+.chat-mention-option { display: flex; min-height: 30px; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 4px; cursor: pointer; }
+.chat-mention-option:is(:hover, [aria-selected="true"]) { background: #eaf1f8; }
+.chat-mention-avatar { display: grid; width: 20px; height: 20px; flex: none; place-items: center; border-radius: 5px; background: #e2eaf4; color: #405f7d; }
+.chat-mention-name { flex: 0 1 auto; font-weight: 620; }
+.chat-mention-option small { flex: 1 1 1px; color: #526779; font-size: var(--ui-size-meta); }
+.chat-mention-name, .chat-mention-option small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-mention-empty { padding: 7px; color: #526779; }

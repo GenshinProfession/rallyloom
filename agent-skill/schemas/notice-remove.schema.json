@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rallyloom/ingest/notice-remove/v1",
+  "title": "notice.remove — 公告撤回",
+  "description": "撤回一条公告；幂等：撤回不存在的公告返回成功。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "external_notice_id"],
+  "properties": {
+    "source_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-_]*$", "maxLength": 64 },
+    "external_notice_id": { "type": "string", "minLength": 1, "maxLength": 128 }
+  }
+}

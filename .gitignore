@@ -1,0 +1,29 @@
+# Dependencies and generated desktop output
+/node_modules/
+/dist/
+/release/
+/coverage/
+/.vite/
+
+# Local captures and diagnostics
+/.snap/
+/preview.png
+/v2.png
+/v2.png.json
+/docs/mira-invalid-grant-fix.md
+/docs/mira-oidc-cors-fix.md
+*.log
+*.tsbuildinfo
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+/workspace-binding.json
+/workspace-session.enc
+/workspace-diagnostic.json
+.DS_Store
+Thumbs.db

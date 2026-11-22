@@ -1,0 +1,122 @@
+:root {
+  --ease-out: cubic-bezier(.23, 1, .32, 1);
+  --ease-drawer: cubic-bezier(.32, .72, 0, 1);
+  --motion-feedback: 120ms;
+  --motion-control: 160ms;
+  --motion-panel: 220ms;
+}
+
+.ui-press {
+  transition:
+    scale var(--motion-feedback) var(--ease-out),
+    background-color var(--motion-feedback) ease,
+    color var(--motion-feedback) ease,
+    border-color var(--motion-feedback) ease;
+}
+
+.ui-press:not(:disabled, [data-disabled], [aria-disabled="true"]):active {
+  scale: .97;
+}
+
+.ui-tab {
+  transition: background-color var(--motion-feedback) ease, color var(--motion-feedback) ease;
+}
+.selection-track { position: relative; isolation: isolate; }
+.selection-highlight {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  pointer-events: none;
+}
+.ui-tab-track .selection-highlight {
+  border: 1px solid #e8eaed;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 1px 3px #19293a17;
+}
+.ui-tab:hover[data-state="inactive"] { background: #ffffff5c; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .workspace-route[data-enter="true"] {
+    animation: ui-workspace-in var(--motion-control) var(--ease-out);
+  }
+  .ui-tab-panel[data-state="active"]:not(:where([data-orientation]:has(.ui-tab:focus-visible) .ui-tab-panel)) {
+    animation: ui-opacity-in var(--motion-control) var(--ease-out) both;
+  }
+}
+
+@keyframes ui-workspace-in {
+  from { opacity: .75; translate: 0 4px; }
+  to { opacity: 1; translate: none; }
+}
+
+.ui-switch-thumb, .ui-progress-fill {
+  transition: transform var(--motion-control) var(--ease-out);
+}
+
+.ui-flyout {
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin, var(--radix-select-content-transform-origin));
+}
+.ui-flyout[data-state="open"]:not(:focus-visible, :has(:focus-visible)) {
+  animation: ui-flyout-in var(--motion-control) var(--ease-out) both;
+}
+.ui-flyout[data-state="closed"] {
+  animation: ui-flyout-out var(--motion-feedback) var(--ease-out) both;
+}
+.ui-tooltip {
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+}
+.ui-tooltip[data-state="delayed-open"] {
+  animation: ui-flyout-in 125ms var(--ease-out) both;
+}
+.ui-tooltip[data-state="closed"] {
+  animation: ui-flyout-out var(--motion-feedback) var(--ease-out) both;
+}
+.ui-dialog-panel[data-state="open"] {
+  animation: ui-dialog-in var(--motion-panel) var(--ease-out) both;
+}
+.ui-dialog-panel[data-state="closed"] {
+  animation: ui-dialog-out var(--motion-control) var(--ease-out) both;
+}
+.ui-dialog-overlay[data-state="open"] {
+  animation: ui-opacity-in var(--motion-panel) var(--ease-out) both;
+}
+.ui-dialog-overlay[data-state="closed"] {
+  animation: ui-opacity-out var(--motion-control) var(--ease-out) both;
+}
+
+@keyframes ui-flyout-in {
+  from { opacity: 0; scale: .97; }
+  to { opacity: 1; scale: 1; }
+}
+@keyframes ui-flyout-out {
+  from { opacity: 1; scale: 1; }
+  to { opacity: 0; scale: .97; }
+}
+@keyframes ui-dialog-in {
+  from { opacity: 0; scale: .96; }
+  to { opacity: 1; scale: 1; }
+}
+@keyframes ui-dialog-out {
+  from { opacity: 1; scale: 1; }
+  to { opacity: 0; scale: .96; }
+}
+@keyframes ui-opacity-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ui-opacity-out { from { opacity: 1; } to { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-press:not(:disabled, [data-disabled], [aria-disabled="true"]):active {
+    scale: none;
+  }
+  .ui-switch-thumb, .ui-progress-fill { transition: none; }
+  .ui-flyout[data-state="open"]:not(:focus-visible, :has(:focus-visible)),
+  .ui-tooltip[data-state="delayed-open"],
+  .ui-dialog-panel[data-state="open"], .ui-dialog-overlay[data-state="open"] {
+    animation: ui-opacity-in var(--motion-feedback) ease both;
+  }
+  :is(.ui-flyout, .ui-tooltip, .ui-dialog-panel, .ui-dialog-overlay)[data-state="closed"] {
+    animation: ui-opacity-out var(--motion-feedback) ease both;
+  }
+}

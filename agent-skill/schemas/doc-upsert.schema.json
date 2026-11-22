@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rallyloom/ingest/doc-upsert/v1",
+  "title": "doc.upsert — 企业公共文档承接（文档中心）",
+  "description": "文档数据由外部系统推送（或由云端 OA 存储托管），Rallyloom 文档中心内置 Markdown 查看器渲染展示；幂等锚点 source_id + external_doc_id。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "external_doc_id", "title"],
+  "properties": {
+    "source_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-_]*$", "maxLength": 64, "description": "推送方在 Rallyloom 登记的源标识（即文档所属知识库的提供方）" },
+    "external_doc_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "幂等锚点：同 ID 重推原地刷新（含正文替换），绝不产生重复文档" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "space": { "type": "string", "maxLength": 64, "description": "知识库/空间名；缺省归入「未分组」" },
+    "folder_path": {
+      "type": "array",
+      "description": "知识库内从上到下的目录名，缺省时文档归入知识库根目录",
+      "maxItems": 8,
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+    },
+    "format": { "enum": ["markdown", "link"], "description": "markdown=内联正文由内置查看器渲染；link=外部托管（只存链接）。富文本正文同样用 markdown 枚举承载，内容编码由 content_format 声明（v1.7 起）" },
+    "content": { "type": "string", "maxLength": 1048576, "description": "正文（format=markdown 时必填）。content_format=markdown 时为 Markdown 源文（≤256KB 建议）；content_format=html 时为 TipTap/HTML 片段（≤1MB），文档中心按富文本渲染" },
+    "content_format": { "enum": ["markdown", "html"], "default": "markdown", "description": "正文编码（v1.7 新增、向后兼容）：缺省 markdown；html 表示富文本内容（标题/列表/代码块/表格/附件节点），由文档中心富文本查看器渲染" },
+    "attachments": {
+      "type": "array",
+      "description": "文档附件（v1.7 新增）：正文中间可内联放置任意类型文件；缺省为空。演示环境走 data: URL，正式环境应给 https 直链",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "url"],
+        "properties": {
+          "id": { "type": "string", "maxLength": 128, "description": "附件稳定 ID（用于 HTML 中 attachment 节点 id 对应；缺省时按 name 匹配）" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 256, "description": "文件名（含扩展名，用于类型图标与下载名）" },
+          "size": { "type": "integer", "minimum": 0, "description": "字节数（展示用）" },
+          "mime": { "type": "string", "maxLength": 128, "description": "MIME 类型；缺省 application/octet-stream" },
+          "url": { "type": "string", "minLength": 1, "maxLength": 1024, "description": "下载地址：https 直链优先；自托管可用 data: URL" }
+        }
+      }
+    },
+    "url": { "type": "string", "maxLength": 512, "description": "外链（format=link 时必填）" },
+    "owner_name": { "type": "string", "maxLength": 128, "description": "署名/发布方（展示用，非身份锚点）" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "attrs": {
+      "type": "object",
+      "description": "自由属性（中性容器）：版本、适用范围等；自动出列为列表标签",
+      "maxProperties": 32,
+      "additionalProperties": { "type": "string", "maxLength": 512 }
+    }
+  }
+}

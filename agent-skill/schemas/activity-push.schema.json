@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rallyloom/ingest/activity-push/v1",
+  "title": "Rallyloom activity.push payload",
+  "description": "向 Rallyloom 工作区动态流（ACTIVITY）推送外部系统产生的动态条目。Rallyloom 只承接与展示，不生成、不解读动态内容。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "items"],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-_]*$",
+      "maxLength": 64,
+      "description": "你的系统在 Rallyloom 的注册 ID，与 person 容器同一命名空间"
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "description": "一批动态条目；服务端按信封 occurred_at 串行化",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["actor_id", "text"],
+        "properties": {
+          "actor_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "动作发起人在你系统里的 external_user_id；用于在 Rallyloom 侧挂到成员头像。查无此人时原样展示 ID，不报错"
+          },
+          "actor_name": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "可选：发起人显示名兜底（成员尚未同步时展示）"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 280,
+            "description": "动态正文，一句话人类可读文案，Rallyloom 原样展示"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "可选：该条动态的发生时间（ISO 8601 带时区）；缺省用信封 occurred_at"
+          },
+          "kind": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "可选：自由类型标签（task / deploy / order …），Rallyloom 只作展示徽章，不做语义假设"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "可选：跳转回你系统的链接（HTTPS），展示为「查看来源」"
+          }
+        }
+      }
+    }
+  }
+}

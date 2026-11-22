@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rallyloom/ingest/group-upsert/v1",
+  "title": "group.upsert payload",
+  "description": "注册/更新组展示名；组是中性概念，不承担角色语义。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "group_id", "display_name"],
+  "properties": {
+    "source_id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9][a-z0-9-_]*$" },
+    "group_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "display_name": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "description": { "type": "string", "maxLength": 512 }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rallyloom/ingest/members-reconcile/v1",
+  "title": "members.reconcile payload",
+  "description": "全量对账快照：以本次快照为准——有则 upsert，无则移除；适合定时任务兜底。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "persons"],
+  "properties": {
+    "source_id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9][a-z0-9-_]*$" },
+    "persons": {
+      "type": "array",
+      "maxItems": 50000,
+      "items": {
+        "$ref": "rallyloom/ingest/person-upsert/v1"
+      }
+    }
+  }
+}

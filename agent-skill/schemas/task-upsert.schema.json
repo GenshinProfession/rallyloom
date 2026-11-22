@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rallyloom/ingest/task-upsert/v1",
+  "title": "Rallyloom task.upsert payload",
+  "description": "向 Rallyloom 任务看板（类飞书多维表格）推送/更新一条任务。中性任务容器：必填仅 source_id + external_task_id + title；attrs 自由属性会成为表格视图的动态列；Rallyloom 只承接与展示，不生成任务。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "external_task_id", "title"],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-_]*$",
+      "maxLength": 64,
+      "description": "你的系统在 Rallyloom 的注册 ID，与 person 容器同一命名空间"
+    },
+    "external_task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "任务在你系统里的稳定 ID；幂等锚点 = source_id + external_task_id，重推原地刷新绝不产生重复任务"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "任务标题，一句话人类可读，看板卡片与表格行原样展示"
+    },
+    "status": {
+      "enum": ["backlog", "todo", "doing", "done"],
+      "description": "可选：映射到 Rallyloom 看板列（待排期/待处理/进行中/已完成）。不给默认 todo；你系统的状态语义由你侧映射，Rallyloom 不解读"
+    },
+    "priority": {
+      "enum": ["P0", "P1", "P2", "P3"],
+      "description": "可选：Rallyloom 优先级枚举（P0 紧急 → P3 低）。你系统有自己的优先级模型时不映射，放 attrs 里即可"
+    },
+    "assignee_id": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "可选：负责人 external_user_id（挂头像）；查无此人展示 assignee_name 兜底，不报错"
+    },
+    "assignee_name": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "可选：负责人显示名兜底"
+    },
+    "due": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "可选：截止日 YYYY-MM-DD"
+    },
+    "attrs": {
+      "type": "object",
+      "description": "可选：自由属性键值对（全 string），会自动成为多维表格视图的动态列（键=列名）。有什么推什么，没有的不造",
+      "maxProperties": 32,
+      "additionalProperties": { "type": "string", "maxLength": 512 }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+.docs-tree { padding: 4px 0 8px; }
+.docs-tree > ul > li + li { margin-top: 4px; }
+.docs-folder, .docs-leaf {
+  display: flex;
+  width: 100%;
+  min-height: 29px;
+  align-items: center;
+  gap: 6px;
+  border-radius: 5px;
+  padding: 3px 5px;
+  color: #374b60;
+  font-size: var(--ui-size-body);
+  text-align: left;
+}
+.docs-folder { font-weight: 620; }
+.docs-folder > svg, .docs-leaf > svg { flex: none; color: #5a748f; }
+.docs-folder > span, .docs-leaf > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.docs-folder > small { min-width: 15px; color: #5f7183; text-align: center; font-size: var(--ui-size-meta); font-weight: 500; }
+.docs-folder:hover:not(:disabled), .docs-leaf:hover { background: #f0f3f7; }
+.docs-folder:focus-visible, .docs-leaf:focus-visible { outline: 2px solid #6789ae; outline-offset: -2px; }
+.docs-folder[aria-expanded="true"] > .docs-folder-chevron { transform: rotate(90deg); }
+.docs-folder-children { margin: 1px 0 1px 11px; border-left: 1px solid #e5eaf0; padding-left: 6px; }
+.docs-leaf { padding-left: 7px; }
+.docs-leaf[aria-current="true"] { background: #e7effa; color: #294d77; font-weight: 650; }
+.docs-tree-empty { margin: 16px 0; color: #617286; font-size: var(--ui-size-body); text-align: center; }
+@media (prefers-reduced-motion: no-preference) {
+  .docs-folder-chevron { transition: transform var(--motion-feedback) var(--ease-out); }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rallyloom/ingest/envelope/v1",
+  "title": "Rallyloom ingest event envelope",
+  "description": "所有推送到 Rallyloom 承接端点的事件共用信封；payload 按 event_type 见同目录各 schema。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "occurred_at", "schema_version", "payload"],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "幂等去重键，服务端至少 72 小时窗口去重",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "event_type": { "enum": ["person.upsert", "person.remove", "group.upsert", "members.reconcile", "activity.push", "task.upsert", "task.remove", "notice.push", "notice.remove", "doc.upsert", "doc.remove"] },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "schema_version": { "const": 1 },
+    "payload": { "type": "object" }
+  }
+}
