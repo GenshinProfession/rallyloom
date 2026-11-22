@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { ArrowLeft, ArrowRight, Building2, Check, ChevronDown, CircleAlert, ExternalLink, Globe2, LayoutGrid } from 'lucide-react'
-import officePreview from '@/assets/office-preview.webp'
+import loginBackground from '@/assets/login-forest-silk.webp'
 import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -167,7 +167,7 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
   return (
     <main className="workspace-entry" data-workspace-entry={stage}>
       <div className="entry-background" aria-hidden="true">
-        <img src={officePreview} alt="" draggable={false} />
+        <img src={loginBackground} alt="" draggable={false} />
       </div>
       <div className="entry-frame">
         <section className="entry-form" aria-labelledby="entry-title">
