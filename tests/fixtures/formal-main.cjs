@@ -1,0 +1,23 @@
+const {app,BrowserWindow}=require('electron'),fs=require('node:fs'),path=require('node:path')
+const output=path.join(process.env.RALLY_TEST_FIXTURE,'result.txt')
+app.whenReady().then(async()=>{
+ const win=new BrowserWindow({show:false,width:1500,height:1000,webPreferences:{preload:path.join(__dirname,'preload.cjs'),backgroundThrottling:false}})
+ await win.loadFile(process.env.RALLY_TEST_DIST)
+ const result=await win.webContents.executeJavaScript('('+ (async()=>{
+ const pause=ms=>new Promise(r=>setTimeout(r,ms));const wait=async(fn,label)=>{for(let i=0;i<100;i++){if(fn())return;await pause(60)}throw Error(label+' '+document.body.textContent.slice(-1600))}
+ const nav=(page)=>document.querySelector('[data-nav='+page+']').click()
+ await wait(()=>document.querySelector('[data-nav=tasks]'),'formal task nav')
+ nav('tasks');await wait(()=>document.querySelector('[data-task-row]'),'formal tasks')
+ if(!document.body.textContent.includes('企业自定义流程'))throw Error('provider board ignored')
+ document.querySelector('[data-task-row]').click();await wait(()=>document.querySelector('[role=dialog]'),'task detail')
+ document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await pause(100)
+ nav('docs');await wait(()=>document.querySelector('[data-doc-row]'),'formal docs');document.querySelector('[data-doc-row]').click();await wait(()=>document.querySelector('[data-doc-reader]'),'formal reader')
+ nav('chat');await wait(()=>document.body.textContent.includes('正式交流室'),'formal chat')
+ nav('reports');await wait(()=>[...document.querySelectorAll('[data-reports] aside button')].some(b=>b.textContent.includes('测试员工')),'Mira existing report');[...document.querySelectorAll('[data-reports] aside button')].find(b=>b.textContent.includes('测试员工')).click();await wait(()=>document.querySelector('textarea[aria-label="工作汇报正文"]'),'report page')
+ const field=document.querySelector('textarea[aria-label="工作汇报正文"]')
+ if(field.disabled!==Boolean(document.body.textContent.includes('管理者只读查看')))throw Error('report writing authority')
+ return 'PASS formal provider board, task details, documents, chat and report role boundary'
+ }).toString()+')()',true)
+ fs.writeFileSync(output,result)
+}).catch(e=>fs.writeFileSync(output,String(e))).finally(()=>app.exit())
+setTimeout(()=>{fs.writeFileSync(output,'timeout');app.exit(1)},40000).unref()

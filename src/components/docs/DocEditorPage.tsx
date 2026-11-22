@@ -96,6 +96,7 @@ export interface DocEditorPageProps {
 }
 
 export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirtyChange }: DocEditorPageProps) {
+  const initialRevision = useRef(doc?.revision)
   const spaces = Array.from(new Set(records.map((item) => item.space))).filter(Boolean)
   const defaultSpace = location[0] ?? spaces[0] ?? '制度规范'
 
@@ -286,6 +287,7 @@ export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirt
     if (!nextTitle) { setError('请先填写文档标题。'); return }
     const folderPath = folder.split('/').map((part) => part.trim()).filter(Boolean)
     const draft: DocDraft = {
+      revision: initialRevision.current,
       title: nextTitle,
       space: space.trim() || defaultSpace,
       folderPath,

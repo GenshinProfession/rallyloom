@@ -37,6 +37,7 @@ function readAsDataUrl(file: File) {
 }
 
 export function DocEditorDialog({ doc, records, location, onClose, onSave }: DocEditorDialogProps) {
+  const initialRevision = useRef(doc?.revision)
   const [title, setTitle] = useState(doc?.title ?? '')
   const [space, setSpace] = useState(doc?.space ?? location[0] ?? '制度规范')
   const [folder, setFolder] = useState((doc?.folderPath ?? location.slice(1)).join('/'))
@@ -117,6 +118,7 @@ export function DocEditorDialog({ doc, records, location, onClose, onSave }: Doc
     setError(null)
     try {
       await onSave({
+        revision: initialRevision.current,
         title: nextTitle,
         space: space.trim(),
         folderPath: folder.split('/').map((part) => part.trim()).filter(Boolean),

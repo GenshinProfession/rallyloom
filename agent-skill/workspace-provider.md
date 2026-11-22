@@ -86,3 +86,7 @@
 - 用两个不同可见范围的账号读取 bootstrap，核对目录和房间分配只含获准对象。
 - 用不同账号验证成员操作和配置入口，再在提供方集成测试中确认越权请求返回 403。
 - 用 `node reference/verify-provider.mjs --bootstrap <响应样本.json>` 校验响应结构。线上样本应去除个人资料和凭据。
+
+## OA 协作模块
+
+Bootstrap 可返回 `collaboration:{version:1,scopes:[{id,label}]}` 和提供方支持的协作能力。具体接口、数据范围、更新版本与验收见 [OA 协作契约](oa-collaboration.md)。工作区权限与每条对象的权限必须分别校验。

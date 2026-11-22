@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ReportsPage } from '@/components/reports/ReportsPage'
 import { TitleBar } from '@/components/TitleBar'
 import { Sidebar } from '@/components/Sidebar'
 import type { WorkspaceSearchItem } from '@/components/WorkspaceSearch'
@@ -15,6 +16,7 @@ import type { IdentityConnector, TeamMember } from '@/lib/identity/types'
 import { DemoChatClient } from '@/lib/chat/demo'
 import { GENERAL_CHANNEL_ID, roomChannelId, type ChatParticipant } from '@/lib/chat/types'
 import { useMentions } from '@/lib/chat/use-mentions'
+import { OaTaskClient, OaDocClient, OaChatClient, OaNoticeClient } from '@/lib/oa/clients'
 import { DemoTaskClient } from '@/lib/tasks/demo'
 import { DemoDocClient } from '@/lib/docs/demo'
 import { DemoNoticeClient } from '@/lib/notify/demo'
@@ -25,9 +27,10 @@ import { rosterOf } from '@/lib/store/roster'
 import type { DatasourceConfig, WorkspaceSnapshot } from '@/lib/store/types'
 import { workspaceValue, type JoinedWorkspace } from '@/lib/store/workspace-binding'
 import { CONNECTORS } from '@/lib/identity/connector'
+import { RoomSlotSettings } from '@/components/team/RoomSlotSettings'
 import { FormalTeam } from '@/components/team/FormalTeam'
 
-type Page = 'office' | 'chat' | 'tasks' | 'docs' | 'notify' | 'team'
+type Page = 'office' | 'chat' | 'tasks' | 'docs' | 'notify' | 'team' | 'reports'
 
 const OfficePage = lazy(() => import('@/components/office/OfficePage').then(({ OfficePage }) => ({ default: OfficePage })))
 
@@ -164,14 +167,15 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
   const [chatTargetId, setChatTargetId] = useState<string | null>(null)
 
   const me = team.find(({ id }) => id === entry.memberId)
+  const canReports = !demo && permissions.includes('reports.use')
   const canTeam = me ? (demo ? can(me.role, 'team.view') : permissions.includes('team.view')) : false
   // 集团视图不承载租户内板块：办公室/交流室/任务/文档/通知按公司工作区进入后体验
-  const canChat = demo && !isGroup && !!me && can(me.role, 'chat.use')
-  const canTasks = demo && !isGroup && !!me && can(me.role, 'tasks.use')
-  const canDocs = demo && !isGroup && !!me && can(me.role, 'docs.use')
-  const canNotify = demo && !isGroup && !!me && can(me.role, 'notify.view')
+  const canChat = !isGroup && !!me && (demo ? can(me.role, 'chat.use') : permissions.includes('chat.use'))
+  const canTasks = !isGroup && !!me && (demo ? can(me.role, 'tasks.use') : permissions.includes('tasks.use'))
+  const canDocs = !isGroup && !!me && (demo ? can(me.role, 'docs.use') : permissions.includes('docs.use'))
+  const canNotify = !isGroup && !!me && (demo ? can(me.role, 'notify.view') : permissions.includes('notify.view'))
   const activePage: Page =
-    page === 'team' && !canTeam ? 'office'
+    page === 'reports' && !canReports ? 'office' : page === 'team' && !canTeam ? 'office'
       : page === 'chat' && !canChat ? 'office'
         : page === 'tasks' && !canTasks ? 'office'
           : page === 'docs' && !canDocs ? 'office'
@@ -199,7 +203,7 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
   const { chatMembers, officeChatPeers } = useMemo(() => {
     const directory = new Map<string, TeamMember>()
     const officeChatPeers = new Map<string, string>()
-    if (!demo) return { chatMembers: [], officeChatPeers }
+
     for (const person of team) {
       directory.set(person.id, person)
       if (person.connectorId.startsWith('demo-idp-') && person.idpId.startsWith('demo-u-')) {
@@ -209,11 +213,11 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
     const assignedRooms = new Map<string, string>()
     for (const member of officeMembers) {
       const person = directory.get(member.id)
-      if (!person || !can(person.role, 'chat.use')) continue
+      if (!person || (demo && !can(person.role, 'chat.use'))) continue
       officeChatPeers.set(member.id, person.id)
       assignedRooms.set(person.id, member.roomId)
     }
-    const chatMembers = team.filter(({ role }) => can(role, 'chat.use')).map((person): ChatParticipant => {
+    const chatMembers = team.filter(({ role }) => !demo || can(role, 'chat.use')).map((person): ChatParticipant => {
       const seatId = seatIdOf(person.id, team)
       return {
         id: person.id,
@@ -228,7 +232,7 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
   const chatSender = useMemo(() => me ? { id: me.id, name: me.displayName } : null, [me?.id, me?.displayName])
   /* 房间频道随当前办公室配置生成。 */
   const chatClient = useMemo(
-    () => demo ? new DemoChatClient(layout.rooms, chatMembers, chatSender) : null,
+    () => demo ? new DemoChatClient(layout.rooms, chatMembers, chatSender) : new OaChatClient(),
     [layout.rooms, chatMembers, chatSender, demo],
   )
   const { newest: mentions, markRead } = useMentions(chatClient, canChat)
@@ -245,11 +249,12 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
   }
   const selectedOfficeRoom = layout.rooms.some(({ id }) => id === officeRoomId) ? officeRoomId : null
   /* 任务看板客户端：演示源内存模拟；接云端后换 OaTaskClient（同一契约） */
-  const taskClient = useMemo(() => demo ? new DemoTaskClient() : null, [demo])
-  const docClient = useMemo(() => demo ? new DemoDocClient(snapshot.tenant.id, me?.displayName) : null,
+  const [taskScope, setTaskScope] = useState(snapshot.collaboration?.scopes[0]?.id)
+  const taskClient = useMemo(() => demo ? new DemoTaskClient() : new OaTaskClient(taskScope), [demo, taskScope])
+  const docClient = useMemo(() => demo ? new DemoDocClient(snapshot.tenant.id, me?.displayName) : new OaDocClient(),
     [demo, snapshot.tenant.id, me?.displayName])
   /* 通知中心客户端：演示源内存模拟；接云端后换 OaNoticeClient（同一契约） */
-  const noticeClient = useMemo(() => demo ? new DemoNoticeClient() : null, [demo])
+  const noticeClient = useMemo(() => demo ? new DemoNoticeClient() : new OaNoticeClient(), [demo])
   /* 存储中心（超管）：演示模式只做「连接测试」探测，不切换演示租户的种子快照；
      正式环境的数据源由登录页「绑定公司工作区」从服务端 bootstrap 决定，客户端不可改。 */
   const [connError, setConnError] = useState<string | null>(null)
@@ -308,8 +313,9 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
       } catch { /* Keep the last verified view during intermittent network errors. */ }
       finally { checking = false }
     }
+    const timer = setInterval(() => void refresh(), 60000)
     window.addEventListener('focus', refresh)
-    return () => { active = false; window.removeEventListener('focus', refresh) }
+    return () => { active = false; clearInterval(timer); window.removeEventListener('focus', refresh) }
   }, [demo, onAccessLost, applyJoined])
 
   function logout() {
@@ -330,6 +336,7 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
         chatVisible={canChat}
         tasksVisible={canTasks}
         docsVisible={canDocs}
+        reportsVisible={canReports}
         searchItems={searchItems}
         onSearchSelect={(item) => {
           setOfficeSearchHit({ ...item })
@@ -378,9 +385,9 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
                     const updated = workspaceValue(await bridge.saveOfficeLayout(draft))
                     applyJoined(updated)
                   } } : undefined}
-                  work={demo ? { actorId: me.id, actorName: me.displayName, canCoordinate: me.role === 'admin' || me.role === 'owner',
+                  work={{ actorId: me.id, actorName: me.displayName, canCoordinate: demo ? me.role === 'admin' || me.role === 'owner' : permissions.includes('tasks.coordinate'),
                     tasks: canTasks ? taskClient ?? undefined : undefined, docs: canDocs ? docClient ?? undefined : undefined,
-                    notices: canNotify ? noticeClient ?? undefined : undefined } : undefined}
+                    notices: canNotify ? noticeClient ?? undefined : undefined }}
                   chat={canChat && chatSender && chatClient ? {
                     client: chatClient,
                     sender: chatSender,
@@ -410,11 +417,12 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
             }}
           />
         ) : activePage === 'tasks' && taskClient ? (
-          <TaskBoardPage members={officeMembers} client={taskClient} />
+          <TaskBoardPage key={taskScope} members={demo ? officeMembers : team.map((m) => ({ id: m.id, name: m.displayName, roomId: '', role: m.roleName ?? '', presence: m.presence, body: '#999' }))} client={taskClient} scopes={!demo ? snapshot.collaboration?.scopes : undefined} scope={taskScope} onScope={setTaskScope} canConfigure={!demo && permissions.includes('tasks.coordinate')} />
+        ) : activePage === 'reports' ? (<ReportsPage canWrite={permissions.includes('reports.write')} key={taskScope} actorId={entry.memberId} scope={taskScope} scopes={snapshot.collaboration?.scopes} onScope={setTaskScope} />
         ) : activePage === 'docs' && docClient ? (
           <DocsPage client={docClient} />
         ) : activePage === 'notify' && noticeClient ? (
-          <NoticePage client={noticeClient} onBack={() => navigate('office')} />
+          <NoticePage canPublish={!demo && permissions.includes('notify.publish')} client={noticeClient} onBack={() => navigate('office')} />
         ) : (
           <main className="flex min-w-0 flex-1 flex-col bg-[#f4f4f6]">
             {isGroup ? <GroupConsole directory={team} groupName={groupName} onEnterWorkspace={onEnterWorkspace} /> : entry.mode === 'demo' ? <TeamManage
@@ -432,7 +440,11 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
                 applySnapshot(updated)
                 if (id === entry.memberId) onHome()
               })}
-            /> : <FormalTeam members={team} roleSettings={roleSettings} onManage={permissions.includes('members.role') ? async (id, action) => {
+            /> : <FormalTeam tools={permissions.includes('slots.attach') ? <RoomSlotSettings snapshot={snapshot} save={async (roomId, enabled) => {
+              const bridge = window.rallyloom?.workspace
+              if (!bridge) throw new Error('请使用最新版桌面应用。')
+              applyJoined(workspaceValue(await bridge.saveRoomSlot(roomId, enabled)))
+            }} /> : undefined} members={team} roleSettings={roleSettings} onManage={permissions.includes('members.role') ? async (id, action) => {
               const bridge = window.rallyloom?.workspace
               if (!bridge) throw new Error('成员管理需要在 Rallyloom 桌面应用中打开。')
               const updated = workspaceValue(await bridge.manageMember(id, action))

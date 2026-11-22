@@ -180,7 +180,7 @@ export function DocsPage({ client }: DocsPageProps) {
           {view.kind === 'edit' ? <DocEditorPage key={`${view.doc?.id ?? 'new'}-${editorEpoch}`} doc={view.doc} records={records} location={view.location}
             onDirtyChange={setEditorDirty} onSave={async (draft) => { await save(draft); setEditorDirty(false) }}
             onCancel={() => { setEditorDirty(false); setView(view.doc ? { kind: 'read', id: view.doc.id } : { kind: 'list' }) }} />
-            : current ? <DocReaderPage doc={current} canEdit onEdit={() => changeView({ kind: 'edit', doc: current, location: documentPath(current) })}
+            : current ? <DocReaderPage doc={current} canEdit={current.canEdit !== false} onEdit={() => changeView({ kind: 'edit', doc: current, location: documentPath(current) })}
               onDelete={() => { setRemoveError(''); setDeleting(current) }} onBack={() => changeView({ kind: 'list' })} /> : <>
 
           <header className="doc-list-head">

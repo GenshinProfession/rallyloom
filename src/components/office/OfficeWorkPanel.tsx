@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { ArrowUpRight, AtSign, Bell, Check, ClipboardList, FileText, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -37,6 +37,7 @@ function TaskEditor({ draft, task, people, access, meSeatId, onSave, onClose, on
   onClose: () => void
   onSource?: (source: NonNullable<TaskRecord['sourceMessage']>, anchor: HTMLElement) => void
 }) {
+  const initialRevision = useRef(task?.revision)
   const board = access.tasks!.board
   const activeStatus = board.statuses.find((status) => status.category === 'active')?.id
   const completedStatus = board.statuses.find((status) => status.category === 'completed')?.id
@@ -48,8 +49,8 @@ function TaskEditor({ draft, task, people, access, meSeatId, onSave, onClose, on
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const isMine = task?.assigneeId === meSeatId || task?.assigneeId === access.actorId
-  const canReview = !!task && (task.createdBy === access.actorId || access.canCoordinate)
-  const canEdit = !task || isMine || canReview
+  const canReview = !!task && task.canManage !== false && (task.createdBy === access.actorId || access.canCoordinate)
+  const canEdit = !task || task.canEdit !== false && (isMine || canReview)
 
   async function apply(patch: TaskPatch) {
     if (busy || !title.trim()) return
@@ -58,7 +59,7 @@ function TaskEditor({ draft, task, people, access, meSeatId, onSave, onClose, on
     try {
       const person = people.find(({ id }) => id === assignee)
       const assigneeName = assignee === access.actorId ? access.actorName : person?.name ?? (assignee === task?.assigneeId ? task?.assigneeName : undefined)
-      await onSave({ title: title.trim(), assigneeId: assignee || null, assigneeName: assigneeName ?? null, due: due || null, ...patch })
+      await onSave({ revision: initialRevision.current, ...(task?.canManage === false ? {} : { title: title.trim(), assigneeId: assignee || null, assigneeName: assigneeName ?? null, due: due || null }), ...patch })
       onClose()
     } catch (failure) { setError(failure instanceof Error ? failure.message : '任务更新失败。') }
     finally { setBusy(false) }
@@ -72,17 +73,17 @@ function TaskEditor({ draft, task, people, access, meSeatId, onSave, onClose, on
           <DialogDescription>{task ? (task.reviewPending ? '待验收' : taskStatus(access.tasks!.board, task.status).label) : '填写任务并指派负责人。'}</DialogDescription>
         </DialogHeader>
         <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); if (canEdit) void apply({}) }}>
-          <label className="grid gap-1 text-ui-label">任务标题<Input required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} disabled={busy || !canEdit} /></label>
+          <label className="grid gap-1 text-ui-label">任务标题<Input required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} disabled={busy || !canEdit || task?.canManage === false} /></label>
           <div className="grid grid-cols-2 gap-3">
             <label className="grid gap-1 text-ui-label">负责人
-              <select className="h-9 min-w-0 rounded-md border border-input bg-white px-2 text-ui-body" value={assignee} onChange={(event) => setAssignee(event.target.value)} disabled={busy || !canEdit}>
+              <select className="h-9 min-w-0 rounded-md border border-input bg-white px-2 text-ui-body" value={assignee} onChange={(event) => setAssignee(event.target.value)} disabled={busy || !canEdit || task?.canManage === false}>
                 <option value="">未指派</option>
                 {!people.some(({ id }) => id === access.actorId) && <option value={access.actorId}>我 · {access.actorName}</option>}
                 {assignee && assignee !== access.actorId && !people.some(({ id }) => id === assignee) && <option value={assignee}>{task?.assigneeName || assignee}</option>}
                 {people.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
               </select>
             </label>
-            <label className="grid gap-1 text-ui-label">截止日期<Input type="date" value={due} onChange={(event) => setDue(event.target.value)} disabled={busy || !canEdit} /></label>
+            <label className="grid gap-1 text-ui-label">截止日期<Input type="date" value={due} onChange={(event) => setDue(event.target.value)} disabled={busy || !canEdit || task?.canManage === false} /></label>
           </div>
           {quoted && <div className="office-source-message"><strong>原消息 · {quoted.senderName}</strong>{quoted.excerpt && <p>{quoted.excerpt}</p>}
             {task && onSource && <Button size="sm" type="button" variant="link" className="h-6 px-0" onClick={(event) => onSource(quoted, event.currentTarget)}>查看原消息 <ArrowUpRight /></Button>}
@@ -221,7 +222,7 @@ export function OfficeWorkPanel({ access, room, people, meSeatId, mentions, draf
             const url = documentUrl(doc.url)
             return url ? <a className="text-ui-body text-primary underline" href={url} target="_blank" rel="noreferrer">打开外部文档</a> : <p>文档链接不可用</p>
           })()}
-          {doc.origin === 'local' && <DialogFooter><Button type="button" size="sm" variant="outline" onClick={() => setEditingDoc(true)}>编辑文档</Button></DialogFooter>}
+          {doc.origin === 'local' && doc.canEdit !== false && <DialogFooter><Button type="button" size="sm" variant="outline" onClick={() => setEditingDoc(true)}>编辑文档</Button></DialogFooter>}
         </DialogContent>
       </Dialog>}
       {doc && editingDoc && docClient && <DocEditorDialog doc={doc} records={docs} location={documentPath(doc)} onClose={() => setEditingDoc(false)}

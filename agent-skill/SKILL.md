@@ -8,13 +8,14 @@ description: 为企业接入 Rallyloom 开源 OA。用于设计企业部署、�
 先按请求选择工作流。正式工作区的角色名称、权限、可见范围和配置由企业提供方决定。Rallyloom 只实现客户端能力和 [工作区提供方契约](workspace-provider.md)。修复接入问题时，同步更新受影响的客户端验证、契约及体检脚本。
 
 - **企业首次部署、授权与绑定、基础数据库接入或定制**：读 [企业接入与授权方案](enterprise-authorization.md)，明确部署与数据归属、三类授权、服务验证和 Demo 隔离。先确认企业有哪些接口与身份服务，再决定适配器接哪层。只有正式申请的模块和操作才进入授权范围。
+- **正式 OA 的任务、文档、交流室、通知、工作汇报接入或排错**：先读 [OA 协作契约](oa-collaboration.md)，逐项实现读写和服务端对象权限，再接前端入口；不同角色分别验收。
 - **给已部署的 OA 对接源系统**：按下文实现数据映射、推送或账号漫游。企业侧适配器持有获准的服务端凭据，Rallyloom 按数据契约承接。
 
 ## 0. 先读什么（按顺序）
 
 1. 本文件（你正在读）
 2. `integration-spec.md` —— 现有事件和身份契约（三种接入模式、数据格式、幂等、错误码和角色边界）
-3. `schemas/*.json` —— 机器可读契约（JSON Schema 2020-12，共 12 份：信封 + 十一种 payload）
+3. `schemas/*.json` —— 机器可读契约（JSON Schema 2020-12；按本次模块读取相应文件）
 4. `reference/adapter-demo.mjs` —— 推送适配器的参考实现（零依赖 Node 18+）
 5. `reference/verify-provider.mjs` —— 提供方接入体检脚本：`<域名>` 查 discovery + 授权页 Referrer-Policy + 真实表单 POST 的 Origin（v1.6）；`--bootstrap <json>` 离线校验 bootstrap 响应体的每个字段（v1.8）
 
@@ -144,4 +145,6 @@ v1.7 可选加演：推一篇 `content_format:"html"`（含标题/代码块/表�
 
 ## 任务状态与字段（2026-11-23）
 
-先读取 `schemas/task-board.schema.json` 与 integration-spec.md §4.6。禁止在客户端写死公司的任务列、流转或自定义字段；四列只属于演示源。提供方负责鉴权、状态流转与排序确认。正式任务源尚未启用时，不得宣称企业任务已接通。
+先读取 `schemas/task-board.schema.json` 与 integration-spec.md §4.6。禁止在客户端写死公司的任务列、流转或自定义字段；四列只属于演示源。提供方负责鉴权、状态流转与排序确认。未提供某模块接口时，不得授予该模块能力或回退演示数据。
+
+正式汇报适配必须优先复用企业已有的参与范围、模板和提交服务；Mira 不能通过通用 record/report 新建绕过 `operations_report_enabled`。修改周月报前读取 OA 契约中的 work-reports 章节。

@@ -8,7 +8,7 @@ import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from 
 import {
   FileArchive, FileAudio, FileCode2, FileImage, FileSpreadsheet, FileText, FileVideo, Trash2,
 } from 'lucide-react'
-import { fileSize, type DocAttachment } from '@/lib/docs/types'
+import { attachmentUrl, fileSize, type DocAttachment } from '@/lib/docs/types'
 
 export interface AttachmentOptions {
   HTMLAttributes: Record<string, unknown>
@@ -65,7 +65,7 @@ function AttachmentView({ node, deleteNode, editor }: ReactNodeViewProps) {
         <span className="doc-attach-name" title={name}>{name}</span>
         <span className="doc-attach-meta">{label} · {fileSize(size)}</span>
       </span>
-      {url && <a className="doc-attach-action ui-press" href={url} download={name} contentEditable={false}>下载</a>}
+      {url && <a className="doc-attach-action ui-press" href={attachmentUrl(url) ?? undefined} download={name} contentEditable={false}>下载</a>}
       {editor.isEditable && (
         <button type="button" className="doc-attach-remove ui-press" contentEditable={false}
           aria-label={`移除附件 ${name}`} title="移除附件" onClick={() => deleteNode()}>

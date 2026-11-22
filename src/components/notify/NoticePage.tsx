@@ -6,24 +6,30 @@ import { ArrowLeft, Bell, CheckCheck, ExternalLink, Megaphone } from 'lucide-rea
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { NOTICE_LEVEL_META, noticeTime, type NoticeClient, type NoticeRecord } from '@/lib/notify/types'
+import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
 interface NoticePageProps {
+  canPublish?: boolean
   client: NoticeClient
   onBack: () => void
 }
 
-export function NoticePage({ client, onBack }: NoticePageProps) {
+export function NoticePage({ client, onBack, canPublish }: NoticePageProps) {
+  const [deleteNotice, setDeleteNotice] = useState<NoticeRecord | null>(null)
+  const [publishing, setPublishing] = useState(false)
+  const [title, setTitle] = useState(''), [summary, setSummary] = useState(''), [error, setError] = useState(''), [busy, setBusy] = useState(false)
   const [records, setRecords] = useState<NoticeRecord[]>([])
   const [read, setRead] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let alive = true
     void client.list().then((list) => { if (alive) setRecords(list) })
-    void client.unreadIds().then((ids) => { if (alive) setRead(new Set(ids)) })
+    void Promise.all([client.list(), client.unreadIds()]).then(([rows, ids]) => { if (alive) setRead(new Set(rows.filter((row) => !ids.includes(row.id)).map((row) => row.id))) })
     const off = client.subscribe(() => {
       void client.list().then((list) => { if (alive) setRecords(list) })
-      void client.unreadIds().then((ids) => { if (alive) setRead(new Set(ids)) })
+      void Promise.all([client.list(), client.unreadIds()]).then(([rows, ids]) => { if (alive) setRead(new Set(rows.filter((row) => !ids.includes(row.id)).map((row) => row.id))) })
     })
     return () => { alive = false; off() }
   }, [client])
@@ -35,26 +41,34 @@ export function NoticePage({ client, onBack }: NoticePageProps) {
 
   const markOne = (id: string) => {
     if (read.has(id)) return
-    void client.markRead([id])
-    setRead((prev) => new Set(prev).add(id))
+    void client.markRead([id]).then(() => setRead((prev) => new Set(prev).add(id)), (e) => setError(e instanceof Error ? e.message : '标记失败'))
   }
 
   return (
     <main data-notify="root" className="flex min-w-0 flex-1 flex-col bg-[#f4f4f6]">
+      <Dialog open={Boolean(deleteNotice)} onOpenChange={(open) => { if (!open && !busy) setDeleteNotice(null) }}><DialogContent><DialogHeader><DialogTitle>删除通知</DialogTitle></DialogHeader><p>{deleteNotice?.title}</p>{error && <p role="alert" className="text-destructive">{error}</p>}<Button variant="destructive" disabled={busy} onClick={async () => { if (!deleteNotice) return; setBusy(true); try { await client.remove(deleteNotice.sourceId, deleteNotice.externalNoticeId); setRecords(await client.list()); setDeleteNotice(null) } catch (e) { setError(e instanceof Error ? e.message : '删除失败') } finally { setBusy(false) } }}>确认删除</Button></DialogContent></Dialog>
+      <Dialog open={publishing} onOpenChange={(open) => { if (!busy) setPublishing(open) }}><DialogContent><DialogHeader><DialogTitle>发布公司通知</DialogTitle></DialogHeader>
+        <Input aria-label="通知标题" placeholder="通知标题" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <textarea aria-label="通知内容" className="min-h-36 rounded-md border p-3" value={summary} onChange={(e) => setSummary(e.target.value)} />
+        {error && <p role="alert" className="text-destructive">{error}</p>}
+        <Button disabled={busy || !title.trim()} onClick={async () => { setBusy(true); try { await client.upsert({ sourceId: 'mira', externalNoticeId: crypto.randomUUID(), title, summary, level: 'info' }); setRecords(await client.list()); setTitle(''); setSummary(''); setPublishing(false) } catch (e) { setError(e instanceof Error ? e.message : '发布失败') } finally { setBusy(false) } }}>确认发布</Button>
+      </DialogContent></Dialog>
+      {error && !publishing && <p role="alert" className="px-4 text-destructive">{error}</p>}
       <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-border/70 bg-white px-3">
         <Button variant="ghost" size="icon" className="size-7 rounded-md" aria-label="返回办公室" onClick={onBack}>
           <ArrowLeft className="size-4" />
         </Button>
         <h1 className="text-[14px] font-semibold tracking-[-0.01em]">通知中心</h1>
-        <span className="text-[11px] text-muted-foreground">公告由云端推送承接 · 已读状态保存在本机</span>
+        <span className="text-[11px] text-muted-foreground">{client.kind === 'oa-rest' ? '公司通知 · 已读状态同步到 Mira' : '演示通知'}</span>
         <div className="ml-auto flex items-center gap-2">
+          {canPublish && <Button size="sm" onClick={() => setPublishing(true)}>发布通知</Button>}
           {unread > 0 && <Badge variant="secondary" className="h-[19px] px-1.5 text-[10.5px]">{unread} 条未读</Badge>}
           <Button
             variant="outline"
             size="sm"
             className="h-[26px] gap-1 px-2 text-[11px]"
             disabled={unread === 0}
-            onClick={() => { void client.markAllRead(); setRead(new Set(records.map((r) => r.id))) }}
+            onClick={() => { void client.markAllRead().then(() => setRead(new Set(records.map((r) => r.id))), (e) => setError(e instanceof Error ? e.message : '标记失败')) }}
           >
             <CheckCheck className="size-3.5" />全部已读
           </Button>
@@ -72,9 +86,9 @@ export function NoticePage({ client, onBack }: NoticePageProps) {
             const meta = NOTICE_LEVEL_META[notice.level]
             const isUnread = !read.has(notice.id)
             return (
-              <button
+              <div
                 key={notice.id}
-                type="button"
+                role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') markOne(notice.id) }}
                 data-notice-id={notice.id}
                 onClick={() => markOne(notice.id)}
                 className={cn(
@@ -111,9 +125,10 @@ export function NoticePage({ client, onBack }: NoticePageProps) {
                       </span>
                     )}
                     <span className="ml-auto text-[10.5px] text-muted-foreground/80">{noticeTime(notice.occurredAt)}</span>
+                    {canPublish && notice.canDelete !== false && <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setError(''); setDeleteNotice(notice) }}>删除</Button>}
                   </span>
                 </span>
-              </button>
+              </div>
             )
           })}
         </div>

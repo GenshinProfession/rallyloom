@@ -1,3 +1,5 @@
+正式工作区协作接口、能力、对象范围与验收先读 [OA 协作契约](oa-collaboration.md)。目录事件推送是另一条可选链路，不能替代正式 OA API。
+
 # Rallyloom 接入 Skill 包（agent-skill/）· v1.8
 
 企业可以用这个包规划自托管接入、工作区授权与多租户划分，也可以交给开发者或 AI Agent 为已有 OA 部署编写源系统适配器。
@@ -45,8 +47,7 @@ v1.6 新增 §11 提供方自渲染登录页的 Referrer-Policy/Origin 坑与 `r
 ## 启动源系统推送前的准备
 
 1. 向 Rallyloom 超管登记你的 `source_id`（如 `crm`），领取**承接令牌**与 `INGEST_URL`。
-2. 确认组→角色的映射意图（如 `crm-admin → admin`），把它配在 Rallyloom
-   「团队管理 → 接入管理」的组映射里——这是配置，不是代码。
+2. 确认组→角色的映射意图（如 `crm-admin → admin`），把它配在企业提供方的角色映射里——这是配置，不是代码。
 
 ## 验收
 

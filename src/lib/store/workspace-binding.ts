@@ -32,6 +32,8 @@ export interface WorkspaceBridge {
   manageMember(memberId: string, action: MemberAction): Promise<WorkspaceResult<JoinedWorkspace>>
   saveRoleSettings(values: Record<string, string>): Promise<WorkspaceResult<JoinedWorkspace>>
   saveOfficeLayout(layout: LayoutState): Promise<WorkspaceResult<JoinedWorkspace>>
+  saveRoomSlot(roomId: string, enabled: boolean): Promise<WorkspaceResult<JoinedWorkspace>>
+  oa(method: string, path: string, body?: unknown, tenant?: string): Promise<WorkspaceResult<unknown>>
   slot(roomId: string): Promise<WorkspaceResult<SlotRow[]>>
   cancel(): Promise<WorkspaceResult<void>>
   logout(): Promise<WorkspaceResult<void>>

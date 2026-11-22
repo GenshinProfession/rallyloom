@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('rallyloom', {
     manageMember: (memberId, action) => ipcRenderer.invoke('workspace:manageMember', memberId, action),
     saveRoleSettings: (values) => ipcRenderer.invoke('workspace:saveRoleSettings', values),
     saveOfficeLayout: (layout) => ipcRenderer.invoke('workspace:saveOfficeLayout', layout),
+    saveRoomSlot: (roomId, enabled) => ipcRenderer.invoke('workspace:saveRoomSlot', roomId, enabled),
+    oa: (method, path, body, tenant) => ipcRenderer.invoke('workspace:oa', method, path, body, tenant),
     slot: (roomId) => ipcRenderer.invoke('workspace:slot', roomId),
     cancel: () => ipcRenderer.invoke('workspace:cancel'),
     logout: () => ipcRenderer.invoke('workspace:logout'),

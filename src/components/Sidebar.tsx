@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils'
 import { WorkspaceSearch, type WorkspaceSearchItem } from './WorkspaceSearch'
 import './sidebar.css'
 
-type Page = 'office' | 'chat' | 'tasks' | 'docs' | 'notify' | 'team'
+type Page = 'office' | 'chat' | 'tasks' | 'docs' | 'notify' | 'team' | 'reports'
 
 export function Sidebar({
   me,
@@ -26,6 +26,7 @@ export function Sidebar({
   chatVisible,
   tasksVisible,
   docsVisible,
+  reportsVisible,
   searchItems,
   onSearchSelect,
   onNavigate,
@@ -42,6 +43,7 @@ export function Sidebar({
   chatVisible: boolean
   tasksVisible: boolean
   docsVisible: boolean
+  reportsVisible?: boolean
   searchItems: readonly WorkspaceSearchItem[]
   onSearchSelect: (item: WorkspaceSearchItem) => void
   onNavigate: (page: Page, pointer: boolean) => void
@@ -139,6 +141,7 @@ export function Sidebar({
               <span className="sidebar-copy" aria-hidden={collapsed || undefined}>任务看板</span>
             </button>
           )}
+          {reportsVisible && <button type="button" className={nav('reports')} title="工作汇报" aria-label="工作汇报" data-nav="reports" onClick={(event) => onNavigate('reports', event.detail > 0)}><ClipboardList className="size-[15px] shrink-0" /><span className="sidebar-copy" aria-hidden={collapsed || undefined}>工作汇报</span></button>}
           {docsVisible && (
             <button type="button" className={nav('docs')} title="文档中心" aria-label="文档中心" aria-current={page === 'docs' ? 'page' : undefined} data-nav="docs" onClick={(event) => onNavigate('docs', event.detail > 0)}>
               <FileText className="size-[15px] shrink-0" strokeWidth={1.65} />

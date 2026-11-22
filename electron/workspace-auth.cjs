@@ -67,7 +67,7 @@ async function fetchJson(url, options = {}) {
     throw new WorkspaceError('NETWORK', '无法连接工作区服务，请检查地址或网络。')
   }
   if (response.status === 401) throw new WorkspaceError('AUTH_REQUIRED', '登录已失效，请重新授权。')
-  if (response.status === 409) throw new WorkspaceError('CONFLICT', '办公室已由其他人发布，请刷新后再编排。')
+  if (response.status === 409) throw new WorkspaceError('CONFLICT', '内容已由其他人更新，请刷新后重试。')
   if (response.status === 400) {
     const data = await response.json().catch(() => null)
     if (typeof data?.error === 'string' && data.error.length <= 200)
@@ -242,7 +242,7 @@ function validateBootstrap(raw, binding, log) {
         roleId: member.roleId ?? member.role,
         roleName: member.roleName ?? member.role,
         memberActions: raw.permissions.includes('members.role') ? member.memberActions : undefined,
-      })), policy: raw.policy, layout: { ...layout, assignments }, dataSlots,
+      })), collaboration: raw.collaboration, policy: raw.policy, layout: { ...layout, assignments }, dataSlots,
       datasource: { kind: 'oa-rest', baseUrl: binding.baseUrl, apiVersion: 'v1', region: '', useLoginToken: true },
     },
   }
@@ -693,6 +693,37 @@ function registerWorkspaceAuth(getWindow, log) {
       body: JSON.stringify(layout),
     })
   }))
+  handle('saveRoomSlot', (roomId, enabled) => withFlow(async (signal) => {
+    const current = session
+    if (!current) throw new WorkspaceError('AUTH_REQUIRED', '登录已失效，请重新授权。')
+    if (!validId(roomId) || !/^[a-zA-Z0-9_-]+$/.test(roomId) || typeof enabled !== 'boolean') throw new WorkspaceError('INVALID_REQUEST', '房间看板配置无效。')
+    const slot = enabled ? { kind: 'external-api', name: 'Mira 工作概览', url: `${current.binding.baseUrl}${API}/data-slots/${roomId}`, refreshSec: 60 } : null
+    return bootstrap(current, signal, `/rooms/${roomId}/slot`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slot }) })
+  }))
+  // Constrained same-origin collaboration transport. Access/refresh tokens never enter the renderer.
+  handle('oa', async (method, endpoint, body, tenant) => {
+    const current=session
+    if(!current)throw new WorkspaceError('AUTH_REQUIRED','登录已失效，请重新授权。')
+    if(!['GET','POST','PATCH','PUT','DELETE'].includes(method) || typeof endpoint!=='string' || endpoint.length>1000 ||
+       !/^\/oa\/[a-zA-Z0-9_/?=&%.-]+$/.test(endpoint) || endpoint.includes('..') || (tenant!==undefined && !/^(company|[0-9]+)$/.test(tenant)))
+      throw new WorkspaceError('INVALID_REQUEST','协作请求无效。')
+    const access=await currentAccess(current)
+    const url=`${current.binding.baseUrl}${API}${endpoint}`
+    const headers={Accept:'application/json',Authorization:`Bearer ${access}`}
+    if(tenant!==undefined)headers['X-Rallyloom-Tenant']=tenant
+    if(body!==undefined)headers['Content-Type']='application/json'
+    if(endpoint.startsWith('/oa/chat/attachments/')){
+      if(method!=='GET')throw new WorkspaceError('INVALID_REQUEST','附件请求无效。')
+      const response=await fetch(url,{headers,redirect:'error',signal:AbortSignal.timeout(15000)})
+      if(!response.ok)throw new WorkspaceError('FORBIDDEN','附件不存在或无权下载。')
+      const bytes=Buffer.from(await response.arrayBuffer())
+      if(session!==current)throw new WorkspaceError('CANCELLED','登录状态已切换。')
+      return {base64:bytes.toString('base64')}
+    }
+    const value=await fetchJson(url,{method,headers,body:body===undefined?undefined:JSON.stringify(body)})
+    if(session!==current)throw new WorkspaceError('CANCELLED','登录状态已切换。')
+    return value
+  })
   handle('slot', async (roomId) => {
     const current = session
     if (!current) throw new WorkspaceError('AUTH_REQUIRED', '登录已失效，请重新授权。')

@@ -1,7 +1,7 @@
 /* 通知中心 — 契约类型
    与交流室/任务看板同构：Rallyloom 只承接与展示，公告数据由云端/外部系统
    按《接入规范》`notice.push` / `notice.remove` 推送（agent-skill v1.3）。
-   已读状态是纯客户端本地态，永不回写、永不被推送重置。 */
+   正式已读保存在提供方，演示已读保存在本机。 */
 
 export type NoticeLevel = 'info' | 'warning' | 'urgent'
 
@@ -13,6 +13,8 @@ export const NOTICE_LEVEL_META: Record<NoticeLevel, { label: string; dot: string
 
 /** 一条公告/通知（外部推送或本地发布）。「存储数据库格式」= 本记录 + source 幂等锚点 */
 export interface NoticeRecord {
+  isRead?: boolean
+  canDelete?: boolean
   id: string
   /** 幂等锚点：source_id + external_notice_id 重推原地刷新 */
   sourceId: string

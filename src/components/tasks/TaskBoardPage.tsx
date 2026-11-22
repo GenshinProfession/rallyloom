@@ -19,6 +19,8 @@ import {
   type DragMoveEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
+import { TaskDetails } from './TaskDetails'
+import { TaskBoardSettings } from './TaskBoardSettings'
 import { createPortal } from 'react-dom'
 import { Plus, SquareKanban, Table2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -31,7 +33,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import type { Member } from '@/data/office'
+import type { Member as OfficeMember } from '@/data/office'
+type Member = Pick<OfficeMember, 'id' | 'name' | 'role' | 'body'>
 import type { TaskClient, TaskPatch, TaskPosition, TaskPriority, TaskRecord, TaskStatus, TaskBoardDefinition } from '@/lib/tasks/types'
 import { attrColumns, canMoveTask, taskStatus, validateBoard, TASK_PRIORITIES, TASK_PRIORITY_META } from '@/lib/tasks/types'
 
@@ -100,8 +103,8 @@ function TaskCardInner({ task, member, dragging, sortable, board }: { board: Tas
   )
 }
 
-function SortableTaskCard({ task, member, board }: { board: TaskBoardDefinition; task: TaskRecord; member?: Member }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id })
+function SortableTaskCard({ task, member, board, onOpen }: { onOpen: (task: TaskRecord) => void; board: TaskBoardDefinition; task: TaskRecord; member?: Member }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id, disabled: task.canEdit === false })
   const row = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
   const previousTop = useRef<number | null>(null)
@@ -128,13 +131,13 @@ function SortableTaskCard({ task, member, board }: { board: TaskBoardDefinition;
 
   return (
     <div ref={attach} {...attributes} {...listeners} data-task-row={task.id} data-drag-source={isDragging || undefined}
-      aria-label={task.title} className={cn('shrink-0 touch-none rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring', isDragging && 'pointer-events-none invisible absolute inset-x-0')}>
+      onClick={() => { if (!isDragging) onOpen(task) }} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(task) }} aria-label={task.title} className={cn('shrink-0 touch-none rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring', isDragging && 'pointer-events-none invisible absolute inset-x-0')}>
       <div ref={content}><TaskCardInner task={task} member={member} board={board} sortable /></div>
     </div>
   )
 }
 
-type BoardDrag = { left: number; top: number; id: string; height: number; width?: number; position: TaskPosition | null }
+type BoardDrag = { revision?: number; left: number; top: number; id: string; height: number; width?: number; position: TaskPosition | null }
 
 const boardCollision: CollisionDetection = ({ pointerCoordinates, droppableContainers }) => {
   if (!pointerCoordinates) return []
@@ -171,7 +174,9 @@ function BoardColumn({
   members,
   drag,
   board,
+  onOpen,
 }: {
+  onOpen: (task: TaskRecord) => void
   board: TaskBoardDefinition
   status: TaskStatus
   tasks: readonly TaskRecord[]
@@ -199,7 +204,7 @@ function BoardColumn({
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-0.5 pb-1">
         {tasks.flatMap((task) => {
-          const card = <SortableTaskCard board={board} key={task.id} task={task} member={members.find((m) => m.id === task.assigneeId)} />
+          const card = <SortableTaskCard onOpen={onOpen} board={board} key={task.id} task={task} member={members.find((m) => m.id === task.assigneeId)} />
           return task.id === target?.beforeId ? [placeholder, card] : [card]
         })}
         {target?.beforeId === null && placeholder}
@@ -229,6 +234,7 @@ function NewTaskDialog({
   const [title, setTitle] = useState('')
   const [assigneeId, setAssigneeId] = useState<string>('')
   const [status, setStatus] = useState<TaskStatus>(board.defaultStatus)
+  useEffect(() => { if (open) setStatus(board.defaultStatus) }, [open, board.defaultStatus])
   const [priority, setPriority] = useState<string>('P2')
   const [dueDate, setDueDate] = useState<string>('')
   const [attrs, setAttrs] = useState<Record<string, string>>({})
@@ -328,18 +334,20 @@ function NewTaskDialog({
   )
 }
 
-export function TaskBoardPage({ members, client }: { members: readonly Member[]; client: TaskClient }) {
+export function TaskBoardPage({ members, client, scopes, scope, onScope, canConfigure }: { members: readonly Member[]; client: TaskClient; scopes?: { id: string; label: string }[]; scope?: string; onScope?: (scope: string) => void; canConfigure?: boolean }) {
   const board = validateBoard(client.board)
   const [savingMove, setSavingMove] = useState(false)
   const [tasks, setTasks] = useState<readonly TaskRecord[] | null>(null)
   const [view, setView] = useState<'board' | 'table'>('board')
+  const [selectedTask, setSelectedTask] = useState<TaskRecord | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [newOpen, setNewOpen] = useState(false)
   const [activeDrag, setActiveDrag] = useState<BoardDrag | null>(null)
   const [moveError, setMoveError] = useState('')
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const refresh = useCallback(async () => {
-    setTasks(await client.list())
+    try { setTasks(await client.list()); setMoveError('') } catch (e) { setMoveError(e instanceof Error ? e.message : '任务加载失败') }
   }, [client])
 
   useEffect(() => {
@@ -367,7 +375,7 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
     const origin = activatorEvent.target instanceof Element ? activatorEvent.target.closest('[data-task-row]') : null
     const rect = active.rect.current.initial ?? origin?.getBoundingClientRect()
     setMoveError('')
-    setActiveDrag({ left: rect?.left ?? 0, top: rect?.top ?? 0, id: task.id, height: rect?.height ?? 86, width: rect?.width,
+    setActiveDrag({ revision: task.revision, left: rect?.left ?? 0, top: rect?.top ?? 0, id: task.id, height: rect?.height ?? 86, width: rect?.width,
       position: { status: task.status, beforeId: column[column.indexOf(task) + 1]?.id ?? null } })
   }
 
@@ -394,7 +402,7 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
     reordered.splice(index < 0 ? reordered.length : index, 0, { ...task, status: position.status })
     setTasks(reordered)
     setSavingMove(true)
-    void client.move(String(event.active.id), position).then(setTasks, (error: unknown) => {
+    void client.move(String(event.active.id), { ...position, revision: activeDrag?.revision }).then(setTasks, (error: unknown) => {
       setTasks(previous)
       setMoveError(error instanceof Error ? error.message : '任务移动失败，请重试。')
     }).finally(() => setSavingMove(false))
@@ -415,6 +423,10 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
           {client.label}
         </span>
         <div className="ml-auto flex shrink-0 items-center gap-2.5">
+          {scopes && scopes.length > 1 && <Select value={scope} onValueChange={onScope}><SelectTrigger aria-label="公司任务范围" className="h-8 w-44"><SelectValue /></SelectTrigger><SelectContent>{scopes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select>}
+          <Button variant="ghost" size="sm" onClick={() => void refresh()}>刷新</Button>
+          {canConfigure && client.configure && tasks && <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>看板设置</Button>}
+
           <Tabs value={view} onValueChange={(v) => setView(v as 'board' | 'table')}>
             <TabsList className="h-[26px] p-[2px]">
               <TabsTrigger value="board" className="h-[22px] gap-1 px-2 text-ui-label">
@@ -425,7 +437,7 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button size="sm" className="h-7 text-ui-label" onClick={() => setNewOpen(true)}>
+          <Button size="sm" className="h-7 text-ui-label" disabled={tasks === null} onClick={() => setNewOpen(true)}>
             <Plus className="size-3.5" strokeWidth={2} />新建任务
           </Button>
         </div>
@@ -440,7 +452,7 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
             onDragEnd={onDragEnd} onDragCancel={() => setActiveDrag(null)}>
             <div data-tasks="lanes" className="grid min-h-full w-full gap-2.5" style={{ gridTemplateColumns: `repeat(${byStatus.size}, minmax(220px,1fr))` }}>
               {[...byStatus.keys()].map((s) => (
-                <BoardColumn board={board} key={s} status={s} tasks={byStatus.get(s) ?? []} members={members} drag={activeDrag} />
+                <BoardColumn onOpen={setSelectedTask} board={board} key={s} status={s} tasks={byStatus.get(s) ?? []} members={members} drag={activeDrag} />
               ))}
             </div>
             {createPortal(<DragOverlay dropAnimation={null} adjustScale={false} style={{ left: activeDrag?.left, top: activeDrag?.top }}>
@@ -508,6 +520,8 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
         )}
       </div>
 
+      {selectedTask && <TaskDetails task={selectedTask} board={board} client={client} close={() => setSelectedTask(null)} refresh={refresh} />}
+      {settingsOpen && client.configure && <TaskBoardSettings board={board} close={() => setSettingsOpen(false)} save={async (value) => { await client.configure!(value); await refresh() }} />}
       <NewTaskDialog board={board} open={newOpen} onOpenChange={setNewOpen} members={members} onCreate={(patch) => client.create(patch)} />
     </main>
   )

@@ -16,6 +16,9 @@ export interface DocAttachment {
 }
 
 export interface DocRecord {
+  revision?: number
+  canEdit?: boolean
+  canDelete?: boolean
   id: string
   /** 幂等锚点：source_id + external_doc_id 重推原地刷新 */
   sourceId: string
@@ -53,7 +56,7 @@ export interface DocClient {
 export type DocDraft = Pick<
   DocRecord,
   'title' | 'space' | 'folderPath' | 'format' | 'content' | 'url' | 'attachments'
->
+> & { revision?: number }
 
 export function documentUrl(value: string | undefined) {
   try {
@@ -86,4 +89,10 @@ export function fileSize(bytes: number): string {
   const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)))
   const value = bytes / 1024 ** index
   return `${value >= 10 || index === 0 ? Math.round(value) : value.toFixed(1)} ${units[index]}`
+}
+
+/** Attachments are downloads, never executable navigation URLs. */
+export function attachmentUrl(value: string) {
+  if (/^data:[a-zA-Z0-9.+/-]+;base64,[a-zA-Z0-9+/=\r\n]+$/.test(value)) return value
+  return documentUrl(value)
 }

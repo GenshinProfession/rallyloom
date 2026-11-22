@@ -130,7 +130,7 @@ payload 见 `schemas/task-upsert.schema.json` / `schemas/task-remove.schema.json
 
 `fields` 决定自定义字段的顺序、名称、类型、必填项和选项；`attrs` 按字段 id 传值（string）。字段表单与表格列使用此定义，空数据也能显示字段。核心标题、负责人、截止日保留为通用字段。拖拽提交 `TaskPosition { status, beforeId }`，接入方原子更新状态与顺序并返回权威列表；失败须回滚并显示错误。推送与编辑冲突由服务端版本控制，不能默认以本机状态覆盖企业状态。
 
-**运行边界**：当前正式账号尚未启用任务源，App 仅装配 DemoTaskClient；这份定义是客户端适配器契约，不代表已上线 `/tasks` 或任务配置接口。接入方上线时必须实现 schema 读取、任务增删改、排序、鉴权及订阅，并向 TaskClient 注入同一份 board。演示源的四列与字段只属于演示公司。
+**正式运行**：Rallyloom 0.12 通过企业协作 REST 接口读取状态定义和业务数据，见 [OA 协作契约](oa-collaboration.md)。企业决定角色与数据范围；不提供某功能时不授予其能力。演示源的四列只属于演示公司。
 
 ### 4.7 `notice.push` / `notice.remove`（通知中心，v1.3）
 payload 见 `schemas/notice-push.schema.json` / `schemas/notice-remove.schema.json`。语义：**通知中心是 Rallyloom 系统内置板块，但公告数据由外部系统推送**——横幅挂在办公室顶部流动展示，通知中心页展示全量与未读；已读状态是员工本机状态，永不回写源系统。

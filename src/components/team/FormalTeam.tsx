@@ -5,7 +5,8 @@ import { PRESENCE_META } from '@/data/office'
 import type { ProviderRoleSettings, TeamMember } from '@/lib/identity/types'
 import type { MemberAction } from '@/lib/store/workspace-binding'
 
-export function FormalTeam({ members, onManage, roleSettings, onSaveSettings }: {
+export function FormalTeam({ members, onManage, roleSettings, onSaveSettings, tools }: {
+  tools?: import('react').ReactNode
   members: TeamMember[]
   onManage?: (id: string, action: MemberAction) => Promise<void>
   roleSettings?: ProviderRoleSettings
@@ -66,6 +67,7 @@ export function FormalTeam({ members, onManage, roleSettings, onSaveSettings }: 
           <Search size={14} aria-hidden="true" />
           <input type="search" aria-label="搜索团队成员" placeholder="搜索姓名、公司或角色" className="w-36 min-w-0 bg-transparent text-ui-body text-foreground outline-none" value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
+        {tools}
         {roleSettings && onSaveSettings && !draftSettings && <button type="button" className="rounded-md border px-3 py-1.5 text-sm" disabled={busy || !!removeTarget}
           onClick={() => {
             setError('')

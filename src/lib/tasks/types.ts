@@ -42,6 +42,10 @@ export const TASK_PRIORITY_META: Record<TaskPriority, { label: string; chip: str
 }
 
 export interface TaskRecord {
+  revision?: number
+  canEdit?: boolean
+  canDelete?: boolean
+  canManage?: boolean
   /** Rallyloom 侧任务 ID（seed/demo 生成） */
   id: string
   /** 来源系统注册 ID（本地新建为 'rallyloom'） */
@@ -70,6 +74,7 @@ export interface TaskRecord {
 }
 
 export interface TaskPatch {
+  revision?: number
   title?: string
   status?: TaskStatus
   priority?: TaskPriority | null
@@ -84,6 +89,7 @@ export interface TaskPatch {
 }
 
 export interface TaskPosition {
+  revision?: number
   status: TaskStatus
   /** Insert before this task, or append to the status column when null. */
   beforeId: string | null
@@ -94,6 +100,7 @@ export interface TaskClient {
   label: string
   /** Provider configuration; changes notify subscribers. No client-side business-state defaults. */
   board: TaskBoardDefinition
+  configure?(board: TaskBoardDefinition): Promise<void>
   /** 全量拉取（承接端语义：read path 走存储层后端） */
   list(): Promise<TaskRecord[]>
   create(patch: TaskPatch): Promise<TaskRecord>

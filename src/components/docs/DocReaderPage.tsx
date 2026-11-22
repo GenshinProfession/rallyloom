@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { docTime, documentUrl, fileSize, type DocRecord } from '@/lib/docs/types'
+import { attachmentUrl, docTime, documentUrl, fileSize, type DocRecord } from '@/lib/docs/types'
 import { docHtml, textStats } from '@/lib/docs/format'
 import { attachmentKind } from './editor/attachment-node'
 import { docExtensions } from './editor/extensions'
@@ -150,7 +150,7 @@ export function DocReaderPage({ doc, canEdit, onEdit, onDelete, onBack }: DocRea
                         <span className="doc-attach-name" title={file.name}>{file.name}</span>
                         <span className="doc-attach-meta">{kind.label} · {fileSize(file.size)}</span>
                       </span>
-                      <a className="doc-attach-action ui-press" href={file.url} download={file.name}>
+                      <a className="doc-attach-action ui-press" href={attachmentUrl(file.url) ?? undefined} download={file.name}>
                         <Download className="size-3.5" strokeWidth={1.7} /> 下载
                       </a>
                     </li>
