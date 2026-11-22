@@ -59,17 +59,14 @@
 .entry-form button:focus-visible { outline: 2px solid #64826b; outline-offset: 2px; box-shadow: none; }
 
 .entry-binding { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; border: 1px solid var(--entry-line); border-radius: 8px; background: #ffffff08; }
-.entry-binding-icon { display: grid; width: 32px; height: 32px; flex: none; place-items: center; border-radius: 6px; background: #b7d1bf18; color: #b3cdbb; }
-.entry-binding > div { flex: 1; min-width: 0; }
+
+.entry-binding-text { display: grid; gap: 3px; flex: 1; min-width: 0; text-align: left; }
 .entry-binding :is(strong, small), .entry-issuer bdi { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .entry-binding strong { font-size: 13px; font-weight: 620; }
 .entry-binding small, .entry-issuer { color: var(--entry-muted); font-size: 11px; }
 .entry-connected { display: inline-flex; flex: none; align-items: center; gap: 4px; color: #b3d9be; font-size: 11px; white-space: nowrap; }
 .entry-issuer { display: flex; align-items: baseline; gap: 9px; margin: 0 0 14px; }
 .entry-issuer > span { flex: none; }
-.entry-inline-actions { display: flex; flex-wrap: wrap; gap: 8px 14px; }
-.entry-inline-actions button, .entry-cancel { margin-top: 11px; border-radius: 3px; color: var(--entry-muted); font-size: 12px; }
-.entry-inline-actions button:hover, .entry-cancel:hover { color: var(--entry-ink); text-decoration: underline; text-underline-offset: 3px; }
 .entry-error { display: flex; align-items: flex-start; gap: 7px; margin-top: 12px; padding: 8px 10px; overflow-wrap: anywhere; border: 1px solid #ead3cc; border-radius: 7px; background: #fbf1ed; color: #883e32; font-size: 12px; line-height: 1.5; }
 .entry-error svg { margin-top: 1px; flex: none; }
 
@@ -81,12 +78,7 @@
 .entry-demo-open svg, .entry-demo-role svg { color: #acc0b3; }
 .entry-demo-open small { margin-inline-start: auto; color: var(--entry-muted); font-size: 11px; font-weight: 430; }
 .entry-demo-actions .entry-demo-role { z-index: 1; padding: 0; margin-left: -1px; border-radius: 0 8px 8px 0; }
-.entry-demo-role[aria-expanded="true"] svg { rotate: 180deg; }
-.entry-roles { display: grid; gap: 10px; margin-top: 10px; padding: 11px; border: 1px solid var(--entry-line); border-radius: 8px; }
-.entry-roles h2 { margin-bottom: 5px; color: var(--entry-muted); font-size: 11px; font-weight: 640; }
-.entry-roles ul { display: flex; flex-wrap: wrap; gap: 5px; }
-.entry-roles button { border: 1px solid #ffffff24; border-radius: 5px; padding: 4px 7px; background: #ffffff08; color: #e0eae2; font-size: 11px; }
-.entry-roles button:hover { background: #ffffff16; }
+.entry-demo-role[data-state="open"] svg { rotate: 180deg; }
 
 /* 等待企业授权时的兜底：手动回填 rallyloom://callback 地址 */
 .entry-manual {
@@ -131,10 +123,6 @@
   color: #dc2626;
 }
 
-.entry-role-reveal { display: grid; grid-template-rows: 0fr; max-height: 0; overflow: hidden; opacity: 0; visibility: hidden; }
-.entry-role-reveal[data-open="true"] { grid-template-rows: 1fr; max-height: 360px; overflow-y: auto; opacity: 1; visibility: visible; }
-.entry-roles { min-height: 0; overflow: hidden; margin: 0; padding: 0; border: 0; }
-.entry-role-reveal[data-open="true"] .entry-roles { margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--entry-line); }
 .workspace-entry button:active:not(:disabled) { transform: scale(.985); }
 .workspace-entry button, .workspace-entry input { transition: background-color var(--motion-feedback) ease, border-color var(--motion-feedback) ease, transform var(--motion-feedback) var(--ease-out); }
 .entry-primary svg { transition: transform var(--motion-control) var(--ease-out); }
@@ -143,7 +131,6 @@
 @keyframes entry-arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: no-preference) {
   .entry-form { animation: entry-arrive var(--motion-panel) var(--ease-out); }
-  .entry-role-reveal { transition: grid-template-rows var(--motion-panel) var(--ease-out), opacity var(--motion-control) ease, visibility var(--motion-panel); }
   .entry-demo-role svg { transition: rotate var(--motion-control) var(--ease-out); }
   .entry-manual, .entry-error { animation: entry-arrive var(--motion-panel) var(--ease-out); }
 }
@@ -157,4 +144,24 @@
   .workspace-entry { padding: 20px 14px; }
   .entry-form { padding: 26px 23px; }
   .entry-content { margin-top: 30px; }
+}
+
+.entry-binding { padding: 14px; gap: 12px; }
+.entry-binding-monogram { width: 36px; height: 36px; display: grid; place-items: center; flex: none; border: 1px solid #ffffff18; border-radius: 10px; background: #a5c8b712; color: #d8e9de; font-size: 18px; font-weight: 550; }
+.entry-binding-trigger { width: 100%; cursor: pointer; text-align: left; }
+.entry-binding-trigger:hover, .entry-binding-trigger[data-state="open"] { background: #ffffff0e; border-color: #ffffff40; }
+.entry-binding-actions { display: inline-flex; align-items: center; gap: 11px; flex: none; margin-left: 5px; color: #a8bcb0; }
+.entry-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #88bb97; box-shadow: 0 0 0 3px #88bb9710; }
+.entry-flyout { --popover: #172820; --popover-foreground: #e2ece6; --accent: #25382e; --accent-foreground: #f0f6f2; --border: #ffffff24; padding: 5px; border-radius: 10px; background: #172820; color: #e2ece6; border: 1px solid #ffffff24; box-shadow: 0 14px 40px #0006; }
+.entry-workspace-menu { min-width: 184px; }
+.entry-flyout [role="menuitem"] { padding: 9px 11px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.entry-flyout [role="menuitem"]:focus, .entry-flyout [role="menuitem"][data-highlighted] { background: #ffffff0c; color: #f0f6f2; }
+.entry-flyout [role="menuitem"] svg { color: #9fb7a9; width: 14px; height: 14px; }
+.entry-demo-menu { width: min(310px, calc(100vw - 32px)); }
+.entry-demo-menu [role="group"] + [role="group"] { padding-top: 5px; margin-top: 5px; border-top: 1px solid #ffffff12; }
+.entry-demo-menu [role="group"] > div:first-child { font-size: 11px; color: #a6b9ad; padding: 7px 11px 4px; font-weight: 500; }
+.entry-binding-actions svg { transition: rotate var(--motion-control) var(--ease-out); }
+.entry-binding-trigger[data-state="open"] .entry-binding-actions svg { rotate: 180deg; }
+@media (prefers-reduced-motion: reduce) {
+  .entry-flyout, .entry-flyout *, .entry-binding-actions svg { animation: none !important; transition: none !important; }
 }

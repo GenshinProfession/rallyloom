@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { ArrowLeft, ArrowRight, Building2, Check, ChevronDown, CircleAlert, ExternalLink, Globe2, LayoutGrid } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ArrowLeftRight, Check, ChevronDown, CircleAlert, ExternalLink, Globe2, LayoutGrid, Unlink } from 'lucide-react'
 import loginBackground from '@/assets/login-forest-silk.webp'
 import { Logo } from '@/components/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { CONNECTORS } from '@/lib/identity/connector'
 import type { IdentityConnector } from '@/lib/identity/types'
 import { demoTenantName } from '@/lib/store/client'
@@ -43,7 +44,6 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
   const [busy, setBusy] = useState<Busy>(null)
   const [address, setAddress] = useState('')
   const [error, setError] = useState(entryError ?? '')
-  const [chooseRole, setChooseRole] = useState(false)
   const [manualUrl, setManualUrl] = useState('')
   const [manualError, setManualError] = useState('')
   const request = useRef<AbortController | null>(null)
@@ -186,10 +186,25 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
               {stage === 'home' && (
                 <>
                   <p className="entry-lead">{saved ? '使用公司账号进入已绑定的工作区。' : '连接公司的 OA 服务，用企业账号登录。'}</p>
-                  {saved && <div className="entry-binding">
-                    <span className="entry-binding-icon"><Building2 size={18} aria-hidden /></span>
-                    <div><strong>{saved.display_name}</strong><small title={saved.baseUrl}>{saved.baseUrl}</small></div>
-                  </div>}
+                  {saved && <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button type="button" className="entry-binding entry-binding-trigger" aria-label="管理工作区" disabled={!!busy}>
+                        <span className="entry-binding-monogram" aria-hidden>{saved.display_name.trim().slice(0, 1).toLocaleUpperCase()}</span>
+                        <span className="entry-binding-text"><strong>{saved.display_name}</strong><small title={saved.baseUrl}>{saved.baseUrl}</small></span>
+                        <span className="entry-binding-actions"><i className="entry-status-dot" title="已绑定工作区" /><ChevronDown size={15} aria-hidden /></span>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="entry-flyout entry-workspace-menu" align="end" sideOffset={7}
+                      onCloseAutoFocus={(event) => { if (previousStage.current === 'address') event.preventDefault() }}>
+                      <DropdownMenuItem onSelect={() => { setAddress(saved.baseUrl); setError(''); changeStage('address') }}>
+                        <ArrowLeftRight aria-hidden />切换工作区
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => void run('detect', async (signal) => {
+                        workspaceValue(await bridge!.forget())
+                        if (!signal.aborted) { setSaved(null); setAddress(''); setCandidate(null) }
+                      })}><Unlink aria-hidden />解绑工作区</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>}
                   <Button type="button" data-entry-main className="entry-primary" disabled={!!busy || !bridge} onClick={() => {
                     if (saved) resume()
                     else { setError(''); changeStage('address') }
@@ -197,13 +212,6 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
                     {busy === 'resume' ? '正在验证工作区…' : saved ? '进入公司工作区' : '绑定公司工作区'}
                     {busy !== 'resume' && <ArrowRight aria-hidden />}
                   </Button>
-                  {saved && <div className="entry-inline-actions">
-                    <button type="button" disabled={!!busy} onClick={() => { setAddress(saved.baseUrl); setError(''); changeStage('address') }}>更换工作区</button>
-                    <button type="button" disabled={!!busy} onClick={() => void run('detect', async (signal) => {
-                      workspaceValue(await bridge!.forget())
-                      if (!signal.aborted) { setSaved(null); setAddress(''); setCandidate(null) }
-                    })}>解除本机绑定</button>
-                  </div>}
                   {!bridge && <p className="entry-help">正式授权请在 Rallyloom 桌面应用中打开。</p>}
                 </>
               )}
@@ -229,8 +237,8 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
                 <>
                   <p className="entry-lead">核对工作区后，在系统浏览器完成登录。</p>
                   <div className="entry-binding" data-verified-workspace>
-                    <span className="entry-binding-icon"><Building2 size={18} aria-hidden /></span>
-                    <div><strong>{candidate.display_name}</strong><small title={candidate.baseUrl}>{candidate.baseUrl}</small></div>
+                    <span className="entry-binding-monogram" aria-hidden>{candidate.display_name.trim().slice(0, 1).toLocaleUpperCase()}</span>
+                    <div className="entry-binding-text"><strong>{candidate.display_name}</strong><small title={candidate.baseUrl}>{candidate.baseUrl}</small></div>
                     <span className="entry-connected"><Check size={13} aria-hidden /> 服务可连接</span>
                   </div>
                   <p className="entry-issuer"><span>授权服务</span><bdi title={candidate.authorization.issuer}>{candidate.authorization.issuer}</bdi></p>
@@ -279,20 +287,19 @@ export function LoginScreen({ onEnter, onDemo, entryError }: {
                   <LayoutGrid aria-hidden /> <span>{busy === 'demo' ? '正在打开演示…' : '进入演示'}</span>
                   {busy !== 'demo' && <small>无需登录</small>}
                 </Button>
-                <Button type="button" variant="outline" className="entry-demo-role" aria-label="选择演示角色" title="选择演示角色"
-                  aria-expanded={chooseRole} aria-controls="entry-roles" disabled={busy === 'demo'} onClick={() => setChooseRole(!chooseRole)}><ChevronDown aria-hidden /></Button>
-              </div>
-              <div className="entry-role-reveal" data-open={chooseRole} inert={!chooseRole}>
-              <div className="entry-roles" id="entry-roles" aria-hidden={!chooseRole}>
-                {roleGroups.map((group) => (
-                  <section key={group.tenantId} aria-labelledby={`entry-role-${group.tenantId}`}>
-                    <h2 id={`entry-role-${group.tenantId}`} data-tenant={group.tenantId}>{group.label}</h2>
-                    <ul>{group.roles.map((role) => (
-                      <li key={role.id}><button type="button" className="ui-press" data-connector={role.id} disabled={busy === 'demo'} onClick={() => demo(role)}>{role.name.replace('演示 IdP · ', '')}</button></li>
-                    ))}</ul>
-                  </section>
-                ))}
-              </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="outline" className="entry-demo-role" aria-label="选择演示角色" title="选择演示角色"
+                      disabled={!!busy}><ChevronDown aria-hidden /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="entry-flyout entry-demo-menu" align="end" side="bottom" sideOffset={8}>
+                    {roleGroups.map((group) => <DropdownMenuGroup key={group.tenantId}>
+                      <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
+                      {group.roles.map((role) => <DropdownMenuItem key={role.id} data-connector={role.id}
+                        onSelect={() => demo(role)}>{role.name.replace('演示 IdP · ', '')}</DropdownMenuItem>)}
+                    </DropdownMenuGroup>)}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </aside>
           </div>
