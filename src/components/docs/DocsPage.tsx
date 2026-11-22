@@ -1,13 +1,8 @@
-/* 文档中心 — 容器页面
-   视图三态（全页面切换，不用弹窗）：
-   · list：左侧知识库树 + 右侧文档卡片列表
-   · read：全页面阅读器（TipTap 只读，附件/代码块/大纲）
-   · edit：全页面富文本编辑器（新建或编辑）
-   数据来自 DocClient（演示=本机 DemoDocClient；正式=云端 doc.upsert 推送承接）。 */
+/* Document tree stays mounted alongside the reader/editor; fullscreen only expands the right pane. */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  ChevronRight, ExternalLink, FilePlus2, FileText, Paperclip, Search,
+  ChevronRight, ExternalLink, FilePlus2, FileText, Paperclip, Search, Maximize2, Minimize2,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -70,11 +65,27 @@ export function DocsPage({ client }: DocsPageProps) {
   const [records, setRecords] = useState<DocRecord[]>([])
   const [load, setLoad] = useState<'loading' | 'ready' | 'error'>('loading')
   const [view, setView] = useState<ViewState>({ kind: 'list' })
+  const [fullscreen, setFullscreen] = useState(false)
+  const [editorEpoch, setEditorEpoch] = useState(0)
+  const [editorDirty, setEditorDirty] = useState(false)
+  const changeView = (next: ViewState) => {
+    if (editorDirty && !window.confirm('还有未保存的修改，确定离开吗？')) return false
+    setEditorDirty(false)
+    if (next.kind === 'edit') setEditorEpoch((epoch) => epoch + 1)
+    setView(next)
+    return true
+  }
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<DocRecord | null>(null)
   const [removing, setRemoving] = useState(false)
   const [removeError, setRemoveError] = useState('')
+
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setFullscreen(false) }
+    window.addEventListener('keydown', escape)
+    return () => window.removeEventListener('keydown', escape)
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -130,34 +141,6 @@ export function DocsPage({ client }: DocsPageProps) {
     } finally { setRemoving(false) }
   }
 
-  if (view.kind === 'edit') {
-    return (
-      <DocEditorPage
-        doc={view.doc}
-        records={records}
-        location={view.location}
-        onSave={save}
-        onCancel={() => setView(view.doc ? { kind: 'read', id: view.doc.id } : { kind: 'list' })}
-      />
-    )
-  }
-
-  if (view.kind === 'read' && current) {
-    return (
-      <>
-        <DocReaderPage
-          doc={current}
-          canEdit
-          onEdit={() => setView({ kind: 'edit', doc: current, location: documentPath(current) })}
-          onDelete={() => { setRemoveError(''); setDeleting(current) }}
-          onBack={() => setView({ kind: 'list' })}
-        />
-        {deleting && <DeleteDialog doc={deleting} removing={removing} error={removeError}
-          onClose={() => { if (!removing) setDeleting(null) }} onConfirm={() => void remove()} />}
-      </>
-    )
-  }
-
   return (
     <main data-docs="root" className="flex min-w-0 flex-1 flex-col bg-[#f4f4f6]">
       <header className="workspace-header border-b border-border/70 bg-white">
@@ -167,7 +150,7 @@ export function DocsPage({ client }: DocsPageProps) {
         </span>
         <Button size="sm" className="ml-auto h-7 text-ui-label" disabled={load !== 'ready'}
           data-doc-new="true"
-          onClick={() => setView({ kind: 'edit', doc: null, location: selected ? documentPath(selected) : [] })}>
+          onClick={() => changeView({ kind: 'edit', doc: null, location: selected ? documentPath(selected) : [] })}>
           <FilePlus2 /> 新建文档
         </Button>
       </header>
@@ -183,15 +166,27 @@ export function DocsPage({ client }: DocsPageProps) {
           </div>
           <ScrollArea className="min-h-0 flex-1 px-2 pb-2 [&>[data-radix-scroll-area-viewport]>div]:!block">
             <DocumentTree records={records} query={query} selected={selected}
-              onSelect={(id) => { setSelectedId(id); setView({ kind: 'read', id }) }} />
+              onSelect={(id) => { if (changeView({ kind: 'read', id })) setSelectedId(id) }} />
           </ScrollArea>
         </section>
 
-        <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/80 bg-white shadow-[0_1px_2px_rgba(17,18,22,0.03)]">
+        <section data-doc-pane data-fullscreen={fullscreen || undefined} className={fullscreen ? 'fixed inset-x-0 bottom-0 top-8 z-40 flex min-h-0 flex-col bg-white' : 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/80 bg-white'}>
+          <div className="flex shrink-0 items-center justify-between border-b px-3 py-1.5">
+            <span className="text-ui-label text-muted-foreground">{view.kind === 'edit' ? '编辑文档' : current ? '阅读文档' : '全部文档'}</span>
+            <Button variant="ghost" size="sm" aria-label={fullscreen ? '退出全屏' : '全屏文档'} aria-pressed={fullscreen} onClick={() => setFullscreen(!fullscreen)}>
+              {fullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}{fullscreen ? '退出全屏' : '全屏'}
+            </Button>
+          </div>
+          {view.kind === 'edit' ? <DocEditorPage key={`${view.doc?.id ?? 'new'}-${editorEpoch}`} doc={view.doc} records={records} location={view.location}
+            onDirtyChange={setEditorDirty} onSave={async (draft) => { await save(draft); setEditorDirty(false) }}
+            onCancel={() => { setEditorDirty(false); setView(view.doc ? { kind: 'read', id: view.doc.id } : { kind: 'list' }) }} />
+            : current ? <DocReaderPage doc={current} canEdit onEdit={() => changeView({ kind: 'edit', doc: current, location: documentPath(current) })}
+              onDelete={() => { setRemoveError(''); setDeleting(current) }} onBack={() => changeView({ kind: 'list' })} /> : <>
+
           <header className="doc-list-head">
             <span className="doc-list-title">全部文档</span>
             <span className="text-[11px] text-muted-foreground">{q ? `匹配 ${visibleSpaces.reduce((sum, [, docs]) => sum + docs.length, 0)} 篇` : `${records.length} 篇`}</span>
-            <span className="ml-auto text-[11px] text-muted-foreground">点击文档进入阅读页 · 支持富文本、代码块与任意附件</span>
+            <span className="ml-auto text-[11px] text-muted-foreground">点击左侧文档，可在右侧快速切换阅读</span>
           </header>
           <ScrollArea className="min-h-0 flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block">
             <div className="doc-list-body">
@@ -213,6 +208,7 @@ export function DocsPage({ client }: DocsPageProps) {
               ))}
             </div>
           </ScrollArea>
+          </>}
         </section>
       </div>
 

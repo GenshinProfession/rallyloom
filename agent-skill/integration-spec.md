@@ -118,7 +118,7 @@ payload 见 `schemas/task-upsert.schema.json` / `schemas/task-remove.schema.json
   "source_id": "crm",
   "external_task_id": "TK-2246",       // 必填：幂等锚点，重推原地刷新绝不产生重复任务
   "title": "华东大区线索分配规则调整",   // 必填：≤200 字
-  "status": "doing",                   // 可选：backlog|todo|doing|done（不给默认 todo）
+  "status": "doing",                   // 可选：企业定义的状态 id（省略使用企业 defaultStatus）
   "priority": "P1",                    // 可选：P0|P1|P2|P3（你自己的优先级模型请放 attrs 不映射）
   "assignee_id": "u-8899",            // 可选：负责人 external_user_id（挂头像；查无此人展示 assignee_name）
   "assignee_name": "顾远",             // 可选：兜底显示名
@@ -126,7 +126,11 @@ payload 见 `schemas/task-upsert.schema.json` / `schemas/task-remove.schema.json
   "attrs": { "渠道": "私域", "金额": "¥86,400" }  // 可选：自由键值 → 表格视图自动出列（多维字段本质）
 }
 ```
-硬规则与 §2/§4.5 同源：必填仅三元组；`attrs` 是表格视图的**动态列**（键=列名）；`assignee_id` 查无此人不报错；**禁止**在 `attrs` 里塞看板列语义（列是 Rallyloom 的 status，不归你）；任务作废必须发 `task.remove`，禁止清字段冒充删除。本地拖拽改的列/新建的任务归 Rallyloom 侧，你的重推不会覆盖本地状态位（与角色覆盖同哲学：**承接不重置**）。
+状态与字段由企业任务源定义，定义结构见 `schemas/task-board.schema.json`（客户端 `TaskClient.board`）。状态使用接入方原始 id；`defaultStatus` 必须存在，状态/字段 id 不得重复。`category` 仅用于进行中计数与截止提醒，不改变企业状态名称。`transitions` 缺省允许所有列，空数组不允许跨列；服务端仍必须逐次校验权限和流转。未识别的存量状态单独保留一列，禁止静默丢任务。
+
+`fields` 决定自定义字段的顺序、名称、类型、必填项和选项；`attrs` 按字段 id 传值（string）。字段表单与表格列使用此定义，空数据也能显示字段。核心标题、负责人、截止日保留为通用字段。拖拽提交 `TaskPosition { status, beforeId }`，接入方原子更新状态与顺序并返回权威列表；失败须回滚并显示错误。推送与编辑冲突由服务端版本控制，不能默认以本机状态覆盖企业状态。
+
+**运行边界**：当前正式账号尚未启用任务源，App 仅装配 DemoTaskClient；这份定义是客户端适配器契约，不代表已上线 `/tasks` 或任务配置接口。接入方上线时必须实现 schema 读取、任务增删改、排序、鉴权及订阅，并向 TaskClient 注入同一份 board。演示源的四列与字段只属于演示公司。
 
 ### 4.7 `notice.push` / `notice.remove`（通知中心，v1.3）
 payload 见 `schemas/notice-push.schema.json` / `schemas/notice-remove.schema.json`。语义：**通知中心是 Rallyloom 系统内置板块，但公告数据由外部系统推送**——横幅挂在办公室顶部流动展示，通知中心页展示全量与未读；已读状态是员工本机状态，永不回写源系统。
@@ -240,7 +244,7 @@ payload 见 `schemas/doc-upsert.schema.json` / `schemas/doc-remove.schema.json`�
 | 角色与权限 | 企业工作区提供方 | §6 与正式工作区契约 |
 | 房间 / 工位编排 | 企业工作区提供方保存和授权 | Rallyloom 提供编辑、预览及发布界面 |
 | 工作区动态（ACTIVITY） | 外部系统推送，Rallyloom 承接 | §4.5 `activity.push` |
-| 任务看板（多维表格） | 外部系统推送，Rallyloom 承接 | §4.6 `task.upsert` / `task.remove`；本地拖列/新建不被推送重置 |
+| 任务看板（多维表格） | 外部系统推送，Rallyloom 承接 | §4.6 `task.upsert` / `task.remove`；企业服务端确认状态、排序和权限 |
 | 通知中心（公告横幅） | 外部系统推送，Rallyloom 承接 | §4.7 `notice.push` / `notice.remove`；已读为员工本机状态，永不回写 |
 | 文档中心（企业公共文档） | 外部系统推送或外链托管 | §4.8 `doc.upsert` / `doc.remove`；查看器内置（markdown 渲染），数据与存储不归 Rallyloom |
 | 看板 / 运营数据（如老板办公台挂的大盘） | 外部系统提供 | **外置数据插槽**：Rallyloom 只存一个 URL + 刷新间隔，定时拉取并渲染 `{rows:[{label,value,delta?}]}` |

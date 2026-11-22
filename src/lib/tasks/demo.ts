@@ -4,6 +4,7 @@
  * agent-skill v1.2 的 task.upsert / task.remove 契约推送任务。
  */
 import { MEMBERS } from '@/data/office'
+import { canMoveTask, validateBoard, validateTaskPatch } from './types'
 import type { TaskClient, TaskPatch, TaskPosition, TaskRecord } from './types'
 
 const NOW = new Date()
@@ -74,12 +75,28 @@ function seedTasks(): TaskRecord[] {
 }
 
 export class DemoTaskClient implements TaskClient {
+  readonly board = {
+    defaultStatus: 'todo',
+    statuses: [
+      { id: 'backlog', label: '待排期', dot: '#a1a1aa', category: 'pending' },
+      { id: 'todo', label: '待处理', dot: '#f59e0b', category: 'pending' },
+      { id: 'doing', label: '进行中', dot: '#2563eb', category: 'active' },
+      { id: 'done', label: '已完成', dot: '#16a34a', category: 'completed' },
+    ],
+    fields: [
+      { id: '渠道', label: '渠道', type: 'text' }, { id: '金额', label: '金额', type: 'text' },
+      { id: '仓库', label: '仓库', type: 'text' }, { id: '数量', label: '数量', type: 'text' },
+      { id: '类目', label: '类目', type: 'text' }, { id: '工时', label: '工时', type: 'text' },
+    ],
+  } as const
+
   kind = 'demo-local' as const
   label = '演示任务源'
   private tasks: TaskRecord[]
   private listeners = new Set<() => void>()
 
   constructor() {
+    validateBoard(this.board)
     this.tasks = seedTasks()
   }
 
@@ -92,6 +109,7 @@ export class DemoTaskClient implements TaskClient {
   }
 
   async create(patch: TaskPatch): Promise<TaskRecord> {
+    validateTaskPatch(this.board, patch)
     const task: TaskRecord = {
       id: `t-${String(++seq).padStart(3, '0')}`,
       sourceId: 'rallyloom',
@@ -118,6 +136,7 @@ export class DemoTaskClient implements TaskClient {
     const idx = this.tasks.findIndex((t) => t.id === id)
     if (idx < 0) throw new Error(`任务不存在：${id}`)
     const prev = this.tasks[idx]
+    validateTaskPatch(this.board, patch, prev)
     const next: TaskRecord = {
       ...prev,
       ...patch,
@@ -137,6 +156,7 @@ export class DemoTaskClient implements TaskClient {
   async move(id: string, { status, beforeId }: TaskPosition): Promise<TaskRecord[]> {
     const task = this.tasks.find((entry) => entry.id === id)
     if (!task) throw new Error('任务已不存在。')
+    if (!canMoveTask(this.board, task.status, status)) throw new Error('任务源不允许此状态流转。')
     if (task.reviewPending && status !== task.status) throw new Error('这项任务待验收，请在办公室处理验收。')
     const column = this.tasks.filter((entry) => entry.status === status)
     if (task.status === status && (column[column.indexOf(task) + 1]?.id ?? null) === beforeId) return this.list()

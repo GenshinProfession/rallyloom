@@ -5,7 +5,11 @@
   "description": "向 Rallyloom 任务看板（类飞书多维表格）推送/更新一条任务。中性任务容器：必填仅 source_id + external_task_id + title；attrs 自由属性会成为表格视图的动态列；Rallyloom 只承接与展示，不生成任务。",
   "type": "object",
   "additionalProperties": false,
-  "required": ["source_id", "external_task_id", "title"],
+  "required": [
+    "source_id",
+    "external_task_id",
+    "title"
+  ],
   "properties": {
     "source_id": {
       "type": "string",
@@ -26,11 +30,18 @@
       "description": "任务标题，一句话人类可读，看板卡片与表格行原样展示"
     },
     "status": {
-      "enum": ["backlog", "todo", "doing", "done"],
-      "description": "可选：映射到 Rallyloom 看板列（待排期/待处理/进行中/已完成）。不给默认 todo；你系统的状态语义由你侧映射，Rallyloom 不解读"
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "接入方 task-board 定义中的状态 id；省略使用接入方 defaultStatus。不可强制映射成 Rallyloom 内置状态。"
     },
     "priority": {
-      "enum": ["P0", "P1", "P2", "P3"],
+      "enum": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ],
       "description": "可选：Rallyloom 优先级枚举（P0 紧急 → P3 低）。你系统有自己的优先级模型时不映射，放 attrs 里即可"
     },
     "assignee_id": {
@@ -52,7 +63,10 @@
       "type": "object",
       "description": "可选：自由属性键值对（全 string），会自动成为多维表格视图的动态列（键=列名）。有什么推什么，没有的不造",
       "maxProperties": 32,
-      "additionalProperties": { "type": "string", "maxLength": 512 }
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 512
+      }
     }
   }
 }

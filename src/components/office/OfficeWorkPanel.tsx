@@ -10,7 +10,7 @@ import type { Member } from '@/data/office'
 import type { ChatMessage } from '@/lib/chat/types'
 import { documentUrl, type DocClient, type DocRecord } from '@/lib/docs/types'
 import type { NoticeClient, NoticeRecord } from '@/lib/notify/types'
-import { TASK_STATUS_META, type TaskClient, type TaskPatch, type TaskRecord } from '@/lib/tasks/types'
+import { canMoveTask, taskStatus, type TaskClient, type TaskPatch, type TaskRecord } from '@/lib/tasks/types'
 import type { ResolvedRoom } from './rooms/api'
 import './office-work.css'
 
@@ -37,6 +37,10 @@ function TaskEditor({ draft, task, people, access, meSeatId, onSave, onClose, on
   onClose: () => void
   onSource?: (source: NonNullable<TaskRecord['sourceMessage']>, anchor: HTMLElement) => void
 }) {
+  const board = access.tasks!.board
+  const activeStatus = board.statuses.find((status) => status.category === 'active')?.id
+  const completedStatus = board.statuses.find((status) => status.category === 'completed')?.id
+  const allowed = (status: string | undefined) => !!status && (!task || canMoveTask(board, task.status, status))
   const quoted = draft.sourceMessage ?? task?.sourceMessage
   const [title, setTitle] = useState(task?.title ?? quoted?.excerpt.replace(/\s+/g, ' ').slice(0, 60) ?? '')
   const [assignee, setAssignee] = useState(task ? task.assigneeId ?? '' : access.actorId)
@@ -65,7 +69,7 @@ function TaskEditor({ draft, task, people, access, meSeatId, onSave, onClose, on
       <DialogContent className="max-w-[470px]">
         <DialogHeader>
           <DialogTitle>{task ? '任务详情' : quoted ? '从消息创建任务' : '新建任务'}</DialogTitle>
-          <DialogDescription>{task ? (task.reviewPending ? '待验收' : TASK_STATUS_META[task.status].label) : '填写任务并指派负责人。'}</DialogDescription>
+          <DialogDescription>{task ? (task.reviewPending ? '待验收' : taskStatus(access.tasks!.board, task.status).label) : '填写任务并指派负责人。'}</DialogDescription>
         </DialogHeader>
         <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); if (canEdit) void apply({}) }}>
           <label className="grid gap-1 text-ui-label">任务标题<Input required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} disabled={busy || !canEdit} /></label>
@@ -86,13 +90,13 @@ function TaskEditor({ draft, task, people, access, meSeatId, onSave, onClose, on
           {error && <p role="alert" className="text-ui-label text-destructive">{error}</p>}
           <DialogFooter className="flex-wrap gap-y-2">
             <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>关闭</Button>
-            {task && !task.reviewPending && task.status !== 'done' && canEdit && (
-              task.status === 'doing' ? <Button type="button" variant="outline" disabled={busy} onClick={() => void apply({ reviewPending: true })}>提交验收</Button>
-                : <Button type="button" variant="outline" disabled={busy} onClick={() => void apply({ status: 'doing' })}>开始处理</Button>
+            {task && !task.reviewPending && taskStatus(access.tasks!.board, task.status).category !== 'completed' && canEdit && (
+              taskStatus(access.tasks!.board, task.status).category === 'active' ? <Button type="button" variant="outline" disabled={busy} onClick={() => void apply({ reviewPending: true })}>提交验收</Button>
+                : <Button type="button" variant="outline" disabled={busy || !allowed(activeStatus)} onClick={() => void apply({ status: activeStatus })}>开始处理</Button>
             )}
             {task?.reviewPending && canReview && <>
-              <Button type="button" variant="outline" disabled={busy} onClick={() => void apply({ status: 'doing', reviewPending: false })}>退回处理</Button>
-              <Button type="button" disabled={busy} onClick={() => void apply({ status: 'done', reviewPending: false })}>确认验收</Button>
+              <Button type="button" variant="outline" disabled={busy || !allowed(activeStatus)} onClick={() => void apply({ status: activeStatus, reviewPending: false })}>退回处理</Button>
+              <Button type="button" disabled={busy || !allowed(completedStatus)} onClick={() => void apply({ status: completedStatus, reviewPending: false })}>确认验收</Button>
             </>}
             {canEdit && !task?.reviewPending && <Button type="submit" disabled={busy || !title.trim()}>{task ? '保存' : '创建任务'}</Button>}
           </DialogFooter>
@@ -158,7 +162,7 @@ export function OfficeWorkPanel({ access, room, people, meSeatId, mentions, draf
   const assignees = new Set(squad.map(({ id }) => id))
   const personalTask = (task: TaskRecord) => task.assigneeId === meSeatId || task.assigneeId === access.actorId ||
     task.createdBy === access.actorId || (task.reviewPending && access.canCoordinate)
-  const selectedTasks = tasks.filter((task) => task.status !== 'done' && (room
+  const selectedTasks = tasks.filter((task) => taskStatus(access.tasks!.board, task.status).category !== 'completed' && (room
     ? (task.roomId ? lane.has(task.roomId) : task.assigneeId && assignees.has(task.assigneeId))
     : personalTask(task))).sort((a, b) => Number(Boolean(b.reviewPending)) - Number(Boolean(a.reviewPending)) || a.updatedAt.localeCompare(b.updatedAt) * -1)
   const selectedDocs = room ? docs.filter((doc) => (room.workbench?.documentSpaces ?? [room.name]).includes(doc.space) || documentPath(doc).includes(room.name)) : docs
@@ -189,7 +193,7 @@ export function OfficeWorkPanel({ access, room, people, meSeatId, mentions, draf
       {taskClient && <section className="office-work-section"><header><h3>{room ? '小队任务' : '我的任务与验收'}</h3><span>{selectedTasks.length}</span></header>
         {selectedTasks.slice(0, showAll ? undefined : 5).map((entry) => <button type="button" className="office-work-row ui-press" key={entry.id} data-office-task={entry.id} onClick={() => setTaskId(entry.id)}>
           <ClipboardList size={14} /><span><strong>{entry.title}</strong><small>{entry.assigneeName || '未指派'}{entry.due ? ` · ${entry.due.slice(5)}` : ''}</small></span>
-          <em data-review={entry.reviewPending || undefined}>{entry.reviewPending ? '待验收' : TASK_STATUS_META[entry.status].label}</em>
+          <em data-review={entry.reviewPending || undefined}>{entry.reviewPending ? '待验收' : taskStatus(taskClient.board, entry.status).label}</em>
         </button>)}
         {!selectedTasks.length && <p className="office-work-empty">暂无待处理任务</p>}
         {selectedTasks.length > 5 && <button type="button" className="office-more" onClick={() => setShowAll(!showAll)}>{showAll ? '收起任务' : '显示全部任务'}</button>}
@@ -209,7 +213,7 @@ export function OfficeWorkPanel({ access, room, people, meSeatId, mentions, draf
       {taskClient && (task || draft) && <TaskEditor key={task?.id ?? 'draft'} task={task} draft={draft ?? {}} access={access} people={people}
         meSeatId={meSeatId} onSource={(source, anchor) => { setTaskId(undefined); onMessage(source.channelId, source.messageId, anchor) }}
         onClose={() => { setTaskId(undefined); onDraft(null) }} onSave={(patch) => task ? taskClient.update(task.id, patch)
-          : taskClient.create({ status: 'todo', ...patch, roomId: draft?.roomId, createdBy: access.actorId, sourceMessage: draft?.sourceMessage })} />}
+          : taskClient.create({ status: taskClient.board.defaultStatus, ...patch, roomId: draft?.roomId, createdBy: access.actorId, sourceMessage: draft?.sourceMessage })} />}
       {doc && !editingDoc && <Dialog open onOpenChange={(open) => { if (!open) setDocId(undefined) }}>
         <DialogContent className="max-h-[84vh] max-w-[720px] overflow-y-auto">
           <DialogHeader><DialogTitle>{doc.title}</DialogTitle><DialogDescription>{documentPath(doc).join(' / ')}</DialogDescription></DialogHeader>

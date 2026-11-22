@@ -1,23 +1,33 @@
-/**
- * 任务看板（类飞书多维表格）数据契约。
- *
- * 定位与交流室一致：Rallyloom 提供「承接与展示」能力，任务数据本身
- * 由云端/外部系统承接（见 agent-skill/integration-spec.md §4.6、§9）。
- * - 中性任务容器：必填仅 source_id + external_task_id + title；
- *   attrs 是自由属性键值对 → 表格视图按「多维字段」自动出列。
- * - 状态/优先级是 Rallyloom 的看板语义（列），外部系统可映射可不映射，
- *   不给就落默认列，绝不报错。
- */
-
-export type TaskStatus = 'backlog' | 'todo' | 'doing' | 'done'
-
-export const TASK_STATUSES: readonly TaskStatus[] = ['backlog', 'todo', 'doing', 'done']
-
-export const TASK_STATUS_META: Record<TaskStatus, { label: string; hint: string; dot: string }> = {
-  backlog: { label: '待排期', hint: '还没定排期的任务', dot: '#a1a1aa' },
-  todo: { label: '待处理', hint: '已排期待开工', dot: '#f59e0b' },
-  doing: { label: '进行中', hint: '有人正在推进', dot: '#2563eb' },
-  done: { label: '已完成', hint: '本周内完成', dot: '#16a34a' },
+/** Provider-owned task states and fields. Rallyloom renders these definitions without renaming IDs. */
+export type TaskStatus = string
+export interface TaskBoardDefinition {
+  statuses: readonly { id: string; label: string; dot: string; category?: 'pending' | 'active' | 'completed'; transitions?: readonly string[] }[]
+  defaultStatus: string
+  fields: readonly { id: string; label: string; type: 'text' | 'number' | 'date' | 'select'; required?: boolean; options?: readonly string[] }[]
+}
+export function taskStatus(board: TaskBoardDefinition, id: string) {
+  return board.statuses.find((status) => status.id === id) ?? { id, label: id, dot: '#a1a1aa' }
+}
+export function validateBoard(board: TaskBoardDefinition) {
+  const ids = board.statuses.map(({ id }) => id)
+  if (!ids.length || ids.length > 32 || ids.some((id) => !id.trim()) || new Set(ids).size !== ids.length || !ids.includes(board.defaultStatus)) throw new Error('任务源的状态定义无效。')
+  if (board.statuses.some(({ label, dot, transitions }) => !label.trim() || !/^#[0-9a-fA-F]{6}$/.test(dot) || transitions?.some((id) => !ids.includes(id)))) throw new Error('任务源存在无效的状态或流转定义。')
+  if (board.fields.length > 32 || board.fields.some((field) => !field.id.trim() || !field.label.trim() || !['text', 'number', 'date', 'select'].includes(field.type) || (field.type === 'select' && !field.options?.length)) || new Set(board.fields.map(({ id }) => id)).size !== board.fields.length) throw new Error('任务源存在无效或重复字段。')
+  return board
+}
+export function canMoveTask(board: TaskBoardDefinition, from: string, to: string) {
+  const target = board.statuses.some(({ id }) => id === to)
+  const source = board.statuses.find(({ id }) => id === from)
+  return target && (from === to || !source?.transitions || source.transitions.includes(to))
+}
+export function validateTaskPatch(board: TaskBoardDefinition, patch: TaskPatch, previous?: TaskRecord) {
+  if (patch.status !== undefined && !canMoveTask(board, previous?.status ?? patch.status, patch.status)) throw new Error('任务源不允许此状态流转。')
+  const attrs = patch.attrs ?? previous?.attrs ?? {}
+  for (const field of board.fields) {
+    const value = attrs[field.id]?.trim() ?? ''
+    if (field.required && !value) throw new Error(`请填写${field.label}。`)
+    if (value && ((field.type === 'number' && !Number.isFinite(Number(value))) || (field.type === 'date' && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)))) || (field.type === 'select' && !field.options?.includes(value)))) throw new Error(`${field.label}的值无效。`)
+  }
 }
 
 export type TaskPriority = 'P0' | 'P1' | 'P2' | 'P3'
@@ -82,6 +92,8 @@ export interface TaskPosition {
 export interface TaskClient {
   kind: 'demo-local' | 'oa-rest'
   label: string
+  /** Provider configuration; changes notify subscribers. No client-side business-state defaults. */
+  board: TaskBoardDefinition
   /** 全量拉取（承接端语义：read path 走存储层后端） */
   list(): Promise<TaskRecord[]>
   create(patch: TaskPatch): Promise<TaskRecord>

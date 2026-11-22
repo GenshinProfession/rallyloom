@@ -779,3 +779,12 @@
   .doc-paper { padding: 18px 24px 32px; }
   .doc-reader-paper { padding: 26px 28px 44px; }
 }
+
+/* Keep the document navigation visible while the right pane reads or edits. */
+[data-doc-pane] { container-type: inline-size; }
+[data-doc-pane] .doc-page-top { flex-wrap: wrap; padding-block: 8px; }
+@container (max-width: 820px) {
+  .doc-outline { display: none; }
+  .doc-reader-main { padding: 18px 20px 36px; }
+  .doc-paper, .doc-reader-paper { padding: 20px 24px 36px; }
+}

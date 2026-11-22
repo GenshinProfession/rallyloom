@@ -91,10 +91,11 @@ export interface DocEditorPageProps {
   records: readonly DocRecord[]
   location: readonly string[]
   onSave: (draft: DocDraft) => Promise<void>
+  onDirtyChange?: (dirty: boolean) => void
   onCancel: () => void
 }
 
-export function DocEditorPage({ doc, records, location, onSave, onCancel }: DocEditorPageProps) {
+export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirtyChange }: DocEditorPageProps) {
   const spaces = Array.from(new Set(records.map((item) => item.space))).filter(Boolean)
   const defaultSpace = location[0] ?? spaces[0] ?? '制度规范'
 
@@ -102,6 +103,7 @@ export function DocEditorPage({ doc, records, location, onSave, onCancel }: DocE
   const [space, setSpace] = useState(doc?.space ?? defaultSpace)
   const [folder, setFolder] = useState((doc?.folderPath ?? location.slice(1)).join(' / '))
   const [dirty, setDirty] = useState(false)
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [outline, setOutline] = useState<OutlineItem[]>([])

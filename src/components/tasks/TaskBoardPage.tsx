@@ -19,6 +19,7 @@ import {
   type DragMoveEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
+import { createPortal } from 'react-dom'
 import { Plus, SquareKanban, Table2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -31,8 +32,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Member } from '@/data/office'
-import type { TaskClient, TaskPatch, TaskPosition, TaskPriority, TaskRecord, TaskStatus } from '@/lib/tasks/types'
-import { attrColumns, TASK_PRIORITIES, TASK_PRIORITY_META, TASK_STATUSES, TASK_STATUS_META } from '@/lib/tasks/types'
+import type { TaskClient, TaskPatch, TaskPosition, TaskPriority, TaskRecord, TaskStatus, TaskBoardDefinition } from '@/lib/tasks/types'
+import { attrColumns, canMoveTask, taskStatus, validateBoard, TASK_PRIORITIES, TASK_PRIORITY_META } from '@/lib/tasks/types'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -63,7 +64,7 @@ function DueChip({ due, done }: { due?: string; done: boolean }) {
   )
 }
 
-function TaskCardInner({ task, member, dragging, sortable }: { task: TaskRecord; member?: Member; dragging?: boolean; sortable?: boolean }) {
+function TaskCardInner({ task, member, dragging, sortable, board }: { board: TaskBoardDefinition; task: TaskRecord; member?: Member; dragging?: boolean; sortable?: boolean }) {
   const meta = task.priority ? TASK_PRIORITY_META[task.priority] : null
   const attrEntries = Object.entries(task.attrs).slice(0, 2)
   return (
@@ -71,7 +72,7 @@ function TaskCardInner({ task, member, dragging, sortable }: { task: TaskRecord;
       data-task-id={task.id}
       className={cn(
         'rounded-lg border border-black/[0.06] bg-white p-2.5 shadow-[0_1px_2px_rgba(17,18,22,0.04)] transition-shadow',
-        dragging && 'rotate-[1.5deg] shadow-pop',
+        dragging && 'shadow-pop',
         sortable && 'cursor-grab active:cursor-grabbing',
       )}
     >
@@ -81,7 +82,7 @@ function TaskCardInner({ task, member, dragging, sortable }: { task: TaskRecord;
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
         <AssigneeChip member={member} name={task.assigneeName} />
-        <DueChip due={task.due} done={task.status === 'done'} />
+        <DueChip due={task.due} done={taskStatus(board, task.status).category === 'completed'} />
         {task.origin === 'sync' && (
           <span className="rounded-full bg-indigo-50 px-1.5 py-px text-ui-meta font-medium text-indigo-500">外部 · {task.sourceId}</span>
         )}
@@ -90,7 +91,7 @@ function TaskCardInner({ task, member, dragging, sortable }: { task: TaskRecord;
         <div className="mt-1.5 flex flex-wrap gap-1">
           {attrEntries.map(([k, v]) => (
             <span key={k} className="rounded bg-muted px-1.5 py-px text-ui-meta text-muted-foreground">
-              {k} · {v.length > 10 ? `${v.slice(0, 10)}…` : v}
+              {board.fields.find(({ id }) => id === k)?.label ?? k} · {v.length > 10 ? `${v.slice(0, 10)}…` : v}
             </span>
           ))}
         </div>
@@ -99,7 +100,7 @@ function TaskCardInner({ task, member, dragging, sortable }: { task: TaskRecord;
   )
 }
 
-function SortableTaskCard({ task, member }: { task: TaskRecord; member?: Member }) {
+function SortableTaskCard({ task, member, board }: { board: TaskBoardDefinition; task: TaskRecord; member?: Member }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id })
   const row = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
@@ -128,12 +129,12 @@ function SortableTaskCard({ task, member }: { task: TaskRecord; member?: Member 
   return (
     <div ref={attach} {...attributes} {...listeners} data-task-row={task.id} data-drag-source={isDragging || undefined}
       aria-label={task.title} className={cn('shrink-0 touch-none rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring', isDragging && 'pointer-events-none invisible absolute inset-x-0')}>
-      <div ref={content}><TaskCardInner task={task} member={member} sortable /></div>
+      <div ref={content}><TaskCardInner task={task} member={member} board={board} sortable /></div>
     </div>
   )
 }
 
-type BoardDrag = { id: string; height: number; width?: number; position: TaskPosition | null }
+type BoardDrag = { left: number; top: number; id: string; height: number; width?: number; position: TaskPosition | null }
 
 const boardCollision: CollisionDetection = ({ pointerCoordinates, droppableContainers }) => {
   if (!pointerCoordinates) return []
@@ -169,14 +170,16 @@ function BoardColumn({
   tasks,
   members,
   drag,
+  board,
 }: {
+  board: TaskBoardDefinition
   status: TaskStatus
   tasks: readonly TaskRecord[]
   members: readonly Member[]
   drag: BoardDrag | null
 }) {
   const { setNodeRef } = useDroppable({ id: status })
-  const meta = TASK_STATUS_META[status]
+  const meta = taskStatus(board, status)
   const target = drag?.position?.status === status ? drag.position : null
   const placeholder = target && <div key="drop-slot" data-drop-placeholder data-before-id={target.beforeId ?? undefined}
     style={{ height: drag?.height }} aria-hidden="true" className="shrink-0 rounded-lg border border-dashed border-[#7090bd] bg-[#e8f0fc]" />
@@ -196,7 +199,7 @@ function BoardColumn({
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-0.5 pb-1">
         {tasks.flatMap((task) => {
-          const card = <SortableTaskCard key={task.id} task={task} member={members.find((m) => m.id === task.assigneeId)} />
+          const card = <SortableTaskCard board={board} key={task.id} task={task} member={members.find((m) => m.id === task.assigneeId)} />
           return task.id === target?.beforeId ? [placeholder, card] : [card]
         })}
         {target?.beforeId === null && placeholder}
@@ -215,39 +218,51 @@ function NewTaskDialog({
   onOpenChange,
   members,
   onCreate,
+  board,
 }: {
+  board: TaskBoardDefinition
   open: boolean
   onOpenChange: (open: boolean) => void
   members: readonly Member[]
-  onCreate: (patch: TaskPatch) => void
+  onCreate: (patch: TaskPatch) => Promise<unknown>
 }) {
   const [title, setTitle] = useState('')
   const [assigneeId, setAssigneeId] = useState<string>('')
-  const [status, setStatus] = useState<TaskStatus>('todo')
+  const [status, setStatus] = useState<TaskStatus>(board.defaultStatus)
   const [priority, setPriority] = useState<string>('P2')
   const [dueDate, setDueDate] = useState<string>('')
-  const submit = () => {
+  const [attrs, setAttrs] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const submit = async () => {
     if (!title.trim()) return
     const member = members.find((m) => m.id === assigneeId)
-    onCreate({
-      title: title.trim(),
-      status,
-      priority: (priority as TaskPriority) ?? undefined,
-      assigneeId: member ? member.id : undefined,
-      assigneeName: member ? member.name : undefined,
-      due: dueDate || undefined,
-      attrs: {},
-    })
-    setTitle('')
-    setAssigneeId('')
-    setStatus('todo')
-    setPriority('P2')
-    setDueDate('')
-    onOpenChange(false)
+    if (busy) return
+    setBusy(true)
+    setError('')
+    try {
+      await onCreate({
+        title: title.trim(),
+        status,
+        priority: (priority as TaskPriority) ?? undefined,
+        assigneeId: member ? member.id : undefined,
+        assigneeName: member ? member.name : undefined,
+        due: dueDate || undefined,
+        attrs,
+      })
+      setTitle('')
+      setAssigneeId('')
+      setStatus(board.defaultStatus)
+      setPriority('P2')
+      setDueDate('')
+      setAttrs({})
+      onOpenChange(false)
+    } catch (failure) { setError(failure instanceof Error ? failure.message : '创建失败，请重试。') }
+    finally { setBusy(false) }
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[400px]">
+      <DialogContent className="max-h-[85vh] max-w-[440px] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-ui-section">新建任务</DialogTitle>
         </DialogHeader>
@@ -286,8 +301,8 @@ function NewTaskDialog({
               <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
                 <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {TASK_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>{TASK_STATUS_META[s].label}</SelectItem>
+                  {board.statuses.map(({ id: s }) => (
+                    <SelectItem key={s} value={s}>{taskStatus(board, s).label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -298,9 +313,15 @@ function NewTaskDialog({
             </div>
           </div>
         </div>
+        {board.fields.map((field) => <label key={field.id} className="grid gap-1.5 text-ui-label">{field.label}{field.required ? ' *' : ''}
+          {field.type === 'select' ? <select className="h-8 rounded-md border bg-background px-2" value={attrs[field.id] ?? ''} onChange={(event) => setAttrs({ ...attrs, [field.id]: event.target.value })}>
+            <option value="">请选择</option>{field.options?.map((value) => <option key={value}>{value}</option>)}
+          </select> : <Input type={field.type} value={attrs[field.id] ?? ''} onChange={(event) => setAttrs({ ...attrs, [field.id]: event.target.value })} />}
+        </label>)}
+        {error && <p role="alert" className="text-destructive text-ui-label">{error}</p>}
         <DialogFooter>
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button size="sm" disabled={!title.trim()} onClick={submit}>创建任务</Button>
+          <Button size="sm" disabled={busy || !title.trim() || board.fields.some((field) => field.required && !attrs[field.id]?.trim())} onClick={() => void submit()}>创建任务</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -308,6 +329,8 @@ function NewTaskDialog({
 }
 
 export function TaskBoardPage({ members, client }: { members: readonly Member[]; client: TaskClient }) {
+  const board = validateBoard(client.board)
+  const [savingMove, setSavingMove] = useState(false)
   const [tasks, setTasks] = useState<readonly TaskRecord[] | null>(null)
   const [view, setView] = useState<'board' | 'table'>('board')
   const [newOpen, setNewOpen] = useState(false)
@@ -325,10 +348,13 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
   }, [client, refresh])
 
   const byStatus = useMemo(() => {
-    const map = new Map<TaskStatus, TaskRecord[]>(TASK_STATUSES.map((s) => [s, []]))
-    for (const t of tasks ?? []) map.get(t.status)?.push(t)
+    const map = new Map<TaskStatus, TaskRecord[]>(board.statuses.map(({ id }) => [id, []]))
+    for (const t of tasks ?? []) {
+      if (!map.has(t.status)) map.set(t.status, [])
+      map.get(t.status)!.push(t)
+    }
     return map
-  }, [tasks])
+  }, [tasks, board])
 
   const memberOf = useCallback((t: TaskRecord) => members.find((m) => m.id === t.assigneeId), [members])
 
@@ -336,19 +362,20 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
 
   const onDragStart = ({ active, activatorEvent }: DragStartEvent) => {
     const task = tasks?.find(({ id }) => id === active.id)
-    if (!task) return
+    if (!task || savingMove) return
     const column = byStatus.get(task.status) ?? []
     const origin = activatorEvent.target instanceof Element ? activatorEvent.target.closest('[data-task-row]') : null
     const rect = active.rect.current.initial ?? origin?.getBoundingClientRect()
     setMoveError('')
-    setActiveDrag({ id: task.id, height: rect?.height ?? 86, width: rect?.width,
+    setActiveDrag({ left: rect?.left ?? 0, top: rect?.top ?? 0, id: task.id, height: rect?.height ?? 86, width: rect?.width,
       position: { status: task.status, beforeId: column[column.indexOf(task) + 1]?.id ?? null } })
   }
 
   const readPosition = (event: DragMoveEvent) => (event.collisions?.[0]?.data?.position as TaskPosition | undefined) ?? null
 
   const onDragMove = (event: DragMoveEvent) => {
-    const position = readPosition(event)
+    const target = readPosition(event)
+    const position = target && activeTask && canMoveTask(board, activeTask.status, target.status) ? target : null
     setActiveDrag((current) => current && (
       current.position?.status === position?.status && current.position?.beforeId === position?.beforeId
         ? current : { ...current, position }
@@ -356,17 +383,26 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
   }
 
   const onDragEnd = (event: DragEndEvent) => {
-    const position = readPosition(event)
+    const position = activeDrag?.position
     setActiveDrag(null)
-    if (!position) return
+    if (!position || !tasks || savingMove) return
+    const previous = tasks
+    const task = tasks.find(({ id }) => id === event.active.id)
+    if (!task) return
+    const reordered = tasks.filter(({ id }) => id !== task.id)
+    const index = position.beforeId ? reordered.findIndex(({ id }) => id === position.beforeId) : reordered.length
+    reordered.splice(index < 0 ? reordered.length : index, 0, { ...task, status: position.status })
+    setTasks(reordered)
+    setSavingMove(true)
     void client.move(String(event.active.id), position).then(setTasks, (error: unknown) => {
+      setTasks(previous)
       setMoveError(error instanceof Error ? error.message : '任务移动失败，请重试。')
-    })
+    }).finally(() => setSavingMove(false))
   }
 
-  const doingCount = byStatus.get('doing')?.length ?? 0
-  const overdue = (tasks ?? []).filter((t) => t.status !== 'done' && t.due && t.due < today()).length
-  const extraCols = useMemo(() => attrColumns(tasks ?? []), [tasks])
+  const doingCount = (tasks ?? []).filter((task) => taskStatus(board, task.status).category === 'active').length
+  const overdue = (tasks ?? []).filter((t) => taskStatus(board, t.status).category !== 'completed' && t.due && t.due < today()).length
+  const extraCols = [...new Set([...board.fields.map(({ id }) => id), ...attrColumns(tasks ?? [], 32)])]
 
   return (
     <main data-tasks="root" className="workspace-view bg-[#f3f3f2]">
@@ -402,14 +438,14 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
         ) : view === 'board' ? (
           <DndContext sensors={sensors} collisionDetection={boardCollision} onDragStart={onDragStart} onDragMove={onDragMove}
             onDragEnd={onDragEnd} onDragCancel={() => setActiveDrag(null)}>
-            <div data-tasks="lanes" className="grid min-h-full w-full grid-cols-[repeat(4,minmax(168px,1fr))] gap-2.5">
-              {TASK_STATUSES.map((s) => (
-                <BoardColumn key={s} status={s} tasks={byStatus.get(s) ?? []} members={members} drag={activeDrag} />
+            <div data-tasks="lanes" className="grid min-h-full w-full gap-2.5" style={{ gridTemplateColumns: `repeat(${byStatus.size}, minmax(220px,1fr))` }}>
+              {[...byStatus.keys()].map((s) => (
+                <BoardColumn board={board} key={s} status={s} tasks={byStatus.get(s) ?? []} members={members} drag={activeDrag} />
               ))}
             </div>
-            <DragOverlay dropAnimation={null}>
-              {activeTask ? <div style={{ width: activeDrag?.width }}><TaskCardInner task={activeTask} member={memberOf(activeTask)} dragging /></div> : null}
-            </DragOverlay>
+            {createPortal(<DragOverlay dropAnimation={null} adjustScale={false} style={{ left: activeDrag?.left, top: activeDrag?.top }}>
+              {activeTask ? <div style={{ width: activeDrag?.width }}><TaskCardInner task={activeTask} member={memberOf(activeTask)} board={board} dragging /></div> : null}
+            </DragOverlay>, document.body)}
           </DndContext>
         ) : (
           <div data-tasks="table" className="w-full overflow-hidden rounded-lg border border-black/[0.06] bg-white">
@@ -422,7 +458,7 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
                     <TableHead className="w-[58px]">优先级</TableHead>
                     <TableHead className="w-[84px]">截止</TableHead>
                     {extraCols.map((c) => (
-                      <TableHead key={c} className="w-[94px] truncate" title={c}>{c}</TableHead>
+                      <TableHead key={c} className="w-[94px] truncate" title={c}>{board.fields.find(({ id }) => id === c)?.label ?? c}</TableHead>
                     ))}
                     <TableHead className="w-[104px]">来源</TableHead>
                   </TableRow>
@@ -435,8 +471,8 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
                       <TableRow key={t.id} data-task-id={t.id}>
                         <TableCell className="py-2">
                           <span className="inline-flex items-center gap-1.5 text-ui-label text-muted-foreground">
-                            <span className="size-1.5 rounded-full" style={{ backgroundColor: TASK_STATUS_META[t.status].dot }} />
-                            {TASK_STATUS_META[t.status].label}
+                            <span className="size-1.5 rounded-full" style={{ backgroundColor: taskStatus(board, t.status).dot }} />
+                            {taskStatus(board, t.status).label}
                           </span>
                         </TableCell>
                         <TableCell className="break-words py-2 font-medium">{t.title}</TableCell>
@@ -472,7 +508,7 @@ export function TaskBoardPage({ members, client }: { members: readonly Member[];
         )}
       </div>
 
-      <NewTaskDialog open={newOpen} onOpenChange={setNewOpen} members={members} onCreate={(patch) => void client.create(patch)} />
+      <NewTaskDialog board={board} open={newOpen} onOpenChange={setNewOpen} members={members} onCreate={(patch) => client.create(patch)} />
     </main>
   )
 }

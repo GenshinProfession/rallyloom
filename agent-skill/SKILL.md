@@ -56,7 +56,7 @@ group.upsert   payload：{ source_id, group_id, display_name, description? }
 members.reconcile payload：{ source_id, persons: [person.upsert payload 数组] }  ← 全量对账，快照外的人被移除
 activity.push  payload：{ source_id, items: [ { actor_id, actor_name?, text, kind?, url?, occurred_at? } ] }  ← v1.1 动态承接
 task.upsert   payload：{ source_id, external_task_id, title,            ← 必填三元组
-    status?(backlog|todo|doing|done), priority?(P0-P3), assignee_id?, assignee_name?, due?,
+    status?(接入方状态id), priority?(P0-P3), assignee_id?, assignee_name?, due?,
     attrs?: {任意字符串键值 → 表格视图动态列} }                          ← v1.2 任务承接
 task.remove   payload：{ source_id, external_task_id }                 ← 任务作废必须显式 remove，禁清字段冒充
 notice.push  payload：{ source_id, items: [ { external_notice_id, title,            ← v1.3 公告承接
@@ -71,7 +71,7 @@ doc.remove   payload：{ source_id, external_doc_id }                 ← 文档
 响应契约：200 成功 / 409 幂等命中（视为成功）/ 400 修后重发 / 401 换令牌 / **422 版本不兼容（保留事件+告警，绝不静默丢弃）** / 5xx 指数退避重试 3 次后转对账兜底。
 
 v1.1–v1.3 的「业务数据承接」：动态流走 `activity.push`、任务看板走 `task.upsert`/`task.remove`、
-通知中心走 `notice.push`/`notice.remove`（Rallyloom 只展示不生成，本地拖列/新建/已读不被推送重置）；
+通知中心走 `notice.push`/`notice.remove`（Rallyloom 只展示不生成，已读状态保留在本机）；
 文档中心走 `doc.upsert`/`doc.remove`（查看器与富文本编辑器内置：markdown 或 `content_format:"html"` + 正文中间可放任意类型附件；文档数据、附件本体与存储不归 Rallyloom）；
 看板/大盘不需要适配器——只要一个返回 `{rows:[{label,value,delta?}]}` 的 HTTPS JSON 端点，
 由 Rallyloom 超管在「挂载外部数据看板」里填 URL 即可。边界详见 integration-spec.md §9。
@@ -141,3 +141,7 @@ v1.7 可选加演：推一篇 `content_format:"html"`（含标题/代码块/表�
 - 字段映射表（一页）
 - 联调记录（6. 验收逐条打勾截图/日志）
 - 运维说明：令牌轮换、死信处理、reconcile 定时周期
+
+## 任务状态与字段（2026-11-23）
+
+先读取 `schemas/task-board.schema.json` 与 integration-spec.md §4.6。禁止在客户端写死公司的任务列、流转或自定义字段；四列只属于演示源。提供方负责鉴权、状态流转与排序确认。正式任务源尚未启用时，不得宣称企业任务已接通。
