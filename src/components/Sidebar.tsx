@@ -186,14 +186,14 @@ export function Sidebar({
                 <span className="sidebar-copy flex min-w-0 flex-1 items-center gap-2 px-1" aria-hidden={collapsed || undefined}>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-ui-body font-semibold leading-tight text-[#293546]">{me.displayName}</span>
-                      <span className="mt-0.5 block truncate text-ui-meta leading-tight text-[#657382]">{me.attrs['岗位'] ?? ROLE_LABEL[me.role]}</span>
+                      <span className="mt-0.5 block truncate text-ui-meta leading-tight text-[#657382]">{demo ? me.attrs['岗位'] ?? ROLE_LABEL[me.role] : me.roleName ?? me.sourceRoleName ?? me.roleId}</span>
                     </span>
                     <ChevronRight size={12} strokeWidth={1.65} className="shrink-0 text-[#667482]" />
                 </span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="top" className="w-44">
-              <DropdownMenuLabel className="text-ui-meta font-normal text-muted-foreground">{me.displayName} · {ROLE_LABEL[me.role]}</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-ui-meta font-normal text-muted-foreground">{me.displayName} · {demo ? ROLE_LABEL[me.role] : me.roleName ?? me.sourceRoleName ?? me.roleId}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="gap-2 text-ui-body" onClick={onLogout}>
                 <LogOut className="size-3.5" />

@@ -7,6 +7,8 @@ app.whenReady().then(async()=>{
  const pause=ms=>new Promise(r=>setTimeout(r,ms));const wait=async(fn,label)=>{for(let i=0;i<100;i++){if(fn())return;await pause(60)}throw Error(label+' '+document.body.textContent.slice(-1600))}
  const nav=(page)=>document.querySelector('[data-nav='+page+']').click()
  await wait(()=>document.querySelector('[data-nav=tasks]'),'formal task nav')
+ if(document.body.textContent.includes('所有者'))throw Error('demo role name leaked into formal sidebar')
+ if(!document.body.textContent.includes('平台超管') && !document.body.textContent.includes('员工'))throw Error('provider role name missing')
  nav('tasks');await wait(()=>document.querySelector('[data-task-row]'),'formal tasks')
  if(!document.body.textContent.includes('企业自定义流程'))throw Error('provider board ignored')
  document.querySelector('[data-task-row]').click();await wait(()=>document.querySelector('[role=dialog]'),'task detail')
