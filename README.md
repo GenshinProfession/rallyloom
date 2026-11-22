@@ -1,9 +1,13 @@
 # Rallyloom v0.11
 
-开源 OA 底座 + 团队虚拟办公室桌面应用：React 19 + TypeScript + Vite + Tailwind + **shadcn/ui 官方组件**，Electron 打包为 Windows 桌面程序。
+源码公开的 OA 底座与团队虚拟办公室桌面应用。前端使用 React 19、TypeScript、Vite、Tailwind 和 **shadcn/ui 官方组件**，并通过 Electron 打包为 Windows 桌面程序。
 定位：**被接入方**——提供入口、接入规范与中性身份容器，任何系统按规范写适配器接入；客户端零存储，数据落超管配置的云端。
 
 **必接板块（底座自带，定位即承诺）**：团队管理 · 办公室 · 交流室 · 任务看板 · 通知中心 · 文档中心。其余板块均为后期二开插槽（见 [docs/oa-foundation-plan.md](docs/oa-foundation-plan.md)）。
+
+## 许可证
+
+Rallyloom 自有代码采用 [PolyForm Noncommercial 1.0.0](LICENSE)。允许按许可证条款进行非商业使用、修改和分发。商业使用须另行取得权利人授权。第三方依赖和资源适用各自的许可条款。
 
 ## 功能（v0.11）
 
