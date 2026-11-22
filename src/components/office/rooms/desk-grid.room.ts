@@ -1,5 +1,5 @@
 import { defineRoomTemplate } from './api'
-import { plant, rug, seatRows, workstations } from './furniture'
+import { plant, seatRows, workstations } from './furniture'
 
 export default defineRoomTemplate({
   id: 'desk-grid',
@@ -9,7 +9,6 @@ export default defineRoomTemplate({
   seats: seatRows([.19, .50, .81], [.34, .78]),
   build(context) {
     const { group, model, width, depth } = context
-    rug(group, model, width * .5, depth * .36, width * .86, depth * .35, '#e5dfec')
     workstations(context, 62)
     plant(group, model, 21, 31)
     plant(group, model, width - 23, depth - 22)

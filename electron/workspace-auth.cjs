@@ -138,6 +138,9 @@ function roomIssue(room) {
   }
   if (!optionalBoolean(room.useTemplateFurniture)) return 'useTemplateFurniture 必须为布尔值'
   if (room.floorMaterial !== undefined && !['wood', 'tile', 'concrete'].includes(room.floorMaterial)) return 'floorMaterial 包含不支持的地板材质'
+  if (room.walls !== undefined && (!object(room.walls) || Object.keys(room.walls).length > 4
+    || !Object.entries(room.walls).every(([side, finish]) => ['north', 'east', 'south', 'west'].includes(side)
+      && ['solid', 'glass', 'open'].includes(finish)))) return 'walls 包含无效隔墙方向或材质'
   if (room.door !== undefined) {
     const door = room.door
     if (!object(door) || !['north', 'south', 'east', 'west'].includes(door.side)
@@ -154,7 +157,9 @@ function roomIssue(room) {
     || !room.furniture.every((item) => object(item) && validId(item.id)
       && ['desk', 'shelf', 'plant', 'sofa', 'coffee', 'lamp'].includes(item.kind)
       && [item.x, item.y].every((position) => Number.isFinite(position) && position >= 0 && position <= 1)
-      && Number.isFinite(item.rotation) && item.rotation >= 0 && item.rotation < 360))) return 'furniture 包含无效物件'
+      && Number.isFinite(item.rotation) && item.rotation >= 0 && item.rotation < 360
+      && (item.size === undefined || (item.kind === 'desk' && object(item.size)
+        && [item.size.width, item.size.depth].every((v) => Number.isFinite(v) && v >= 20 && v <= 240)))))) return 'furniture 包含无效物件'
   return null
 }
 

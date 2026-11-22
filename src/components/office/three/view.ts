@@ -56,7 +56,7 @@ export function createOfficeView(
     return null
   }
   stage.prepend(canvas)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  renderer.setPixelRatio(Math.max(1.5, Math.min(window.devicePixelRatio || 1, 2)))
   renderer.setClearColor(0xf3f3f1, 0)
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFShadowMap
@@ -268,7 +268,7 @@ export function createOfficeView(
       highlight.visible = Boolean(mentioned || id === selectedRoom)
       if (highlight.visible) {
         highlight.material.color.set(mentioned ? '#e8a23d' : '#5492db')
-        highlight.material.opacity = mentioned ? .29 : .13
+        highlight.material.opacity = mentioned ? .22 : .055
       }
     }
     for (const { member, mesh } of world.people) {

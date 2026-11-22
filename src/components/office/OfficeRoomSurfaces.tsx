@@ -1,7 +1,7 @@
 import { DoorOpen, Layers3 } from 'lucide-react'
 import { OFFICE_FLOORS } from './office-assets'
 import { roomTemplates } from './rooms'
-import { WALL_THICKNESS, type FloorMaterial, type RoomDoor, type RoomPlacement } from './rooms/api'
+import { WALL_THICKNESS, type FloorMaterial, type RoomDoor, type RoomPlacement, type WallFinish } from './rooms/api'
 
 const sides = { north: '上侧', east: '右侧', south: '下侧', west: '左侧' } as const
 
@@ -64,5 +64,17 @@ export function OfficeRoomSurfaces({ room, disabled, onUpdate }: {
           onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
       </label>
     </div>}
+    {room.template !== 'empty' && <details className="office-partitions">
+      <summary>隔墙与开放边界</summary>
+      <div>{Object.entries(sides).map(([side, label]) => <label key={side}>{label}墙
+        <select aria-label={label + '墙材质'} disabled={disabled} value={room.walls?.[side as RoomDoor['side']] ?? 'solid'}
+          onChange={(event) => {
+            const finish = event.target.value as WallFinish
+            onUpdate((current) => ({ ...current, walls: { ...current.walls, [side]: finish } }))
+          }}>
+          <option value="solid">实体隔墙</option><option value="glass">黑框玻璃</option><option value="open">开放连通</option>
+        </select>
+      </label>)}</div>
+    </details>}
   </div>
 }

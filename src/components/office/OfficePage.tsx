@@ -11,6 +11,7 @@ import { OfficeQuickChat } from './OfficeQuickChat'
 import { OfficeScene } from './OfficeScene'
 import { OfficeLayoutEditor } from './OfficeLayoutEditor'
 import { OfficeSeatAssignments } from './OfficeSeatAssignments'
+import { OfficeReferencePreview } from './OfficeReferencePreview'
 import { OfficeWorkPanel, type OfficeTaskDraft, type OfficeWorkAccess } from './OfficeWorkPanel'
 import { gmvMetric, useRoomMetrics } from './room-metrics'
 import { resolveOfficeLayout, roomTemplates } from './rooms'
@@ -60,6 +61,7 @@ export function OfficePage({
   const [personal, setPersonal] = useState(false)
   const [editingOpen, setEditingOpen] = useState(false)
   const [assigningSeats, setAssigningSeats] = useState(false)
+  const [referenceOpen, setReferenceOpen] = useState(false)
   const [tabRequest, setTabRequest] = useState<{ tab: 'work' | 'overview'; sequence: number }>()
   const workButton = useRef<HTMLButtonElement>(null)
   const request = useRef(0)
@@ -169,6 +171,7 @@ export function OfficePage({
             <span title={workspaceName}>{workspaceName}</span>
           </div>
           <div className="office-tools">
+            <button type="button" className="office-tool ui-press" onClick={() => setReferenceOpen(true)}>参考户型</button>
             {editing && <>
               <button type="button" className="office-tool ui-press" onClick={() => setEditingOpen(true)}>编排办公室</button>
               <button type="button" className="office-tool ui-press" onClick={() => setAssigningSeats(true)}>分配工位</button>
@@ -229,6 +232,7 @@ export function OfficePage({
         </header>
         {assigningSeats && editing && <OfficeSeatAssignments layout={layout} rooms={rooms} team={editing.team}
           onSave={editing.publish} onClose={() => setAssigningSeats(false)} />}
+        {referenceOpen && <OfficeReferencePreview onClose={() => setReferenceOpen(false)} />}
 
         {layoutError ? (
           <div className="office-viewport">

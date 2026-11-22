@@ -44,6 +44,9 @@
 .office-room-tools { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--muted); }
 .office-room-tools strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; font-size: 13px; }
 .office-room-tools-empty { margin: 12px 0 0; color: var(--muted-foreground); }
+.office-partitions { width: 100%; border-top: 1px solid var(--border); padding-top: 7px; font-size: 12px; }
+.office-partitions summary { cursor: pointer; color: var(--muted-foreground); }
+.office-partitions > div { display: flex; gap: 12px; flex-wrap: wrap; padding-top: 8px; }
 .office-room-tools input[type="number"] { width: 58px; }
 .office-floor-swatch { display: inline-block; width: 15px; height: 15px; border: 1px solid var(--border); border-radius: 4px; }
 .office-resize-boundary { position: absolute; pointer-events: none; z-index: 4; color: #2c65ae; }

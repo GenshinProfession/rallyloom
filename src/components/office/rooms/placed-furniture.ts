@@ -1,7 +1,7 @@
 import { Group } from 'three'
 import type { FurnitureKind, FurniturePlacement, RoomFrame } from './api'
 import type { ModelKit } from '../three/model'
-import { shelf, table } from './furniture'
+import { monitor, shelf, table } from './furniture'
 
 export const FURNITURE = {
   desk: { label: '桌子', width: 60, depth: 36, height: 24 },
@@ -12,8 +12,12 @@ export const FURNITURE = {
   lamp: { label: '落地灯', width: 18, depth: 18, height: 48 },
 } satisfies Record<FurnitureKind, { label: string; width: number; depth: number; height: number }>
 
+export function furnitureSize(item: FurniturePlacement) {
+  return item.kind === 'desk' && item.size ? { ...FURNITURE.desk, ...item.size } : FURNITURE[item.kind]
+}
+
 function clearances(item: FurniturePlacement, room: RoomFrame) {
-  const { width, depth } = FURNITURE[item.kind]
+  const { width, depth } = furnitureSize(item)
   const angle = item.rotation * Math.PI / 180
   const sin = Math.abs(Math.sin(angle)), cos = Math.abs(Math.cos(angle))
   return {
@@ -41,9 +45,12 @@ export function buildPlacedFurniture(parent: Group, model: ModelKit, item: Furni
   object.position.set(item.x * frame.width, 0, item.y * frame.height)
   object.rotation.y = -item.rotation * Math.PI / 180
   parent.add(object)
-  const { width, depth, height } = FURNITURE[item.kind]
+  const { width, depth, height } = furnitureSize(item)
   switch (item.kind) {
-    case 'desk': table(object, model, 0, 0, width, depth); break
+    case 'desk':
+      table(object, model, 0, 0, width, depth)
+      monitor(object, model, 0, -depth * .2, 24, 24)
+      break
     case 'shelf': shelf(object, model, 0, 0, width, true); break
     default: model.asset(object, item.kind, 0, 0, 0, width, height, depth)
   }

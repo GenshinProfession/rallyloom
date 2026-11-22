@@ -179,7 +179,7 @@ electron/    Electron 主进程（无边框窗口、IPC、深链转发、截图�
 src/
   components/auth/     外部授权登录页（连接器列表 + 授权时序动画）
   components/team/     团队管理（成员 / 角色与权限 / 接入管理 / 存储）
-  components/office/   办公室场景（DOM grid + SVG 房间/家具/人物）
+  components/office/   Three.js 办公室、共墙隔断、家具与 3D 编排
   components/panels/   右侧实时概览
   components/ui/       shadcn/ui 基础组件
   lib/identity/        连接器 / RBAC / JIT 同步（types, connector, rbac）

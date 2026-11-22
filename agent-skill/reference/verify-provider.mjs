@@ -255,6 +255,9 @@ async function checkBootstrapFile(file) {
           need(isObject(room.frame) && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(room.frame[key]) && room.frame[key] >= 0),
             `${at}.frame：{x,y,width,height} 非负数字`);
           need(optionalBoolean(room.useTemplateFurniture), `${at}.useTemplateFurniture：可选布尔值`);
+          need(room.walls === undefined || (isObject(room.walls) && Object.entries(room.walls).every(([side, finish]) =>
+            ['north', 'east', 'south', 'west'].includes(side) && ['solid', 'glass', 'open'].includes(finish))),
+          `${at}.walls：可选各方向隔墙类型`);
           need(room.floorMaterial === undefined || ['wood', 'tile', 'concrete'].includes(room.floorMaterial),
             `${at}.floorMaterial：可选木地板、地砖或水泥`);
           if (room.door !== undefined) {
@@ -275,7 +278,9 @@ async function checkBootstrapFile(file) {
             need(Array.isArray(room.furniture) && room.furniture.length <= 60 && room.furniture.every((item) =>
               isObject(item) && id(item.id) && ['desk', 'shelf', 'plant', 'sofa', 'coffee', 'lamp'].includes(item.kind)
               && [item.x, item.y].every((coordinate) => Number.isFinite(coordinate) && coordinate >= 0 && coordinate <= 1)
-              && Number.isFinite(item.rotation) && item.rotation >= 0 && item.rotation < 360),
+              && Number.isFinite(item.rotation) && item.rotation >= 0 && item.rotation < 360
+              && (item.size === undefined || (item.kind === 'desk' && isObject(item.size)
+                && [item.size.width, item.size.depth].every((v) => Number.isFinite(v) && v >= 20 && v <= 240)))),
             `${at}.furniture：受支持的家具、归一化坐标和旋转角度`);
           }
         });

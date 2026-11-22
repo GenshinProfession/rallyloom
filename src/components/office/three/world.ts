@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { Member } from '@/data/office'
-import { getRoomWallSegments, WALL_THICKNESS, type OfficeLayout, type ResolvedRoom } from '../rooms/api'
+import { WALL_THICKNESS, type OfficeLayout, type ResolvedRoom } from '../rooms/api'
+import { sharedWallRuns } from '../rooms/shared-walls'
 import { buildPlacedFurniture } from '../rooms/placed-furniture'
 import { createModelKit, type ModelKit } from './model'
 import { createWalker } from './walker'
@@ -13,7 +14,7 @@ export type OfficeMode = 'daily' | 'presence' | 'tasks'
 type RoomAnchor = { room: ResolvedRoom; position: THREE.Vector3; present: number }
 type PersonAnchor = { member: Member; position: THREE.Vector3; mesh: THREE.Mesh }
 
-const WALL_COLOR = '#f3f4f1'
+const WALL_COLOR = '#515957'
 const BASE_LEVEL = -11
 
 function floorPattern(room: ResolvedRoom, parent: THREE.Group) {
@@ -21,11 +22,12 @@ function floorPattern(room: ResolvedRoom, parent: THREE.Group) {
   const { width, height } = room.frame
   const wood = (room.floorMaterial ?? room.appearance.material) === 'wood'
   const lines: number[] = []
-  const interval = wood ? 13 : 34
-  for (let z = interval; z < height; z += interval) {
+  const interval = wood ? 13 : 64
+  const firstZ = interval - room.frame.y % interval
+  for (let z = firstZ; z < height; z += interval) {
     lines.push(0, .09, z, width, .09, z)
   }
-  for (let x = wood ? 28 : 34; x < width; x += wood ? 90 : 34) {
+  for (let x = wood ? 28 : 64 - room.frame.x % 64; x < width; x += wood ? 90 : 64) {
     if (wood) {
       for (let z = 0; z < height; z += interval) {
         const joint = x + (Math.round(z / interval) % 3) * 24
@@ -41,25 +43,39 @@ function floorPattern(room: ResolvedRoom, parent: THREE.Group) {
   parent.add(new THREE.LineSegments(geometry, material))
 }
 
-function walls(room: ResolvedRoom, parent: THREE.Group, model: ModelKit, solids: THREE.Object3D[]) {
+function walls(room: ResolvedRoom, rooms: readonly ResolvedRoom[], parent: THREE.Group, model: ModelKit, solids: THREE.Object3D[]) {
   const { width, height } = room.frame
-  for (const { side, start, end } of getRoomWallSegments(room.frame, room.doorway)) {
+  for (const { side, start, end, finish, shared } of sharedWallRuns(room, rooms)) {
     const horizontal = side === 'north' || side === 'south'
     const length = end - start
     const middle = start + length / 2
     const x = horizontal ? middle : side === 'east' ? width : 0
     const z = horizontal ? side === 'south' ? height : 0 : middle
-    const wallHeight = side === 'north' ? 34 : 13
+    const wallHeight = shared ? 24 : side === 'north' ? 34 : 16
     const wallWidth = horizontal ? length : WALL_THICKNESS
     const wallDepth = horizontal ? WALL_THICKNESS : length
-    solids.push(model.box(parent, x, 0, z, wallWidth, wallHeight, wallDepth, WALL_COLOR))
-    model.box(parent, x, wallHeight, z, wallWidth + (horizontal ? 0 : 1), 1.5, wallDepth + (horizontal ? 1 : 0), '#fffefa')
+    if (finish === 'glass') {
+      const glass = new THREE.Mesh(
+        new THREE.BoxGeometry(wallWidth, wallHeight, wallDepth),
+        new THREE.MeshStandardMaterial({ color: '#a6c7c4', transparent: true, opacity: .24, roughness: .18, metalness: .08, depthWrite: false }),
+      )
+      glass.position.set(x, wallHeight / 2, z)
+      parent.add(glass)
+      solids.push(glass)
+      const panels = Math.max(1, Math.ceil(length / 64))
+      for (let i = 0; i <= panels; i++) {
+        const offset = start + i * length / panels
+        model.box(parent, horizontal ? offset : x, 0, horizontal ? z : offset,
+          horizontal ? 1.6 : 2, wallHeight + 1, horizontal ? 2 : 1.6, '#414c4c')
+      }
+    } else solids.push(model.box(parent, x, 0, z, wallWidth, wallHeight, wallDepth, WALL_COLOR))
+    model.box(parent, x, wallHeight, z, wallWidth + (horizontal ? 0 : 1), 1.1, wallDepth + (horizontal ? 1 : 0), '#68716e')
     const trimInset = WALL_THICKNESS / 2 + .25
     const insetX = horizontal ? x : x + (side === 'west' ? trimInset : -trimInset)
     const insetZ = horizontal ? z + (side === 'north' ? trimInset : -trimInset) : z
     const baseboard = model.box(parent, insetX, .25, insetZ, horizontal ? length : .7, 2.3, horizontal ? .7 : length, '#d3dcd9')
     baseboard.castShadow = false
-    if (side === 'north' && length > 100) {
+    if (!shared && finish !== 'glass' && side === 'north' && length > 100) {
       for (const offset of [-.24, .24]) {
         const glass = model.box(parent, x + length * offset, 21, z + 3.25, length * .38, 9.5, 1, '#c2d6d7')
         glass.castShadow = false
@@ -86,9 +102,9 @@ function chair(group: THREE.Group, model: ModelKit) {
     for (const sign of [-1, 1]) model.orb(group, sign * Math.cos(angle) * 7, 0, 1 + sign * Math.sin(angle) * 7, 3, 3, 3, '#627074')
   }
   model.round(group, 0, 1.8, 1, 4.5, 9, '#acb6bd')
-  model.softBox(group, 0, 10, 0, 17.5, 4.6, 16, '#9aaba8')
-  model.softBox(group, 0, 11.5, 8, 18.5, 13.5, 4.2, '#f5f5ef')
-  model.softBox(group, 0, 15.3, 6, 15, 7.8, 1.6, '#a5b1b4')
+  model.softBox(group, 0, 10, 0, 17.5, 4.6, 16, '#414c4e')
+  model.softBox(group, 0, 11.5, 8, 18.5, 13.5, 4.2, '#303a3e')
+  model.softBox(group, 0, 15.3, 6, 15, 7.8, 1.6, '#526064')
   for (const x of [-9, 9]) {
     model.box(group, x, 11, 3, 1.6, 7, 2.8, '#a5b1b4')
     model.softBox(group, x, 17, 2, 3, 1.8, 11, '#c8d1cd')
@@ -130,8 +146,8 @@ export function buildOfficeWorld(
 
   const slab = model.box(scene, center.x, BASE_LEVEL, center.z, width + 28, -BASE_LEVEL - .8, height + 28, '#cdd6d3')
   slab.name = 'office-base'
-  const corridor = model.box(scene, center.x, -.8, center.z, width + 18, .7, height + 18, '#e5e6de')
-  corridor.castShadow = false
+  const foundation = model.box(scene, center.x, -.8, center.z, width + 18, .7, height + 18, '#eeefeb')
+  foundation.castShadow = false
 
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(width * 4, height * 4), new THREE.ShadowMaterial({ opacity: .12 }))
   ground.rotation.x = -Math.PI / 2
@@ -156,7 +172,7 @@ export function buildOfficeWorld(
       const grain = new THREE.PlaneGeometry(frame.width, frame.height)
       const uv = grain.getAttribute('uv')
       for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * frame.width / 285, uv.getY(i) * frame.height / 285)
-      const finish = new THREE.Mesh(grain, new THREE.MeshLambertMaterial({ color: room.floor, map: wood }))
+      const finish = new THREE.Mesh(grain, new THREE.MeshStandardMaterial({ color: room.floor, map: wood, roughness: .65 }))
       finish.rotation.x = -Math.PI / 2
       finish.position.set(frame.width / 2, .05, frame.height / 2)
       finish.receiveShadow = true
@@ -164,7 +180,7 @@ export function buildOfficeWorld(
     } else floorPattern(room, group)
     const architecture = new THREE.Group()
     group.add(architecture)
-    if (room.template !== 'empty') walls(room, architecture, model, solids)
+    if (room.template !== 'empty') walls(room, rooms, architecture, model, solids)
     const furniture = new THREE.Group()
     group.add(furniture)
     if (room.useTemplateFurniture !== false)

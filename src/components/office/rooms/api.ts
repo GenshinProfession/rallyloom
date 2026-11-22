@@ -17,6 +17,7 @@ export interface RoomFrame {
 
 export const WALL_THICKNESS = 6
 export type FloorMaterial = 'wood' | 'tile' | 'concrete'
+export type WallFinish = 'solid' | 'glass' | 'open'
 
 export interface RoomDoor {
   side: 'north' | 'east' | 'south' | 'west'
@@ -62,6 +63,7 @@ export interface RoomPlacement {
   frame: RoomFrame
   floor?: string
   floorMaterial?: FloorMaterial
+  walls?: Partial<Record<RoomDoor['side'], WallFinish>>
   accent?: string
   seats?: readonly RoomSeat[]
   door?: RoomDoor
@@ -80,6 +82,8 @@ export interface FurniturePlacement {
   y: number
   /** Clockwise rotation on the plan, in degrees. */
   rotation: number
+  /** Desk dimensions in scene units, independent of room dimensions. */
+  size?: { width: number; depth: number }
 }
 
 export interface OfficeLayout {

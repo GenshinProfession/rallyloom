@@ -4,19 +4,19 @@ import { furnitureGeometry, type FurnitureAsset } from './furniture-assets'
 
 export function createModelKit() {
   let boxGeometry: THREE.BoxGeometry | undefined
-  let softBoxGeometry: RoundedBoxGeometry | undefined
+  const softBoxes = new Map<string, RoundedBoxGeometry>()
   let roundGeometry: THREE.CylinderGeometry | undefined
   let orbGeometry: THREE.SphereGeometry | undefined
-  const materials = new Map<string, THREE.MeshLambertMaterial>()
+  const materials = new Map<string, THREE.MeshStandardMaterial>()
   const kitMeshes = new WeakSet<THREE.Object3D>()
   const furniture = new Map<FurnitureAsset, THREE.BufferGeometry>()
-  let furnitureMaterial: THREE.MeshLambertMaterial | undefined
+  let furnitureMaterial: THREE.MeshStandardMaterial | undefined
 
   function material(color: THREE.ColorRepresentation) {
     const key = new THREE.Color(color).getHexString()
     let surface = materials.get(key)
     if (!surface) {
-      surface = new THREE.MeshLambertMaterial({ color })
+      surface = new THREE.MeshStandardMaterial({ color, roughness: .7, metalness: .04 })
       materials.set(key, surface)
     }
     return surface
@@ -44,7 +44,7 @@ export function createModelKit() {
     asset(parent: THREE.Object3D, name: FurnitureAsset, x: number, y: number, z: number, width: number, height: number, depth: number) {
       let geometry = furniture.get(name)
       if (!geometry) { geometry = furnitureGeometry(name); furniture.set(name, geometry) }
-      const part = new THREE.Mesh(geometry, furnitureMaterial ??= new THREE.MeshLambertMaterial({ vertexColors: true }))
+      const part = new THREE.Mesh(geometry, furnitureMaterial ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .78 }))
       part.position.set(x, y, z)
       part.scale.set(width, height, depth)
       part.castShadow = part.receiveShadow = true
@@ -59,7 +59,17 @@ export function createModelKit() {
     softBox: (
       parent: THREE.Object3D, x: number, y: number, z: number,
       width: number, height: number, depth: number, color: THREE.ColorRepresentation,
-    ) => mesh(parent, softBoxGeometry ??= new RoundedBoxGeometry(1, 1, 1, 2, .13), x, y, z, width, height, depth, color),
+    ) => {
+      const key = [width, height, depth].join(':')
+      let geometry = softBoxes.get(key)
+      if (!geometry) {
+        geometry = new RoundedBoxGeometry(width, height, depth, 3, Math.min(.8, width * .15, height * .22, depth * .15))
+        softBoxes.set(key, geometry)
+      }
+      const part = mesh(parent, geometry, x, y, z, 1, 1, 1, color)
+      part.position.y = y + height / 2
+      return part
+    },
     round: (
       parent: THREE.Object3D, x: number, y: number, z: number,
       diameter: number, height: number, color: THREE.ColorRepresentation,

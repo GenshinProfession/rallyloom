@@ -4,9 +4,11 @@ import { OfficeAssetLibrary } from './OfficeAssetLibrary'
 import type { OfficeResizeTarget } from './OfficeResizeHandle'
 import { OfficeScene, type OfficeSceneControls } from './OfficeScene'
 import { OfficeRoomSurfaces } from './OfficeRoomSurfaces'
+import { referenceOffice } from './reference-layout'
+import { snapRoom } from './rooms/snap-room'
 import { getRoomDoorway, resolveOfficeLayout, roomTemplates, type RoomPlacement } from './rooms'
 import type { FurnitureKind, RoomFrame } from './rooms/api'
-import { FURNITURE, fitFurniture, furnitureFits } from './rooms/placed-furniture'
+import { FURNITURE, fitFurniture, furnitureFits, furnitureSize } from './rooms/placed-furniture'
 import { OFFICE_TEMPLATES } from './office-assets'
 import { NEW_ROOM_SIZE, type FloorPoint, type OfficeDragSource, type OfficePlacement } from './office-drag'
 import './office-editor.css'
@@ -38,6 +40,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [confirmEmpty, setConfirmEmpty] = useState(false)
+  const [confirmReference, setConfirmReference] = useState(false)
   const selected = draft.rooms.find((room) => room.id === selection)
   const selectedItem = selected?.furniture?.find((item) => item.id === furnitureSelection)
   const workstationGrid = selected && WORKSTATION_TEMPLATES.has(selected.template) ? deskGrid(selected.frame) : null
@@ -106,11 +109,11 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
       const { width, height } = previous ?? NEW_ROOM_SIZE
       const x = previous && origin ? previous.x + point.x - origin.x : point.x - width / 2
       const y = previous && origin ? previous.y + point.y - origin.y : point.y - height / 2
-      const frame = {
+      const frame = snapRoom({
         x: clamp(Math.round(x), 0, draft.width - width),
         y: clamp(Math.round(y), 0, draft.height - height),
         width, height,
-      }
+      }, draft.rooms, sourceRoom?.id, draft.width, draft.height)
       const onBoard = point.x >= 0 && point.y >= 0 && point.x <= draft.width && point.y <= draft.height
       const valid = onBoard && !draft.rooms.some((room) => room.id !== sourceRoom?.id && intersects(room.frame, frame))
         && (source.kind === 'room' || draft.rooms.length < 80)
@@ -130,6 +133,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
       id: original?.id ?? '',
       kind: source.kind === 'new-furniture' ? source.model : original!.kind,
       rotation: original?.rotation ?? 0,
+      size: original?.size,
       x: (requested.x - frame.x) / frame.width,
       y: (requested.y - frame.y) / frame.height,
     }, frame)
@@ -294,7 +298,17 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
               <button type="button" disabled={busy || !draft.rooms.length} onClick={() => {
                 setDraft({ ...draft, rooms: [] }); setSelection(undefined); setFurnitureSelection(undefined); setMessage('')
               }}>清空草稿</button>
+              <button type="button" disabled={busy} onClick={() => {
+                if (draft.rooms.length && !confirmReference) { setConfirmReference(true); return }
+                const reference = referenceOffice()
+                setDraft({ ...reference, revision: draft.revision })
+                selectRoom('ref-open')
+                setConfirmReference(false)
+                setMessage('')
+              }}>{confirmReference ? '确认替换为参考户型' : '参考户型'}</button>
+              {confirmReference && <button type="button" onClick={() => setConfirmReference(false)}>取消替换</button>}
             </div>
+            {confirmReference && <p className="office-editor-seat-notice">此操作会替换当前草稿的房间和家具，发布后生效。</p>}
             <OfficeRoomSurfaces room={selected} disabled={busy} onUpdate={(update) => {
               if (selected) updateRoom(selected.id, update)
             }} />
@@ -320,6 +334,21 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
             }} />
             {selected && selectedItem && <section>
               <h2>{FURNITURE[selectedItem.kind].label}</h2>
+              {selectedItem.kind === 'desk' && <div className="office-editor-dimensions">
+                {(['width', 'depth'] as const).map((dimension) => <label key={dimension}>{dimension === 'width' ? '桌面宽' : '桌面深'}
+                  <input type="number" min={20} max={240} defaultValue={furnitureSize(selectedItem)[dimension]}
+                    key={selectedItem.id + dimension + furnitureSize(selectedItem)[dimension]}
+                    onBlur={(event) => {
+                      const value = event.currentTarget.valueAsNumber
+                      const previous = furnitureSize(selectedItem)
+                      if (Number.isFinite(value) && value >= 20 && value <= 240)
+                        updateRoom(selected.id, (room) => ({ ...room, furniture: room.furniture?.map((item) =>
+                          item.id === selectedItem.id ? fitFurniture({ ...item, size: { width: previous.width, depth: previous.depth, [dimension]: value } }, room.frame) : item) }))
+                      event.currentTarget.value = String(previous[dimension])
+                    }}
+                    onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} disabled={busy} />
+                </label>)}
+              </div>}
               <label>旋转角度 <input type="number" min={0} max={359} value={selectedItem.rotation} disabled={busy}
                 onChange={(event) => {
                   const rotation = clamp(Number(event.target.value), 0, 359)
