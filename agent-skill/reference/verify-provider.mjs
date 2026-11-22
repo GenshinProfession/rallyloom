@@ -190,6 +190,8 @@ async function checkBootstrapFile(file) {
     need(Array.isArray(raw.permissions) && raw.permissions.includes('office.view'), 'permissions 必须包含 office.view');
     need(isObject(raw.policy), 'policy：对象（可返回 {}）');
     need(isObject(raw.dataSlots), 'dataSlots：对象（可返回 {}）');
+    if (raw.collaboration?.reporting !== undefined) need(isObject(raw.collaboration.reporting) && raw.collaboration.reporting.version === 1, 'collaboration.reporting：通用日志契约 version=1');
+    if (raw.collaboration?.scopes !== undefined) need(Array.isArray(raw.collaboration.scopes) && raw.collaboration.scopes.every(scope => isObject(scope) && /^[a-zA-Z0-9_-]{1,128}$/.test(scope.id) && text(scope.label)), 'collaboration.scopes：通用范围ID与名称，不要求数字租户编号');
     if (raw.roleSettings !== undefined) {
       const settings = raw.roleSettings;
       need(raw.permissions?.includes?.('roles.configure'), 'roleSettings：仅在获授 roles.configure 时返回');

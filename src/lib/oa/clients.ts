@@ -20,7 +20,7 @@ async function all<T>(kind: string, scope?: string): Promise<T[]> {
     if (data.nextCursor === after) throw new Error('OA 分页游标未前进。')
     after = data.nextCursor
   }
-  throw new Error('记录超过5000条，请在 Mira 归档历史记录后重试。')
+  throw new Error('记录超过5000条，请在企业系统缩小数据范围或归档后重试。')
 }
 type Versioned = { id: string; revision?: number; sortOrder?: number }
 class Records<T extends Versioned> {
@@ -42,7 +42,7 @@ class Records<T extends Versioned> {
 }
 export class OaTaskClient extends Records<TaskRecord & Versioned> implements TaskClient {
   readonly kind = 'oa-rest' as const
-  readonly label = 'Mira 公司任务'
+  readonly label = '企业任务'
   board: TaskBoardDefinition = { defaultStatus: 'loading', statuses: [{ id: 'loading', label: '正在加载任务定义…', dot: '#aaaaaa' }], fields: [] }
   constructor(scope?: string) { super('task', scope) }
   async list() { this.board = validateBoard(await oa<TaskBoardDefinition>('GET', '/task-board', undefined, this.scope)); return (await super.list()).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)) }
@@ -53,14 +53,14 @@ export class OaTaskClient extends Records<TaskRecord & Versioned> implements Tas
 }
 export class OaDocClient extends Records<DocRecord & Versioned> implements DocClient {
   readonly kind = 'oa-rest' as const
-  readonly label = 'Mira 云端文档'
+  readonly label = '企业文档'
   constructor() { super('doc') }
   async create(draft: DocDraft) { return super.create(draft) }
   async update(id: string, draft: DocDraft) { return super.update(id, draft) }
 }
 export class OaNoticeClient extends Records<NoticeRecord & Versioned> implements NoticeClient {
   readonly kind = 'oa-rest' as const
-  readonly label = 'Mira 公司通知'
+  readonly label = '企业通知'
   constructor() { super('notice') }
   async unreadIds() { return (await this.list()).filter((row) => !row.isRead).map(({ id }) => id) }
   async markRead(ids: string[]) { for (let index = 0; index < ids.length; index += 100) await oa('POST', '/read/notice', { ids: ids.slice(index, index + 100) }) }
@@ -76,7 +76,7 @@ async function fileData(file: File) {
 }
 export class OaChatClient implements ChatClient {
   readonly kind = 'oa-rest' as const
-  readonly label = 'Mira 公司交流室'
+  readonly label = '企业交流室'
   channels() { return oa<ChatChannel[]>('GET', '/chat/channels') }
   history(id: string, limit = 200) { return oa<ChatMessage[]>('GET', `/chat/channels/${encodeURIComponent(id)}/messages?limit=${limit}`) }
   async send(id: string, draft: ChatDraft, _sender: ChatPerson) { return oa<ChatMessage>('POST', `/chat/channels/${encodeURIComponent(id)}/messages`, { text: draft.text, mentions: draft.mentions, files: await Promise.all(draft.files.map(fileData)) }) }

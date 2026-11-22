@@ -167,7 +167,7 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
   const [chatTargetId, setChatTargetId] = useState<string | null>(null)
 
   const me = team.find(({ id }) => id === entry.memberId)
-  const canReports = !demo && permissions.includes('reports.use')
+  const canReports = !demo && permissions.includes('reports.use') && snapshot.collaboration?.reporting?.version === 1
   const canTeam = me ? (demo ? can(me.role, 'team.view') : permissions.includes('team.view')) : false
   // 集团视图不承载租户内板块：办公室/交流室/任务/文档/通知按公司工作区进入后体验
   const canChat = !isGroup && !!me && (demo ? can(me.role, 'chat.use') : permissions.includes('chat.use'))

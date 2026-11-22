@@ -11,7 +11,7 @@ export function TaskBoardSettings({ board, save, close }: { board: TaskBoardDefi
   const statuses = [...draft.statuses], fields = [...draft.fields]
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) close() }}><DialogContent className="max-h-[85vh] max-w-[720px] overflow-y-auto">
     <DialogHeader><DialogTitle>当前公司任务看板设置</DialogTitle></DialogHeader>
-    <p className="text-ui-label text-muted-foreground">此设置保存在 Mira。已有任务的状态须先清空再删除；各公司的规则独立。</p>
+    <p className="text-ui-label text-muted-foreground">此设置保存在企业系统。已有任务的状态须先清空再删除；各公司的规则独立。</p>
     <h3>状态列</h3>
     {statuses.map((status, index) => <div key={status.id} className="grid gap-2 rounded-md border p-3">
       <div className="flex gap-2"><Input aria-label="状态名称" value={status.label} onChange={(e) => { statuses[index] = { ...status, label: e.target.value }; setDraft({ ...draft, statuses }) }} />
@@ -34,6 +34,6 @@ export function TaskBoardSettings({ board, save, close }: { board: TaskBoardDefi
     </div>)}
     <Button variant="outline" onClick={() => setDraft({ ...draft, fields: [...fields, { id: crypto.randomUUID(), label: '新字段', type: 'text' }] })}>添加字段</Button>
     {error && <p role="alert" className="text-destructive">{error}</p>}
-    <Button disabled={busy} onClick={async () => { setBusy(true); try { validateBoard(draft); await save(draft); close() } catch (e) { setError(e instanceof Error ? e.message : '保存失败') } finally { setBusy(false) } }}>保存到 Mira</Button>
+    <Button disabled={busy} onClick={async () => { setBusy(true); try { validateBoard(draft); await save(draft); close() } catch (e) { setError(e instanceof Error ? e.message : '保存失败') } finally { setBusy(false) } }}>保存到企业系统</Button>
   </DialogContent></Dialog>
 }

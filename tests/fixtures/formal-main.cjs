@@ -15,9 +15,17 @@ app.whenReady().then(async()=>{
  document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await pause(100)
  nav('docs');await wait(()=>document.querySelector('[data-doc-row]'),'formal docs');document.querySelector('[data-doc-row]').click();await wait(()=>document.querySelector('[data-doc-reader]'),'formal reader')
  nav('chat');await wait(()=>document.body.textContent.includes('正式交流室'),'formal chat')
- nav('reports');await wait(()=>[...document.querySelectorAll('[data-reports] aside button')].some(b=>b.textContent.includes('测试员工')),'Mira existing report');[...document.querySelectorAll('[data-reports] aside button')].find(b=>b.textContent.includes('测试员工')).click();await wait(()=>document.querySelector('textarea[aria-label="工作汇报正文"]'),'report page')
+ nav('reports');await wait(()=>[...document.querySelectorAll('[data-reports] aside button')].some(b=>b.textContent.includes('测试员工')),'generic provider report');[...document.querySelectorAll('[data-reports] aside button')].find(b=>b.textContent.includes('测试员工')).click();await wait(()=>document.querySelector('textarea[aria-label="工作汇报正文"]'),'report page')
+ if(!document.body.textContent.includes('研发交付日志')||!document.body.textContent.includes('关闭工单数')||!document.body.textContent.includes('Europe/Paris'))throw Error('enterprise report definition ignored')
+ if(document.body.textContent.includes('店铺')||document.body.textContent.includes('Mira 运营'))throw Error('business-specific report leaked')
  const field=document.querySelector('textarea[aria-label="工作汇报正文"]')
  if(field.disabled!==Boolean(document.body.textContent.includes('管理者只读查看')))throw Error('report writing authority')
+ if(!field.disabled){
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(field,'通用企业日志');field.dispatchEvent(new Event('input',{bubbles:true}));await pause(100);[...document.querySelectorAll('button')].find(b=>b.textContent==='提交汇报').click();await wait(()=>document.body.textContent.includes('版本冲突'),'report conflict');if(document.querySelector('textarea[aria-label="工作汇报正文"]').value!=='通用企业日志')throw Error('conflict destroyed draft');[...document.querySelectorAll('button')].find(b=>b.textContent==='提交汇报').click();await wait(()=>document.body.textContent.includes('已提交'),'generic report submitted');document.querySelector('[data-reports] aside button').click();await wait(()=>document.querySelector('textarea[aria-label="工作汇报正文"]')?.disabled,'submitted report immutable')
+ }
+ else {
+  [...document.querySelectorAll('button')].find(b=>b.textContent==='模板设置').click();await wait(()=>document.querySelector('input[aria-label="模板名称"]'),'report template editor');const name=document.querySelector('input[aria-label="模板名称"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(name,'企业交接记录');name.dispatchEvent(new Event('input',{bubbles:true}));await pause(100);[...document.querySelectorAll('button')].find(b=>b.textContent==='保存模板').click();await wait(()=>!document.querySelector('[role=dialog]'),'template saved');if(!document.body.textContent.includes('企业交接记录'))throw Error('template configuration not refreshed')
+ }
  return 'PASS formal provider board, task details, documents, chat and report role boundary'
  }).toString()+')()',true)
  fs.writeFileSync(output,result)

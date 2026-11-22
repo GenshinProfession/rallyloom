@@ -1,4 +1,4 @@
-# 企业 OA 协作契约（Rallyloom 0.12）
+# 企业 OA 协作契约（Rallyloom 0.13）
 
 正式桌面应用通过 Electron 主进程的 `workspace.oa` 访问同源 `/api/v1/workspace/oa`。访问/续期令牌只在主进程，renderer 不保存密码或 access token。接口返回原生 JSON，不包装企业其他接口的信封。企业负责持久化、鉴权、对象范围、角色名称、任务状态和自定义字段。
 
@@ -11,13 +11,13 @@
 | `tasks.coordinate` | 工作协调、看板配置 | 服务端按当前来源角色授权；不能授予跨公司管理 |
 | `docs.use` | 文档树、右侧阅读/编辑、全屏 | 对每条文档返回 `canEdit/canDelete` 并独立校验 |
 | `notify.view` / `notify.publish` | 通知中心 / 发布 | 公告范围、发布权限、逐用户持久化已读 |
-| `reports.use` / `reports.write` | 查看汇报 / 员工填写 | 日周月周期、作者身份、提交后禁止覆盖；管理者只查看 |
+| `reports.use` / `reports.write` | 查看汇报 / 员工填写 | 动态模板、周期、分配、作者身份、版本和提交后锁定；管理者只查看 |
 
-Bootstrap 提供 `collaboration: {version:1, scopes:[{id,label}]}`。工作区仍是同一企业；scopes 是获准公司的工作数据范围，不是客户端切换登录租户。多公司用户切换任务/汇报时发送 `X-Rallyloom-Tenant: <scope.id>`；`company` 指企业公共工作。租户用户不能用这个头切入其他公司。提供方不支持协作接口时，必须不授予上述能力，不得回退 Demo 数据。
+Bootstrap 提供 `collaboration: {version:1, scopes:[{id,label}]}`。工作区仍是同一企业；scopes 是企业定义的组织或工作数据范围，不是客户端切换登录租户。有多个范围的用户切换任务/汇报时发送 `X-Rallyloom-Scope: <scope.id>`；`company` 指企业公共工作。租户用户不能用这个头切入其他公司。提供方不支持协作接口时，必须不授予上述能力，不得回退 Demo 数据。
 
 ## 房间看板
 
-`PATCH /api/v1/workspace/rooms/{roomId}/slot` 沿用工作区契约，仅 `slots.attach` 可写。当前 Mira 工作概览是受保护的同源 `/data-slots/{roomId}`；桌面主进程生成固定地址，不让 renderer 指向任意主机。界面位于团队成员的「房间工作看板」。
+`PATCH /api/v1/workspace/rooms/{roomId}/slot` 沿用工作区契约，仅 `slots.attach` 可写。企业工作概览是受保护的同源 `/data-slots/{roomId}`；桌面主进程生成固定地址，不让 renderer 指向任意主机。界面位于团队成员的「房间工作看板」。
 
 ## 接口
 
@@ -43,14 +43,7 @@ Bootstrap 提供 `collaboration: {version:1, scopes:[{id,label}]}`。工作区�
 
 记录公共字段：`id`、`revision`、`updatedAt`、`createdBy`；`canEdit/canDelete` 由服务端下发。任务可返回 `canManage` 区分负责人改状态与发起人/管理者改标题、截止日等。服务端必须拒绝伪造 `createdBy/ownerName/senderId/tenantId`。`sortOrder` 用于任务展示排序，分页游标独立，不能用可变排序值分页。客户端当前以4秒拉取聊天、10秒拉取资源订阅，单视图最多5000条并明确报错，不能把截断伪装成全量。
 
-工作汇报须接入企业现有汇报服务，不另起一套绕过参与范围的记录。Mira 使用：
-
-- `GET /work-reports?type=DAILY|WEEK|MONTH&day=YYYY-MM-DD`：返回既有 `rows`、`editable`、`participating`。员工按本人读取；老板沿用直属员工范围；租户管理员只看本公司；平台只读已纳入 OA 公司。最多查看最近400天，日报按工作日选择。
-- `GET /work-reports/shops`：当前员工有权记录日报动作的店铺。
-- `PUT /work-reports/daily/{id}`：`{focusNote,data:{tasks,metrics,adjustedShopIds}}`；保留原模板，只有本人昨日已下发日报可写。
-- `PUT /work-reports/periodic?type=WEEK|MONTH&day=...`：`{summary,actions,results,problems,nextPlan,submit,version}`；沿用 Mira 原必填项、乐观锁、当前/上期可修订、历史待交补交规则。管理员不代填。
-
-企业的 `participating:false` 必须显示未参与，不展示强制填写入口。旧 `/records/report` 已停用。Mira 的汇报由同一份数据库记录驱动 ERP 运营看板，无需复制或迁移。其他企业如使用不同汇报模板，应扩展契约并在服务端做字段转换，不能默认拿 Mira 模板套其他公司。
+通用工作汇报由 [日志汇报契约](reporting.md) 定义。提供方声明 `collaboration.reporting.version=1` 后开放 `/reports/templates` 和 `/reports/entries`，客户端根据模板字段渲染。未声明能力不展示入口。Mira 的旧 `/work-reports` 接口只为历史兼容，通用客户端不调用。
 
 `401` 需重新授权或使用主进程续期；`403` 不得重试成其他租户；`409` 保留编辑内容并提示重新载入；`400` 展示字段错误。重试失败不能显示成功。任务失败保留原状态/顺序，文档全屏切换不应重建编辑器。
 
@@ -66,7 +59,7 @@ Bootstrap 提供 `collaboration: {version:1, scopes:[{id,label}]}`。工作区�
 ## 验收（必须分层）
 
 1. 契约：用真实 bootstrap 跑 `reference/verify-provider.mjs --bootstrap`，不把结构检查当权限验收。
-2. 客户端：`npm run build`、`node --test tests/task-board.test.mjs tests/oa-clients.test.mjs`、`node tests/docs-board.cjs`、`node tests/formal-oa.cjs`。
+2. 客户端：`npm run build`、`node --test tests/task-board.test.mjs tests/oa-clients.test.mjs tests/reports.test.mjs`、`node tests/docs-board.cjs`、`node tests/formal-oa.cjs`。
 3. 提供方：隔离样例验证同公司/跨公司/本人/他人、直接请求隐藏接口、状态迁移、409并发、分页、不合法字段、频道/附件权限和撤销。
 4. 生产：真实账号仅只读登录、读快照与负向越权探测；额外的生产写入测试须有具体授权并仅用可识别的临时测试对象，不能向真实群聊发送验收消息。
 5. 发布后再读生产版本和迁移状态；桌面必须重启最新构建且保留原用户 profile。

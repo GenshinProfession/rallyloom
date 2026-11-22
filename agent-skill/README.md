@@ -53,3 +53,5 @@ v1.6 新增 §11 提供方自渲染登录页的 Referrer-Policy/Origin 坑与 `r
 
 按 `integration-spec.md` §8 清单逐条演示；Agent 侧最低要求见 `SKILL.md` 第 6 节。
 
+
+通用日志汇报：见 [reporting.md](reporting.md) 与 `schemas/reporting.schema.json`。模板、字段、周期、草稿/提交、版本与权限是跨企业契约；Mira 仅是一个提供方实现。
