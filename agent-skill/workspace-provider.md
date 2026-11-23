@@ -49,3 +49,5 @@ Bootstrap 可返回 `collaboration:{version:1,scopes:[{id,label}]}` 和提供方
 `tenant.name` 是当前已登录账号所在区域的实际展示名，由提供方按认证身份返回，例如平台总部、分公司、事业部。Rallyloom 左上角从最新 bootstrap 的 tenant.name 展示，不能固定使用发现阶段 binding.display_name。binding 名称继续用于绑定和选择服务；workspace_id 与 tenant.id 仍保持稳定，不通过改展示名切换身份或授权范围。Mira 平台返回“平台总部”，租户返回实际租户名称。`collaboration.scopes` 为独立的数据筛选范围，不改变账号所在区域名称。
 
 地板材质枚举需在提供方保存/回读时原样保留。客户端按世界坐标实时渲染固定尺寸的纹理，并使用导数抗锯齿，房间尺寸与视角缩放不改变纹理密度。
+
+可选能力 `collaboration.seating: {version:1}` 声明共享座位状态接口；日常入座/离座不使用 layout PATCH、不会授予 layout.edit，具体字段与冲突处理见 OA 协作契约。

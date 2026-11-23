@@ -27,7 +27,7 @@ app.whenReady().then(async()=>{
  if(!document.body.textContent.includes('研发交付日志')||!document.body.textContent.includes('关闭工单数')||!document.body.textContent.includes('Europe/Paris'))throw Error('enterprise report definition ignored')
  if(document.body.textContent.includes('店铺')||document.body.textContent.includes('Mira 运营'))throw Error('business-specific report leaked')
  const field=document.querySelector('textarea[aria-label="工作汇报正文"]')
- if(field.disabled!==Boolean(document.body.textContent.includes('管理者只读查看')))throw Error('report writing authority')
+ if(field.disabled!==Boolean(document.body.textContent.includes('当前为查看模式')))throw Error('report writing authority')
  if(!field.disabled){
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(field,'通用企业日志');field.dispatchEvent(new Event('input',{bubbles:true}));await pause(100);[...document.querySelectorAll('button')].find(b=>b.textContent==='提交汇报').click();await wait(()=>document.body.textContent.includes('版本冲突'),'report conflict');if(document.querySelector('textarea[aria-label="工作汇报正文"]').value!=='通用企业日志')throw Error('conflict destroyed draft');[...document.querySelectorAll('button')].find(b=>b.textContent==='提交汇报').click();await wait(()=>document.body.textContent.includes('已提交'),'generic report submitted');document.querySelector('[data-reports] aside button').click();await wait(()=>document.querySelector('textarea[aria-label="工作汇报正文"]')?.disabled,'submitted report immutable')
  }

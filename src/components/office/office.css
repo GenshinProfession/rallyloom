@@ -310,3 +310,7 @@
 }
 
 .office-canvas-tools { display:flex; justify-content:flex-end; align-items:center; gap:8px; }
+
+.office-seat-action { position:absolute; transform:translate(-50%,-50%); display:grid; place-items:center; width:24px; height:24px; border:1px solid #7eab9d; border-radius:50%; background:#f8fffbde; color:#567f70; font-size:16px; box-shadow:0 2px 5px #1f45351c; pointer-events:auto; }
+.office-seat-action:hover { background:#e2f2e9; border-color:#477f6b; }
+.office-seat-error { flex:none; padding:7px 16px; font-size:12px; color:#ab6d52; background:#fbf5ef; }

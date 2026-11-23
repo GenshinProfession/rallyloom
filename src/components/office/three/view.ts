@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { SeatPresence } from '../seat-presence'
 import type { Member } from '@/data/office'
 import { resolveOfficeLayout, roomTemplates } from '../rooms'
 import type { OfficeLayout, ResolvedRoom } from '../rooms/api'
@@ -8,6 +9,7 @@ import { buildOfficeWorld, type OfficeMode } from './world'
 import type { GmvDisplay } from './gmv-screen'
 
 export interface OfficeViewState {
+  seats?: readonly SeatPresence[]
   selectedRoom: string | null
   mode: OfficeMode
   zoom: number
@@ -23,6 +25,7 @@ interface Position {
 }
 
 export interface OfficeOverlay {
+  seats: { roomId: string; seatIndex: number; occupant?: string; at: Position }[]
   rooms: { room: ResolvedRoom; present: number; at: Position }[]
   people: { member: Member; at: Position }[]
   gmv?: { left: number; top: number; width: number; height: number }
@@ -65,7 +68,7 @@ export function createOfficeView(
   renderer.toneMapping = THREE.NeutralToneMapping
   renderer.toneMappingExposure = .96
 
-  const world = buildOfficeWorld(layout, rooms, roster, meId, schedule, editable)
+  const world = buildOfficeWorld(layout, rooms, roster, meId, schedule, editable, initialView.seats)
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 3150)
   const center = new THREE.Vector3(layout.width / 2, 0, layout.height / 2 - 8)
   const direction = new THREE.Vector3(0, 1100, 510).normalize()
@@ -286,6 +289,7 @@ export function createOfficeView(
     const screenTop = screen && project(screen.group.localToWorld(screenTag.copy(screen.topLeft)))
     const screenBottom = screen && project(screen.group.localToWorld(screenTag.copy(screen.bottomRight)))
     onOverlay({
+      seats: world.seatTargets.map(({ position, ...seat }) => ({ ...seat, at: project(position) })),
       rooms: world.roomAnchors.map(({ room, present, position }) => ({ room, present, at: project(position) })),
       people: world.people.filter(({ mesh }) => mesh.visible).map(({ member, position }) => ({ member, at: project(position) })),
       gmv: screenTop && screenBottom && (screenTop.visible || screenBottom.visible)
@@ -341,6 +345,10 @@ export function createOfficeView(
       }
       view = next
       schedule()
+    },
+    pickSeat(x: number, y: number) {
+      const nearest = world.seatTargets.map(seat => { const at = project(seat.position); return { seat, distance: at.visible ? Math.hypot(at.left - x, at.top - y) : Infinity } }).sort((a,b) => a.distance - b.distance)[0]
+      return nearest && nearest.distance < 18 ? nearest.seat : undefined
     },
     pick(x: number, y: number): string | null {
       if (!width || !height) return null

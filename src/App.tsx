@@ -178,7 +178,7 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
           : page === 'docs' && !canDocs ? 'office'
             : page === 'notify' && !canNotify ? 'office'
               : page
-  const officeMembers = useMemo(() => rosterOf(layout, team, demo), [layout, team, demo])
+  const officeMembers = useMemo(() => rosterOf(layout, team, demo, demo || snapshot.collaboration?.seating?.version === 1), [layout, team, demo, snapshot.collaboration?.seating?.version])
   const meSeatId = me && (demo ? me.role !== 'guest' : me.officeAssignable !== false)
     ? officeMembers.some(({ id }) => id === me.id) ? me.id : demo ? seatIdOf(me.id, team) : null
     : null
@@ -368,6 +368,7 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
             <div className="flex min-h-0 flex-1">
               <Suspense fallback={<div className="grid flex-1 place-items-center text-[12px] text-muted-foreground" role="status">正在加载办公室…</div>}>
                 <OfficePage
+                  seatingEnabled={demo || snapshot.collaboration?.seating?.version === 1}
                   workspaceName={workspaceName}
                   demo={demo}
                   layoutState={layout}
@@ -417,7 +418,7 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
           />
         ) : activePage === 'tasks' && taskClient ? (
           <TaskBoardPage key={taskScope} members={demo ? officeMembers : team.map((m) => ({ id: m.id, name: m.displayName, roomId: '', role: m.roleName ?? '', presence: m.presence, body: '#999' }))} client={taskClient} scopes={!demo ? snapshot.collaboration?.scopes : undefined} scope={taskScope} onScope={setTaskScope} canConfigure={!demo && permissions.includes('tasks.coordinate')} />
-        ) : activePage === 'reports' ? (<ReportsPage canWrite={permissions.includes('reports.write')} key={taskScope} actorId={entry.memberId} scope={taskScope} scopes={snapshot.collaboration?.scopes} onScope={setTaskScope} />
+        ) : activePage === 'reports' ? (<ReportsPage storageKey={snapshot.tenant.id+':'+entry.memberId} canWrite={permissions.includes('reports.write')} key={taskScope} actorId={entry.memberId} scope={taskScope} scopes={snapshot.collaboration?.scopes} onScope={setTaskScope} />
         ) : activePage === 'docs' && docClient ? (
           <DocsPage client={docClient} />
         ) : activePage === 'notify' && noticeClient ? (

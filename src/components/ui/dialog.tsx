@@ -19,7 +19,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "ui-dialog-overlay fixed inset-0 z-50 bg-black/80",
+      "ui-dialog-overlay fixed inset-0 z-50 bg-[#17212b]/30 backdrop-blur-[2px]",
       className
     )}
     {...props}
@@ -36,13 +36,13 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "ui-dialog-panel fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg",
+        "ui-dialog-panel fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-black/[0.07] bg-white p-6 shadow-[0_20px_80px_rgba(17,30,45,0.18)] rounded-xl",
         className
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="ui-press absolute right-4 top-4 rounded-sm text-muted-foreground ring-offset-background hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+      <DialogPrimitive.Close className="ui-press absolute right-4 top-4 grid size-7 place-items-center rounded-md text-muted-foreground ring-offset-background hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
@@ -57,7 +57,7 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col space-y-1.5 text-center sm:text-left",
+      "flex flex-col space-y-1.5 pr-8 text-left",
       className
     )}
     {...props}

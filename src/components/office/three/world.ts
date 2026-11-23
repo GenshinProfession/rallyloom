@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { SeatPresence } from '../seat-presence'
 import type { Member } from '@/data/office'
 import { WALL_THICKNESS, type OfficeLayout, type ResolvedRoom } from '../rooms/api'
 import { sharedWallRuns } from '../rooms/shared-walls'
@@ -12,7 +13,7 @@ import { createFloorMaterial } from './floor-material'
 export type OfficeMode = 'daily' | 'presence' | 'tasks'
 
 type RoomAnchor = { room: ResolvedRoom; position: THREE.Vector3; present: number }
-type PersonAnchor = { member: Member; position: THREE.Vector3; mesh: THREE.Mesh }
+type PersonAnchor = { member: Member; position: THREE.Vector3; mesh: THREE.Object3D }
 
 const WALL_COLOR = '#515957'
 const BASE_LEVEL = -11
@@ -92,6 +93,7 @@ export function buildOfficeWorld(
   meId: string | null,
   _onTexture: () => void,
   editable = false,
+  presence: readonly SeatPresence[] = [],
 ) {
   const scene = new THREE.Scene()
   const model = createModelKit()
@@ -99,6 +101,9 @@ export function buildOfficeWorld(
   const roomAnchors: RoomAnchor[] = []
   const people: PersonAnchor[] = []
   const floors: THREE.Mesh[] = []
+  const seatTargets: { roomId: string; seatIndex: number; position: THREE.Vector3; occupant?: string }[] = []
+  const overrides = new Map(presence.map(seat => [seat.memberId, seat]))
+  const allMembers = new Map([...roster.values()].flat().map(member => [member.id, member]))
   const solids: THREE.Object3D[] = []
   const roomModels = new Map<string, THREE.Group>()
   const furnitureModels = new Map<string, THREE.Group>()
@@ -193,7 +198,11 @@ export function buildOfficeWorld(
       chair(seatModel, model)
       solids.push(seatModel)
       roomStatics.push(seatModel)
-      const member = roomMembers[index]
+      const occupied = presence.find(value => value.seated && value.roomId === room.id && value.seatIndex === index)
+      const original = roomMembers[index]
+      const candidate = occupied ? allMembers.get(occupied.memberId) : original && !overrides.has(original.id) ? original : undefined
+      const member = candidate && (candidate.presence !== 'offline' || candidate.id === meId) ? { ...candidate, roomId: room.id } : undefined
+      seatTargets.push({ roomId: room.id, seatIndex: index, position: new THREE.Vector3(frame.x + x, 18, frame.y + z), occupant: member?.id ?? occupied?.memberId })
       if (member?.id === meId) {
         mySeat = new THREE.Vector3(frame.x + x, 0, frame.y + z)
         const halo = new THREE.Mesh(
@@ -213,6 +222,15 @@ export function buildOfficeWorld(
         position: new THREE.Vector3(frame.x + x, 50, frame.y + z - (seat.facing === 'south' ? 8 : 20)),
         mesh: occupant,
       })
+    }
+    for (const state of presence.filter(value => !value.seated && value.roomId === room.id)) {
+      const member = allMembers.get(state.memberId), seat = room.seats[state.seatIndex]
+      if (!member || !seat || (member.presence === 'offline' && member.id !== meId)) continue
+      const stand = avatars.standing(member).body
+      const x = seat.x * frame.width + 19, z = seat.y * frame.height + 15
+      stand.position.set(x, 0, z); group.add(stand)
+      people.push({ member: { ...member, roomId: room.id }, mesh: stand, position: new THREE.Vector3(frame.x + x, 53, frame.y + z) })
+      if (member.id === meId) mySeat = new THREE.Vector3(frame.x + x, 0, frame.y + z)
     }
     if (editable) model.batchStatic(group, roomStatics)
     else staticModels.push(...roomStatics)
@@ -239,7 +257,7 @@ export function buildOfficeWorld(
   if (editable) scene.updateMatrixWorld(true)
 
   return {
-    scene, floors, roomAnchors, people, highlights, mySeat, solids, screens, roomModels, furnitureModels,
+    scene, floors, seatTargets, roomAnchors, people, highlights, mySeat, solids, screens, roomModels, furnitureModels,
     addWalker(look: AvatarLook) {
       const walker = createWalker(avatars, look)
       scene.add(walker.mesh)

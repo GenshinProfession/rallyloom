@@ -1,6 +1,8 @@
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AtSign, Footprints, Inbox, LocateFixed, Maximize, MessageCircle, Minus, Plus, MoreHorizontal, Pencil, Armchair, LayoutTemplate } from 'lucide-react'
+import { AtSign, Inbox, LocateFixed, Maximize, MessageCircle, Minus, Plus, MoreHorizontal, Pencil, Armchair, LayoutTemplate } from 'lucide-react'
+import { oa } from '@/lib/oa/clients'
+import { validateSeatPresence, type SeatPresence } from './seat-presence'
 import type { WorkspaceSearchItem } from '@/components/WorkspaceSearch'
 import { OverviewPanel } from '@/components/panels/OverviewPanel'
 import { SelectionHighlight } from '@/components/ui/selection-highlight'
@@ -27,6 +29,7 @@ const modes: { id: OfficeMode; label: string }[] = [
 ]
 
 interface OfficePageProps {
+  seatingEnabled?: boolean
   workspaceName: string
   demo: boolean
   layoutState: LayoutState
@@ -50,13 +53,37 @@ interface OfficePageProps {
 }
 
 export function OfficePage({
-  workspaceName, demo, layoutState: layout, members, slots, meSeatId, meName, searchHit,
+  workspaceName, seatingEnabled, demo, layoutState: layout, members, slots, meSeatId, meName, searchHit,
   selectedRoom, onSelectRoom, chat, work, editing,
 }: OfficePageProps) {
   const [focusedMember, setFocusedMember] = useState<string | null>(null)
   const [mode, setMode] = useState<OfficeMode>('daily')
   const [zoom, setZoom] = useState(100)
-  const [walking, setWalking] = useState(false)
+  const walking = false
+  const [seatStates, setSeatStates] = useState<SeatPresence[]>([])
+  const [seatBusy, setSeatBusy] = useState(false)
+  const [seatReady, setSeatReady] = useState(false)
+  const [seatError, setSeatError] = useState('')
+  const seatPending = useRef(false)
+  const seatEpoch = useRef(0)
+  useEffect(() => {
+    if (!seatingEnabled) return
+    setSeatReady(false);setSeatStates([])
+    let active = true
+    if (demo) { setSeatReady(true); return }
+    const refresh = async () => { if (seatPending.current) return; const requestEpoch=seatEpoch.current; try { const rows = validateSeatPresence(await oa('GET','/office/seats')); if(active && requestEpoch===seatEpoch.current && !seatPending.current){setSeatStates(previous=>JSON.stringify(previous)===JSON.stringify(rows)?previous:rows);setSeatReady(true);setSeatError('')} } catch(e) { if(active)setSeatError(e instanceof Error ? e.message : '座位状态暂不可用') } }
+    void refresh();const timer=setInterval(()=>void refresh(),5000)
+    return()=>{active=false;clearInterval(timer)}
+  },[demo,seatingEnabled,layout.revision])
+  async function changeSeat(roomId:string,seatIndex:number,seated:boolean){
+    if(!meSeatId||seatPending.current||!seatReady)return
+    seatPending.current=true;seatEpoch.current++;setSeatBusy(true);setSeatError('')
+    try {
+      const rows=demo?[...seatStates.filter(row=>row.memberId!==meSeatId),{memberId:meSeatId,roomId,seatIndex,seated}]:validateSeatPresence(await oa('PUT','/office/seats/self',{roomId,seatIndex,seated,layoutRevision:layout.revision??0}))
+      setSeatStates(rows)
+    }catch(e){setSeatError(e instanceof Error?e.message:'这个座位暂时无法使用，请刷新后重试。')}
+    finally{seatPending.current=false;setSeatBusy(false)}
+  }
   const [quick, setQuick] = useState<{ channel: ChatChannel; anchor: HTMLElement; request: number; targetId?: string } | null>(null)
   const [chatError, setChatError] = useState('')
   const [taskDraft, setTaskDraft] = useState<OfficeTaskDraft | null>(null)
@@ -73,7 +100,6 @@ export function OfficePage({
     setFocusedMember(searchHit.memberId ?? null)
     setPersonal(false)
     setMode('daily')
-    setWalking(false)
     setZoom(100)
   }, [searchHit])
 
@@ -155,8 +181,8 @@ export function OfficePage({
     }
     return byRoom
   }, [meSeatId, meName, members])
-  const present = members.filter(({ presence }) => presence !== 'offline').length
-  const myRoom = rooms.find((room) => roster.get(room.id)?.slice(0, room.seats.length).some(({ id }) => id === meSeatId))
+  const present = members.filter(member => member.presence !== 'offline' && (member.roomId || seatStates.some(seat=>seat.memberId===member.id))).length
+  const myRoom = rooms.find(room=>room.id===seatStates.find(seat=>seat.memberId===meSeatId)?.roomId) ?? rooms.find((room) => roster.get(room.id)?.slice(0, room.seats.length).some(({ id }) => id === meSeatId))
   const workRoom = personal ? undefined : rooms.find(({ id }) => id === selectedRoom)
   const workEnabled = !!work && Boolean(work.tasks || work.docs || work.notices || chat)
 
@@ -192,12 +218,12 @@ export function OfficePage({
                 {workEnabled && <DropdownMenuItem data-office-inbox onSelect={() => { setPersonal(true); revealTab('work') }}><Inbox size={14} />待我处理</DropdownMenuItem>}
                 {myRoom && <DropdownMenuItem onSelect={() => selectRoom(myRoom.id)}><LocateFixed size={14} />我的工位</DropdownMenuItem>}
                 {editing && <DropdownMenuItem onSelect={() => setAssigningSeats(true)}><Armchair size={14} />分配工位</DropdownMenuItem>}
-                {rooms.length > 0 && <DropdownMenuItem onSelect={() => { if (!walking) setZoom(100); setWalking(!walking) }}><Footprints size={14} />{walking ? '结束试走' : '试走办公室'}</DropdownMenuItem>}
                 <DropdownMenuItem onSelect={() => setReferenceOpen(true)}><LayoutTemplate size={14} />参考户型</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </WorkspaceHeader>
+        {seatError && <p role="status" className="office-seat-error">{seatError}</p>}
         {assigningSeats && editing && <OfficeSeatAssignments layout={layout} rooms={rooms} team={editing.team}
           onSave={editing.publish} onClose={() => setAssigningSeats(false)} />}
         {referenceOpen && <OfficeReferencePreview onClose={() => setReferenceOpen(false)} />}
@@ -227,6 +253,9 @@ export function OfficePage({
           mode={mode}
           zoom={zoom}
           walking={walking}
+          seats={seatStates}
+          onSeat={seatingEnabled && seatReady ? changeSeat : undefined}
+          seatBusy={seatBusy}
           mentionedRooms={mentionedRooms}
           gmv={gmv}
           onOpenGmv={gmv ? () => { selectRoom(gmv.roomId); revealTab('overview') } : undefined}

@@ -11,7 +11,7 @@ import type { LayoutState } from './types'
 const DEFAULT_VISUAL = { body: '#737172', skin: '#c89868', hair: '#4b4f5a' }
 
 /** 场景 / 概览面板使用的名册：assignments 决定谁出现在哪个房间 */
-export function rosterOf(layout: LayoutState, team: TeamMember[], demo = true): Member[] {
+export function rosterOf(layout: LayoutState, team: TeamMember[], demo = true, includeUnassigned = false): Member[] {
   const out: Member[] = []
   for (const [pid, roomId] of Object.entries(layout.assignments)) {
     const room = layout.rooms.find((r) => r.id === roomId)
@@ -33,6 +33,11 @@ export function rosterOf(layout: LayoutState, team: TeamMember[], demo = true): 
         ...DEFAULT_VISUAL,
       })
     }
+  }
+  if (includeUnassigned) {
+    const known = new Set(out.map(member => member.id))
+    for (const member of team) if (!known.has(member.id) && member.officeAssignable !== false)
+      out.push({ id: member.id, name: member.displayName, role: member.roleName ?? '', roomId: '', presence: member.presence, current: '', ...DEFAULT_VISUAL })
   }
   return out
 }

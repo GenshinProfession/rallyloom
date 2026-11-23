@@ -22,6 +22,8 @@ interface OfficeSceneProps extends OfficeViewState {
   focusedMember: string | null
   meId: string | null
   meName: string
+  onSeat?: (roomId: string, seatIndex: number, seated: boolean) => void
+  seatBusy?: boolean
   onOpenGmv?: () => void
   editing?: {
     controls: Ref<OfficeSceneControls>
@@ -41,11 +43,11 @@ interface OfficeSceneProps extends OfficeViewState {
 }
 
 export function OfficeScene({
-  layout, rooms, roster, slots, selectedRoom, onSelectRoom, focusedMember, meId, meName, mode, zoom, walking, mentionedRooms, gmv, onOpenGmv, chat, editing,
+  layout, rooms, roster, slots, selectedRoom, onSelectRoom, focusedMember, meId, meName, mode, zoom, walking, mentionedRooms, gmv, onOpenGmv, chat, editing, seats, onSeat, seatBusy,
 }: OfficeSceneProps) {
   const viewport = useRef<HTMLDivElement>(null)
   const engine = useRef<ReturnType<typeof createOfficeView>>(null)
-  const view = useRef<OfficeViewState>({ selectedRoom, mode, zoom, walking, mentionedRooms, gmv })
+  const view = useRef<OfficeViewState>({ selectedRoom, mode, zoom, walking, mentionedRooms, gmv, seats })
   const [overlay, setOverlay] = useState<OfficeOverlay>()
   const [graphicsUnavailable, setGraphicsUnavailable] = useState(false)
   const stopDrag = useRef<() => void>(() => {})
@@ -54,7 +56,7 @@ export function OfficeScene({
 
   useEffect(() => {
     if (!viewport.current || (!rooms.length && !canEdit)) return
-    const next = createOfficeView(viewport.current, layout, rooms, roster, meId, view.current, setOverlay, canEdit)
+    const next = createOfficeView(viewport.current, layout, rooms, roster, meId, { ...view.current, seats }, setOverlay, canEdit)
     engine.current = next
     setGraphicsUnavailable(!next)
     return () => {
@@ -62,12 +64,12 @@ export function OfficeScene({
       engine.current = null
       next?.dispose()
     }
-  }, [layout, rooms, roster, meId, canEdit])
+  }, [layout, rooms, roster, meId, canEdit, seats])
 
   useEffect(() => {
-    view.current = { selectedRoom, mode, zoom, walking, mentionedRooms, gmv }
+    view.current = { selectedRoom, mode, zoom, walking, mentionedRooms, gmv, seats }
     engine.current?.draw(view.current)
-  }, [selectedRoom, mode, zoom, walking, mentionedRooms, gmv])
+  }, [selectedRoom, mode, zoom, walking, mentionedRooms, gmv, seats])
 
   const walk = walking ? overlay?.walk : undefined
   const walkMessage = walk?.phase === 'moving' ? `前往${walk.destination}`
@@ -157,7 +159,11 @@ export function OfficeScene({
         if (editing) {
           if (!editing.disabled && !dragged.current) editing.select(engine.current?.pickEditable(...at))
         } else if (walking) engine.current?.walkAt(...at)
-        else toggle(engine.current?.pick(...at) ?? null)
+        else {
+          const seat = onSeat && !seatBusy ? engine.current?.pickSeat(...at) : undefined
+          if (seat && (!seat.occupant || seat.occupant === meId)) onSeat?.(seat.roomId, seat.seatIndex, seat.occupant !== meId)
+          else toggle(engine.current?.pick(...at) ?? null)
+        }
       }}
       onDoubleClick={(event) => {
         if (!chat || walking || !(event.target instanceof HTMLCanvasElement)) return
@@ -224,9 +230,14 @@ export function OfficeScene({
               </div>
             )
           })}
+          {onSeat && !editing && overlay?.seats.filter(seat => seat.at.visible && !seat.occupant && seat.roomId === selectedRoom).map(seat => <button
+            type="button" key={seat.roomId + ':' + seat.seatIndex} className="office-seat-action" data-seat-target={seat.roomId+':'+seat.seatIndex}
+            disabled={seatBusy} aria-label={`空座位 ${seat.seatIndex + 1}，入座`} title="点击入座" style={{ left: seat.at.left, top: seat.at.top }}
+            onClick={() => onSeat(seat.roomId, seat.seatIndex, true)}>＋</button>)}
           {overlay?.people.filter(({ at }) => at.visible).map(({ member, at }) => {
             const preview = member.id !== meId && chat?.canChatWith(member.id) ? chat?.previewPerson : undefined
-            const Name = preview ? 'button' : 'span'
+            const ownSeat = member.id === meId && onSeat ? overlay.seats.find(seat => seat.occupant === meId) : undefined
+            const Name = preview || ownSeat ? 'button' : 'span'
             return (
             <span
               key={member.id}
@@ -236,14 +247,14 @@ export function OfficeScene({
               data-highlighted={member.id === focusedMember || undefined}
               style={{ left: at.left, top: at.top }}
             >
-              <Name className="office-person-name" type={preview ? 'button' : undefined}
-                title={preview ? `右键与 ${member.name} 私聊` : undefined}
+              <Name className="office-person-name" type={preview || ownSeat ? 'button' : undefined}
+                title={ownSeat ? '点击离座' : preview ? `右键与 ${member.name} 私聊` : undefined}
                 aria-haspopup={preview ? 'dialog' : undefined}
                 onContextMenu={preview ? (event) => {
                   event.preventDefault()
                   preview(member.id, event.currentTarget)
                 } : undefined}
-                onClick={preview ? (event) => {
+                onClick={ownSeat ? () => { if (!seatBusy) onSeat?.(ownSeat.roomId, ownSeat.seatIndex, false) } : preview ? (event) => {
                   if (event.detail === 0) preview(member.id, event.currentTarget)
                   else if (walking) engine.current?.walkAt(...point(event.clientX, event.clientY))
                   else toggle(member.roomId)
