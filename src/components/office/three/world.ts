@@ -236,6 +236,9 @@ export function buildOfficeWorld(
     else staticModels.push(...roomStatics)
   }
 
+  const roomPresence = new Map<string, number>()
+  for (const person of people) if (person.member.presence !== 'offline') roomPresence.set(person.member.roomId, (roomPresence.get(person.member.roomId) ?? 0) + 1)
+  for (const anchor of roomAnchors) anchor.present = roomPresence.get(anchor.room.id) ?? 0
   if (!editable) model.batchStatic(scene, staticModels)
   scene.add(new THREE.HemisphereLight('#f7fcff', '#bca993', 1.92))
   const fill = new THREE.DirectionalLight('#ebf6ff', .40)

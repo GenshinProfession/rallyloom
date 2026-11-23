@@ -10,6 +10,7 @@ app.whenReady().then(async()=>{
   if(document.body.textContent.includes('试走'))throw Error('trial walking still exposed')
   document.querySelector('.office-room-label').click();await wait(()=>document.querySelector('[data-seat-target]'),'empty seats')
   document.querySelector('[data-seat-target="design:0"]').click();await wait(()=>document.querySelector('[data-person=self] button[title="点击离座"]'),'avatar seated')
+  if(!document.querySelector('.office-room-count')?.textContent.includes('1'))throw Error('room presence count did not follow seating')
   document.querySelector('[data-person=self] button').click();await wait(()=>document.querySelector('[data-seat-target="design:0"]'),'seat freed')
   if(document.querySelector('[data-person=self] button[title="点击离座"]'))throw Error('standing avatar still seated')
   document.querySelector('[data-seat-target="design:1"]').click();await wait(()=>document.querySelector('[data-person=self] button[title="点击离座"]'),'reseat')
