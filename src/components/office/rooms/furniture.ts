@@ -101,3 +101,19 @@ export function wallScreen(group: Group, model: ModelKit, x: number, z: number, 
     model.box(screen, width * (.01 + .059 * index), -8, 2.4, width * .036, 6 + index * 1.8, .5, '#83adc9')
   }
 }
+
+export function officeChair(group: Group, model: ModelKit) {
+  for (let spoke = 0; spoke < 3; spoke++) {
+    const angle = spoke * Math.PI / 3
+    model.softBox(group, 0, .2, 1, 16, 2.1, 2.7, '#818d94').rotation.y = angle
+    for (const sign of [-1, 1]) model.orb(group, sign * Math.cos(angle) * 7, 0, 1 + sign * Math.sin(angle) * 7, 3, 3, 3, '#627074')
+  }
+  model.round(group, 0, 1.8, 1, 4.5, 9, '#acb6bd')
+  model.softBox(group, 0, 10, 0, 17.5, 4.6, 16, '#414c4e')
+  model.softBox(group, 0, 11.5, 8, 18.5, 13.5, 4.2, '#303a3e')
+  model.softBox(group, 0, 15.3, 6, 15, 7.8, 1.6, '#526064')
+  for (const x of [-9, 9]) {
+    model.box(group, x, 11, 3, 1.6, 7, 2.8, '#a5b1b4')
+    model.softBox(group, x, 17, 2, 3, 1.8, 11, '#c8d1cd')
+  }
+}

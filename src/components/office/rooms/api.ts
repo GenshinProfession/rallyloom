@@ -6,6 +6,7 @@ export interface RoomSeat {
   x: number
   y: number
   facing?: 'north' | 'south'
+  rotation?: number
 }
 
 export interface RoomFrame {
@@ -72,7 +73,7 @@ export interface RoomPlacement {
   furniture?: readonly FurniturePlacement[]
 }
 
-export type FurnitureKind = 'desk' | 'shelf' | 'plant' | 'sofa' | 'coffee' | 'lamp'
+export type FurnitureKind = 'desk' | 'shelf' | 'plant' | 'sofa' | 'coffee' | 'lamp' | 'workstation' | 'chair' | 'meeting-table' | 'round-table' | 'coffee-table' | 'counter' | 'cabinet' | 'display-shelf' | 'clothes-rack' | 'rug' | 'partition' | 'screen' | 'studio-light' | 'camera' | 'carton' | 'printer' | 'trolley' | 'microwave' | 'sink' | 'cup' | 'notebook' | 'monitor'
 
 export interface FurniturePlacement {
   id: string
@@ -83,7 +84,9 @@ export interface FurniturePlacement {
   /** Clockwise rotation on the plan, in degrees. */
   rotation: number
   /** Desk dimensions in scene units, independent of room dimensions. */
-  size?: { width: number; depth: number }
+  size?: { width: number; depth: number; height?: number }
+  color?: string
+  elevation?: number
 }
 
 export interface OfficeLayout {

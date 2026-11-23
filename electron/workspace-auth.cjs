@@ -152,14 +152,17 @@ function roomIssue(room) {
   if (room.seats !== undefined && (!Array.isArray(room.seats) || room.seats.length > 60
     || !room.seats.every((seat) => object(seat)
       && [seat.x, seat.y].every((position) => Number.isFinite(position) && position >= 0 && position <= 1)
+      && (seat.rotation === undefined || (Number.isFinite(seat.rotation) && seat.rotation >= 0 && seat.rotation < 360))
       && (seat.facing === undefined || ['north', 'south'].includes(seat.facing))))) return 'seats 包含无效工位'
   if (room.furniture !== undefined && (!Array.isArray(room.furniture) || room.furniture.length > 60
     || !room.furniture.every((item) => object(item) && validId(item.id)
-      && ['desk', 'shelf', 'plant', 'sofa', 'coffee', 'lamp'].includes(item.kind)
+      && ['desk', 'shelf', 'plant', 'sofa', 'coffee', 'lamp', 'workstation', 'chair', 'meeting-table', 'round-table', 'coffee-table', 'counter', 'cabinet', 'display-shelf', 'clothes-rack', 'rug', 'partition', 'screen', 'studio-light', 'camera', 'carton', 'printer', 'trolley', 'microwave', 'sink', 'cup', 'notebook', 'monitor'].includes(item.kind)
       && [item.x, item.y].every((position) => Number.isFinite(position) && position >= 0 && position <= 1)
+      && (item.color === undefined || /^#[0-9a-fA-F]{6}$/.test(item.color))
+      && (item.elevation === undefined || (Number.isFinite(item.elevation) && item.elevation >= 0 && item.elevation <= 200))
       && Number.isFinite(item.rotation) && item.rotation >= 0 && item.rotation < 360
-      && (item.size === undefined || (item.kind === 'desk' && object(item.size)
-        && [item.size.width, item.size.depth].every((v) => Number.isFinite(v) && v >= 20 && v <= 240)))))) return 'furniture 包含无效物件'
+      && (item.size === undefined || (object(item.size)
+        && [item.size.width, item.size.depth, ...(item.size.height === undefined ? [] : [item.size.height])].every((v) => Number.isFinite(v) && v >= 1 && v <= 800)))))) return 'furniture 包含无效物件'
   return null
 }
 

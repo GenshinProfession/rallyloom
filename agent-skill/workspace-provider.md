@@ -19,7 +19,7 @@
 
 ## 办公室家具
 
-`PATCH /api/v1/workspace/layout` 与 bootstrap 使用同一份布局。房间可选的 `furniture` 数组保存用户摆放的物件。条目示例为 `{"id":"sofa-1","kind":"sofa","x":0.4,"y":0.7,"rotation":90}`。物件的中心相对房间坐标归一化为 0–1，`rotation` 是平面图中的顺时针角度，范围为 0 至小于 360。客户端当前支持 `desk`、`shelf`、`plant`、`sofa`、`coffee`、`lamp`。工作区内物件 ID 唯一，每个房间最多 60 件。
+`PATCH /api/v1/workspace/layout` 与 bootstrap 使用同一份布局。房间可选的 `furniture` 数组保存用户摆放的物件。条目示例为 `{"id":"sofa-1","kind":"sofa","x":0.4,"y":0.7,"rotation":90}`。物件的中心相对房间坐标归一化为 0–1，`rotation` 是平面图中的顺时针角度，范围为 0 至小于 360。支持的完整型号见下方“独立家具与空白房间”。工作区内物件 ID 唯一，每个房间最多 60 件。
 
 `useTemplateFurniture: false` 隐藏房间模板生成的家具。房间名称、门墙、工位分配和绑定的业务看板仍按原字段处理。缺少家具字段的旧布局按原模板渲染。提供方在服务器持久化这些字段，并独立校验 `layout.edit`。
 
@@ -31,7 +31,7 @@
 
 可选的 `walls` 为方向到隔墙类型的映射，例如 `{"south":"glass","east":"open"}`。类型支持 `solid`、`glass`、`open`，省略方向默认为实体墙。房间边界允许直接相接，共墙只渲染一次；相邻任一房间的门洞会贯通该墙，任一侧设为开放时该段连通。配置只描述真实需要的通道，无需为每个房间额外留走廊。
 
-`desk` 家具可携带 `size: {"width":126,"depth":80}` 指定桌面实际长宽，范围为 20–240。省略时使用默认尺寸。房间调整与家具移动会保留该尺寸。
+所有家具均可携带 `size: {"width":126,"depth":80,"height":24}` 指定实际宽、深、高，范围1–800。省略时使用默认尺寸。房间调整与家具移动会保留该尺寸。
 
 ## 接入验收
 
@@ -51,3 +51,7 @@ Bootstrap 可返回 `collaboration:{version:1,scopes:[{id,label}]}` 和提供方
 地板材质枚举需在提供方保存/回读时原样保留。客户端按世界坐标实时渲染固定尺寸的纹理，并使用导数抗锯齿，房间尺寸与视角缩放不改变纹理密度。
 
 可选能力 `collaboration.seating: {version:1}` 声明共享座位状态接口；日常入座/离座不使用 layout PATCH、不会授予 layout.edit，具体字段与冲突处理见 OA 协作契约。
+
+### 独立家具与空白房间
+
+`room-shell` 是只有墙和出入口的空白房间，与无墙的 `empty` 区分。模板是初始布局预设：客户端可将旧模板转换为 `useTemplateFurniture:false` 和逐件家具，保留家具的独立ID、尺寸及位置。`furniture[].kind` 包含 `desk,shelf,plant,sofa,coffee,lamp,workstation,chair,meeting-table,round-table,coffee-table,counter,cabinet,display-shelf,clothes-rack,rug,partition,screen,studio-light,camera,carton,printer,trolley,microwave,sink,cup,notebook,monitor`。可选 `size:{width,depth,height?}` 范围1–800；`color` 为六位十六进制；`elevation` 为0–200。提供方须原样保存与回读。`seats[].rotation` 可选0至小于360，表示可旋转座椅的朝向，与家具同步。移动/删除工位会更新 seats，仍须通过已分配人数校验。调整房间边界不缩放家具，不因模版名限制家具类型。

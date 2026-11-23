@@ -26,6 +26,7 @@ interface OfficeSceneProps extends OfficeViewState {
   seatBusy?: boolean
   onOpenGmv?: () => void
   editing?: {
+    selectedFurniture?: string
     controls: Ref<OfficeSceneControls>
     disabled: boolean
     plan: (source: OfficeDragSource, at: FloorPoint, origin: FloorPoint | null) => OfficePlacement | null
@@ -47,7 +48,7 @@ export function OfficeScene({
 }: OfficeSceneProps) {
   const viewport = useRef<HTMLDivElement>(null)
   const engine = useRef<ReturnType<typeof createOfficeView>>(null)
-  const view = useRef<OfficeViewState>({ selectedRoom, mode, zoom, walking, mentionedRooms, gmv, seats })
+  const view = useRef<OfficeViewState>({ selectedRoom, mode, zoom, walking, mentionedRooms, gmv, seats, selectedFurniture:editing?.selectedFurniture })
   const [overlay, setOverlay] = useState<OfficeOverlay>()
   const [graphicsUnavailable, setGraphicsUnavailable] = useState(false)
   const stopDrag = useRef<() => void>(() => {})
@@ -56,7 +57,7 @@ export function OfficeScene({
 
   useEffect(() => {
     if (!viewport.current || (!rooms.length && !canEdit)) return
-    const next = createOfficeView(viewport.current, layout, rooms, roster, meId, { ...view.current, seats }, setOverlay, canEdit)
+    const next = createOfficeView(viewport.current, layout, rooms, roster, meId, { ...view.current, seats, selectedFurniture:editing?.selectedFurniture }, setOverlay, canEdit)
     engine.current = next
     setGraphicsUnavailable(!next)
     return () => {
@@ -67,9 +68,9 @@ export function OfficeScene({
   }, [layout, rooms, roster, meId, canEdit, seats])
 
   useEffect(() => {
-    view.current = { selectedRoom, mode, zoom, walking, mentionedRooms, gmv, seats }
+    view.current = { selectedRoom, mode, zoom, walking, mentionedRooms, gmv, seats, selectedFurniture:editing?.selectedFurniture }
     engine.current?.draw(view.current)
-  }, [selectedRoom, mode, zoom, walking, mentionedRooms, gmv, seats])
+  }, [selectedRoom, mode, zoom, walking, mentionedRooms, gmv, seats, editing?.selectedFurniture])
 
   const walk = walking ? overlay?.walk : undefined
   const walkMessage = walk?.phase === 'moving' ? `前往${walk.destination}`
@@ -230,6 +231,7 @@ export function OfficeScene({
               </div>
             )
           })}
+          {editing?.selectedFurniture && overlay?.furnitureBounds && <div data-selected-furniture={editing.selectedFurniture} className="office-furniture-outline" style={overlay.furnitureBounds}><i/><i/><i/><i/></div>}
           {onSeat && !editing && overlay?.seats.filter(seat => seat.at.visible && !seat.occupant && seat.roomId === selectedRoom).map(seat => <button
             type="button" key={seat.roomId + ':' + seat.seatIndex} className="office-seat-action" data-seat-target={seat.roomId+':'+seat.seatIndex}
             disabled={seatBusy} aria-label={`空座位 ${seat.seatIndex + 1}，入座`} title="点击入座" style={{ left: seat.at.left, top: seat.at.top }}

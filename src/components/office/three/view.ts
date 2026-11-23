@@ -9,6 +9,7 @@ import { buildOfficeWorld, type OfficeMode } from './world'
 import type { GmvDisplay } from './gmv-screen'
 
 export interface OfficeViewState {
+  selectedFurniture?: string
   seats?: readonly SeatPresence[]
   selectedRoom: string | null
   mode: OfficeMode
@@ -25,6 +26,7 @@ interface Position {
 }
 
 export interface OfficeOverlay {
+  furnitureBounds?: { left:number; top:number; width:number; height:number }
   seats: { roomId: string; seatIndex: number; occupant?: string; at: Position }[]
   rooms: { room: ResolvedRoom; present: number; at: Position }[]
   people: { member: Member; at: Position }[]
@@ -288,7 +290,16 @@ export function createOfficeView(
     const screen = gmv && world.screens.get(gmv.roomId)
     const screenTop = screen && project(screen.group.localToWorld(screenTag.copy(screen.topLeft)))
     const screenBottom = screen && project(screen.group.localToWorld(screenTag.copy(screen.bottomRight)))
+    const selectedObject=view.selectedFurniture?world.furnitureModels.get(view.selectedFurniture):undefined
+    let furnitureBounds: OfficeOverlay['furnitureBounds']
+    if(selectedObject){
+      const bounds=new THREE.Box3().setFromObject(selectedObject),points=[]
+      for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z])points.push(project(new THREE.Vector3(x,y,z)))
+      const left=Math.min(...points.map(p=>p.left)),top=Math.min(...points.map(p=>p.top))
+      furnitureBounds={left,top,width:Math.max(...points.map(p=>p.left))-left,height:Math.max(...points.map(p=>p.top))-top}
+    }
     onOverlay({
+      furnitureBounds,
       seats: world.seatTargets.map(({ position, ...seat }) => ({ ...seat, at: project(position) })),
       rooms: world.roomAnchors.map(({ room, present, position }) => ({ room, present, at: project(position) })),
       people: world.people.filter(({ mesh }) => mesh.visible).map(({ member, position }) => ({ member, at: project(position) })),

@@ -1,5 +1,4 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
-import { MoveDiagonal } from 'lucide-react'
 import type { RoomFrame } from './rooms/api'
 
 export type OfficeResizeTarget = {
@@ -80,7 +79,7 @@ export function OfficeResizeHandle({ target, screen }: { target: OfficeResizeTar
 
   return <div className="office-resize-boundary" data-canvas={target.id === 'canvas'} style={screen}>
     <div ref={guide} className="office-resize-outline" aria-hidden="true">
-      <span ref={caption} />
+      <i className="office-corner office-corner-nw"/><i className="office-corner office-corner-ne"/><i className="office-corner office-corner-sw"/><span ref={caption} />
     </div>
     <button ref={grip} type="button" className="office-resize-grip" aria-label={target.label} title={target.label}
       onPointerDown={begin}
@@ -91,6 +90,6 @@ export function OfficeResizeHandle({ target, screen }: { target: OfficeResizeTar
         event.preventDefault()
         const next = target.fit(frame.width + delta[0], frame.height + delta[1])
         target.commit(next.width, next.height)
-      }}><MoveDiagonal size={15} strokeWidth={2.2} /></button>
+      }}><span className="office-resize-dot" /></button>
   </div>
 }

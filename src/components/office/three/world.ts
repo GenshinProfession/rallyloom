@@ -3,6 +3,7 @@ import type { SeatPresence } from '../seat-presence'
 import type { Member } from '@/data/office'
 import { WALL_THICKNESS, type OfficeLayout, type ResolvedRoom } from '../rooms/api'
 import { sharedWallRuns } from '../rooms/shared-walls'
+import { officeChair } from '../rooms/furniture'
 import { buildPlacedFurniture } from '../rooms/placed-furniture'
 import { createModelKit, type ModelKit } from './model'
 import { createWalker } from './walker'
@@ -67,22 +68,6 @@ function walls(room: ResolvedRoom, rooms: readonly ResolvedRoom[], parent: THREE
   model.box(parent, roomX, 0, roomZ, horizontal ? clearWidth : 10, .22, horizontal ? 10 : clearWidth, '#c9d7d6').castShadow = false
   for (const edge of [-4, 4]) {
     model.box(parent, roomX + (horizontal ? 0 : edge), .22, roomZ + (horizontal ? edge : 0), horizontal ? clearWidth : .6, .16, horizontal ? .6 : clearWidth, '#ecf0ee').castShadow = false
-  }
-}
-
-function chair(group: THREE.Group, model: ModelKit) {
-  for (let spoke = 0; spoke < 3; spoke++) {
-    const angle = spoke * Math.PI / 3
-    model.softBox(group, 0, .2, 1, 16, 2.1, 2.7, '#818d94').rotation.y = angle
-    for (const sign of [-1, 1]) model.orb(group, sign * Math.cos(angle) * 7, 0, 1 + sign * Math.sin(angle) * 7, 3, 3, 3, '#627074')
-  }
-  model.round(group, 0, 1.8, 1, 4.5, 9, '#acb6bd')
-  model.softBox(group, 0, 10, 0, 17.5, 4.6, 16, '#414c4e')
-  model.softBox(group, 0, 11.5, 8, 18.5, 13.5, 4.2, '#303a3e')
-  model.softBox(group, 0, 15.3, 6, 15, 7.8, 1.6, '#526064')
-  for (const x of [-9, 9]) {
-    model.box(group, x, 11, 3, 1.6, 7, 2.8, '#a5b1b4')
-    model.softBox(group, x, 17, 2, 3, 1.8, 11, '#c8d1cd')
   }
 }
 
@@ -154,13 +139,20 @@ export function buildOfficeWorld(
     const customFurniture = editable ? new THREE.Group() : furniture
     if (editable) group.add(customFurniture)
     for (const item of room.furniture ?? []) {
-      const object = buildPlacedFurniture(customFurniture, model, item, frame)
+      let object: THREE.Group
+      if(item.kind==='screen' && room.appearance.display==='gmv' && !screens.has(room.id)){
+        object=new THREE.Group();customFurniture.add(object)
+        object.position.set(item.x*frame.width,item.elevation??0,item.y*frame.height);object.rotation.y=-item.rotation*Math.PI/180
+        const screenFrame=new THREE.Group();object.add(screenFrame);screenFrame.position.set(-100,0,-32.2)
+        const size=item.size;object.scale.set((size?.width??125)/124,(size?.height??62)/62,(size?.depth??30)/35)
+        screens.set(room.id,buildGmvScreen(screenFrame,model,200,140))
+      }else object = buildPlacedFurniture(customFurniture, model, item, frame)
       if (editable) {
         object.userData.ownerRoomId = room.id
         furnitureModels.set(item.id, object)
       }
     }
-    if (room.appearance.display === 'gmv') {
+    if (room.appearance.display === 'gmv' && room.useTemplateFurniture !== false) {
       const mediaWall = new THREE.Group()
       group.add(mediaWall)
       screens.set(room.id, buildGmvScreen(mediaWall, model, frame.width, frame.height))
@@ -191,11 +183,11 @@ export function buildOfficeWorld(
       const z = seat.y * frame.height
       const station = new THREE.Group()
       station.position.set(x, 0, z)
-      station.rotation.y = seat.facing === 'south' ? Math.PI : 0
+      station.rotation.y = seat.rotation !== undefined ? -seat.rotation*Math.PI/180 : seat.facing === 'south' ? Math.PI : 0
       group.add(station)
       const seatModel = new THREE.Group()
       station.add(seatModel)
-      chair(seatModel, model)
+      if (room.useTemplateFurniture !== false) officeChair(seatModel, model)
       solids.push(seatModel)
       roomStatics.push(seatModel)
       const occupied = presence.find(value => value.seated && value.roomId === room.id && value.seatIndex === index)

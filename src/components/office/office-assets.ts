@@ -1,7 +1,7 @@
 import type { FloorMaterial } from './rooms/api'
 
 export const OFFICE_TEMPLATES = {
-  'desk-grid': '办公区', empty: '空区域', studio: '工作室', fulfillment: '仓储区', 'support-pods': '客服区',
+  'room-shell': '空白房间', 'desk-grid': '办公区', empty: '空区域', studio: '工作室', fulfillment: '仓储区', 'support-pods': '客服区',
   command: '指挥室', showroom: '展示间', meeting: '会议室', reception: '前台', pantry: '茶水间',
 }
 
