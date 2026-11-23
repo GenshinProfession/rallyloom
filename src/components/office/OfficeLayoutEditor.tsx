@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { LayoutState } from '@/lib/store/types'
 import { OfficeAssetLibrary } from './OfficeAssetLibrary'
 import type { OfficeResizeTarget } from './OfficeResizeHandle'
@@ -33,9 +33,12 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   onClose: () => void
 }) {
   const [draft, setDraft] = useState(layout)
+  const [inspector, setInspector] = useState<'properties' | 'assets'>('assets')
   const [selection, setSelection] = useState<string>()
   const [furnitureSelection, setFurnitureSelection] = useState<string>()
   const [sceneZoom, setSceneZoom] = useState(100)
+  const inspectorPanel = useRef<HTMLElement>(null)
+  useEffect(() => { inspectorPanel.current?.scrollTo(0, 0) }, [selection, furnitureSelection, inspector])
   const sceneControls = useRef<OfficeSceneControls>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -81,6 +84,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
 
   function selectRoom(id: string | undefined) {
     setSelection(id)
+    if (id) setInspector('properties')
     setFurnitureSelection(undefined)
   }
 
@@ -96,6 +100,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
 
   function selectModel(source?: OfficeDragSource) {
     if (source?.kind === 'furniture') {
+      setInspector('properties')
       setSelection(source.roomId)
       setFurnitureSelection(source.id)
     } else selectRoom(source?.kind === 'room' ? source.roomId : undefined)
@@ -309,9 +314,6 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
               {confirmReference && <button type="button" onClick={() => setConfirmReference(false)}>取消替换</button>}
             </div>
             {confirmReference && <p className="office-editor-seat-notice">此操作会替换当前草稿的房间和家具，发布后生效。</p>}
-            <OfficeRoomSurfaces room={selected} disabled={busy} onUpdate={(update) => {
-              if (selected) updateRoom(selected.id, update)
-            }} />
             <div className="office-editor-preview" data-office-editor-3d>
               <OfficeScene layout={draft} rooms={validation.rooms} roster={emptyRoster} slots={{}}
                 selectedRoom={selection ?? null}
@@ -322,8 +324,12 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
                 }} />
             </div>
           </section>
-          <aside className="office-editor-sidebar">
-            <OfficeAssetLibrary disabled={busy} onDrag={(event, asset) => {
+          <aside ref={inspectorPanel} className="office-editor-sidebar">
+            <div className="office-inspector-tabs" role="group" aria-label="编辑侧栏">
+              <button type="button" aria-pressed={inspector === 'properties'} onClick={() => setInspector('properties')}>对象属性</button>
+              <button type="button" aria-pressed={inspector === 'assets'} onClick={() => setInspector('assets')}>添加素材</button>
+            </div>
+            {inspector === 'assets' && <OfficeAssetLibrary disabled={busy} onDrag={(event, asset) => {
               sceneControls.current?.startDrag(event, asset.kind === 'room'
                 ? { kind: 'new-room', template: asset.id } : { kind: 'new-furniture', model: asset.id })
             }} onAdd={(asset) => {
@@ -331,9 +337,10 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
               if (asset.kind === 'room') addRoom(asset.id as keyof typeof OFFICE_TEMPLATES)
               else if (selected) placeFurniture(asset.id, selected)
               else setMessage('先选中房间，或直接把家具拖到房间里。')
-            }} />
-            {selected && selectedItem && <section>
+            }} />}
+            {inspector === 'properties' && selected && selectedItem && <section>
               <h2>{FURNITURE[selectedItem.kind].label}</h2>
+              <button type="button" onClick={() => setFurnitureSelection(undefined)}>返回「{selected.name}」房间属性</button>
               {selectedItem.kind === 'desk' && <div className="office-editor-dimensions">
                 {(['width', 'depth'] as const).map((dimension) => <label key={dimension}>{dimension === 'width' ? '桌面宽' : '桌面深'}
                   <input type="number" min={20} max={240} defaultValue={furnitureSize(selectedItem)[dimension]}
@@ -360,7 +367,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
                 setFurnitureSelection(undefined)
               }}>移除家具</button>
             </section>}
-            <section>
+            {inspector === 'properties' && !selectedItem && <section>
               <h2>房间属性</h2>
               <label>房间 <select value={selected?.id ?? ''} disabled={busy || !draft.rooms.length} onChange={(event) => selectRoom(event.target.value || undefined)}>
                 <option value="">选择房间</option>
@@ -390,6 +397,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
                   const checked = event.target.checked
                   updateRoom(selected.id, (room) => ({ ...room, useTemplateFurniture: checked }))
                 }} />显示模板家具</label>}
+                <details className="office-room-geometry"><summary>位置与尺寸</summary>
                 <div className="office-editor-dimensions">
                   {Object.entries(frames).map(([key, label]) => <label key={key}>{label}
                     <input type="number" min={key === 'x' || key === 'y' ? 0 : 100} value={selected.frame[key as keyof RoomFrame]} disabled={busy}
@@ -399,6 +407,8 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
                       }} />
                   </label>)}
                 </div>
+                </details>
+                <OfficeRoomSurfaces key={selected.id} room={selected} disabled={busy} onUpdate={(update) => updateRoom(selected.id, update)} />
                 <button type="button" disabled={busy} onClick={() => removeRoom(selected.id)}>删除房间</button>
                 {!!selected.furniture?.length && <div className="office-editor-palette">
                   {selected.furniture.map((item, index) => <button type="button" key={item.id}
@@ -406,7 +416,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
                     {FURNITURE[item.kind].label} {index + 1}</button>)}
                 </div>}
               </>}
-            </section>
+            </section>}
           </aside>
         </div>
     </main>

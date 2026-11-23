@@ -308,3 +308,5 @@
   .office-room-label { gap: 4px; padding-inline: 5px; }
   .office-room-count { padding-left: 4px; }
 }
+
+.office-canvas-tools { display:flex; justify-content:flex-end; align-items:center; gap:8px; }

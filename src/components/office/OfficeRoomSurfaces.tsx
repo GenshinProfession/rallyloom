@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { DoorOpen, Layers3 } from 'lucide-react'
 import { OFFICE_FLOORS } from './office-assets'
 import { roomTemplates } from './rooms'
@@ -10,9 +11,11 @@ export function OfficeRoomSurfaces({ room, disabled, onUpdate }: {
   disabled: boolean
   onUpdate: (update: (room: RoomPlacement) => RoomPlacement) => void
 }) {
-  if (!room) return <p className="office-room-tools-empty">点选场景里的房间，即可调整地板材质和出入口。</p>
+  const [side, setSide] = useState<RoomDoor['side']>(room?.door?.side ?? roomTemplates.get(room?.template ?? '')?.door?.side ?? 'south')
+  if (!room) return null
   const door = room.door ?? roomTemplates.get(room.template)?.door
-  const wallLength = (side: RoomDoor['side']) => side === 'east' || side === 'west' ? room.frame.height : room.frame.width
+  const finish = room.walls?.[side] ?? 'solid'
+  const wallLength = (edge: RoomDoor['side']) => edge === 'east' || edge === 'west' ? room.frame.height : room.frame.width
   function changeDoor(next: RoomDoor) {
     const length = wallLength(next.side)
     const width = Math.max(1, Math.min(next.width, length - 2 * WALL_THICKNESS - 2))
@@ -20,61 +23,37 @@ export function OfficeRoomSurfaces({ room, disabled, onUpdate }: {
     const offset = Math.max(margin, Math.min(1 - margin, next.offset))
     onUpdate((current) => ({ ...current, door: { side: next.side, width, offset } }))
   }
-  return <div className="office-room-tools" aria-label={'房间设置 ' + room.name}>
-    <strong title={room.name}>{room.name}</strong>
-    <label><Layers3 size={15} aria-hidden="true" />地板材质
-      <select aria-label="地板材质" disabled={disabled} value={room.floorMaterial ?? ''} onChange={(event) => {
-        const material = event.target.value as FloorMaterial
-        onUpdate((current) => {
-          if (material) return { ...current, floorMaterial: material, floor: OFFICE_FLOORS[material].color }
-          const { floorMaterial, floor, ...rest } = current
-          return floorMaterial ? rest : current
-        })
-      }}>
-        <option value="">模板默认</option>
-        {Object.entries(OFFICE_FLOORS).map(([id, floor]) => <option key={id} value={id}>{floor.label}</option>)}
-      </select>
-      {room.floorMaterial && <i className="office-floor-swatch" style={{ backgroundColor: OFFICE_FLOORS[room.floorMaterial].color }} />}
-    </label>
-    {door && room.template !== 'empty' && <div className="office-door-controls" role="group" aria-label="房间出入口">
-      <label><DoorOpen size={15} aria-hidden="true" />出入口
-        <select aria-label="门洞所在墙" disabled={disabled} value={door.side}
-          onChange={(event) => changeDoor({ ...door, side: event.target.value as RoomDoor['side'] })}>
-          {Object.entries(sides).map(([id, label]) => <option key={id} value={id}>{label}墙</option>)}
-        </select>
-      </label>
-      <label>位置 %
-        <input type="number" aria-label="门洞位置百分比" min={0} max={100} defaultValue={Math.round(door.offset * 100)}
-          key={room.id + door.side + door.offset} disabled={disabled}
-          onBlur={(event) => {
-            const value = event.currentTarget.valueAsNumber
-            if (Number.isFinite(value) && value !== Math.round(door.offset * 100)) changeDoor({ ...door, offset: value / 100 })
-            event.currentTarget.value = String(Math.round(door.offset * 100))
-          }}
-          onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
-      </label>
-      <label>门宽
-        <input type="number" aria-label="门洞宽度" min={1} max={wallLength(door.side) - 2 * WALL_THICKNESS - 2}
-          defaultValue={door.width} key={room.id + door.side + door.width} disabled={disabled}
-          onBlur={(event) => {
-            const value = event.currentTarget.valueAsNumber
-            if (Number.isFinite(value) && value !== door.width) changeDoor({ ...door, width: value })
-            event.currentTarget.value = String(door.width)
-          }}
-          onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }} />
-      </label>
-    </div>}
-    {room.template !== 'empty' && <details className="office-partitions">
-      <summary>隔墙与开放边界</summary>
-      <div>{Object.entries(sides).map(([side, label]) => <label key={side}>{label}墙
-        <select aria-label={label + '墙材质'} disabled={disabled} value={room.walls?.[side as RoomDoor['side']] ?? 'solid'}
-          onChange={(event) => {
-            const finish = event.target.value as WallFinish
-            onUpdate((current) => ({ ...current, walls: { ...current.walls, [side]: finish } }))
-          }}>
-          <option value="solid">实体隔墙</option><option value="glass">黑框玻璃</option><option value="open">开放连通</option>
-        </select>
-      </label>)}</div>
-    </details>}
+  const updateFloor = (material?: FloorMaterial) => onUpdate((current) => {
+    if (material) return { ...current, floorMaterial: material, floor: OFFICE_FLOORS[material].color }
+    const { floorMaterial: _material, floor: _floor, ...rest } = current
+    return rest
+  })
+  return <div className="office-room-surfaces" aria-label={'房间设置 ' + room.name}>
+    <h3><Layers3 size={14} />地板材质</h3>
+    <div className="office-floor-options" role="group" aria-label="地板材质">
+      <button type="button" disabled={disabled} aria-pressed={!room.floorMaterial} onClick={() => updateFloor()}><i className="floor-default" />模板默认</button>
+      {Object.entries(OFFICE_FLOORS).map(([id, floor]) => <button type="button" key={id} disabled={disabled} aria-pressed={room.floorMaterial === id} onClick={() => updateFloor(id as FloorMaterial)}>
+        <i data-floor={id} style={{ backgroundColor: floor.color }} />{floor.label}
+      </button>)}
+    </div>
+    {room.template !== 'empty' && <>
+      <h3><DoorOpen size={14} />墙与出入口</h3>
+      <p>点选四周的墙，设置隔墙或移动出入口。</p>
+      <div className="office-wall-plan" role="group" aria-label="选择要编辑的墙">
+        <span className="office-wall-center">{room.name}<small>{door ? '门在' + sides[door.side] : '暂无出入口'}</small></span>
+        {Object.entries(sides).map(([id, label]) => <button key={id} type="button" data-side={id} disabled={disabled} aria-label={'选择' + label + '墙'} aria-pressed={side === id} onClick={() => setSide(id as RoomDoor['side'])}>
+          {label}墙{door?.side === id && <DoorOpen size={13} aria-label="当前出入口" />}
+        </button>)}
+      </div>
+      <h4>{sides[side]}墙</h4>
+      <div className="office-wall-finishes" role="group" aria-label={sides[side] + '墙材质'}>
+        {([['solid', '实体墙'], ['glass', '玻璃墙'], ['open', '开放连通']] as const).map(([value, label]) => <button type="button" key={value} disabled={disabled} aria-pressed={finish === value} onClick={() => onUpdate((current) => ({ ...current, walls: { ...current.walls, [side]: value as WallFinish } }))}>{label}</button>)}
+      </div>
+      {finish === 'open' ? <p>此侧完全开放，无需设置门洞。</p> : door?.side !== side ? <button type="button" disabled={disabled} onClick={() => changeDoor({ side, width: door?.width ?? 42, offset: .5 })}><DoorOpen size={14} />将出入口移到此墙</button> : <div className="office-door-sliders">
+        <label>门的位置 <input type="range" aria-label="门的位置" min={0} max={100} value={Math.round(door.offset * 100)} disabled={disabled} onChange={(event) => changeDoor({ ...door, offset: Number(event.target.value) / 100 })} /></label>
+        <div className="office-door-presets">{([['靠左 / 上', .2], ['居中', .5], ['靠右 / 下', .8]] as const).map(([label, offset]) => <button type="button" key={label} disabled={disabled} onClick={() => changeDoor({ ...door, offset })}>{label}</button>)}</div>
+        <label>门洞宽度 <input type="number" aria-label="门洞宽度" min={1} max={wallLength(side) - 2 * WALL_THICKNESS - 2} value={door.width} disabled={disabled} onChange={(event) => { if (Number.isFinite(event.target.valueAsNumber)) changeDoor({ ...door, width: event.target.valueAsNumber }) }} /></label>
+      </div>}
+    </>}
   </div>
 }

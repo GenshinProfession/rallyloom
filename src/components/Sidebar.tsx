@@ -1,5 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
-import { Building2, ChevronDown, ChevronRight, ChartNoAxesCombined, BookOpenText, Kanban, LayoutGrid, LogOut, MessageCircle, PanelLeftClose, PanelLeftOpen, Settings, UsersRound } from 'lucide-react'
+import { Bell, Building2, ChevronDown, ChevronRight, ChartNoAxesCombined, BookOpenText, Kanban, LayoutGrid, LogOut, MessageCircle, PanelLeftClose, PanelLeftOpen, Settings, UsersRound } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { SelectionHighlight } from '@/components/ui/selection-highlight'
 import {
@@ -27,6 +27,8 @@ export function Sidebar({
   tasksVisible,
   docsVisible,
   reportsVisible,
+  notifyVisible,
+  notificationCount,
   searchItems,
   onSearchSelect,
   onNavigate,
@@ -43,6 +45,8 @@ export function Sidebar({
   chatVisible: boolean
   tasksVisible: boolean
   docsVisible: boolean
+  notifyVisible?: boolean
+  notificationCount?: number
   reportsVisible?: boolean
   searchItems: readonly WorkspaceSearchItem[]
   onSearchSelect: (item: WorkspaceSearchItem) => void
@@ -141,6 +145,10 @@ export function Sidebar({
               <span className="sidebar-copy" aria-hidden={collapsed || undefined}>任务看板</span>
             </button>
           )}
+          {notifyVisible && <button type="button" className={nav('notify')} title="通知中心" aria-label="通知中心" aria-current={page === 'notify' ? 'page' : undefined} data-nav="notify" onClick={(event) => onNavigate('notify', event.detail > 0)}>
+            <Bell className="size-[15px] shrink-0" strokeWidth={1.65} /><span className="sidebar-copy">通知中心</span>
+            {!!notificationCount && <span className="sidebar-copy ml-auto text-xs text-muted-foreground">{notificationCount > 99 ? '99+' : notificationCount}</span>}
+          </button>}
           {reportsVisible && <button type="button" className={nav('reports')} title="工作汇报" aria-label="工作汇报" data-nav="reports" onClick={(event) => onNavigate('reports', event.detail > 0)}><ChartNoAxesCombined className="size-[15px] shrink-0" strokeWidth={1.65} /><span className="sidebar-copy" aria-hidden={collapsed || undefined}>工作汇报</span></button>}
           {docsVisible && (
             <button type="button" className={nav('docs')} title="文档中心" aria-label="文档中心" aria-current={page === 'docs' ? 'page' : undefined} data-nav="docs" onClick={(event) => onNavigate('docs', event.detail > 0)}>

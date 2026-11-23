@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AtSign, Footprints, Inbox, LocateFixed, Maximize, MessageCircle, Minus, Plus } from 'lucide-react'
+import { AtSign, Footprints, Inbox, LocateFixed, Maximize, MessageCircle, Minus, Plus, MoreHorizontal, Pencil, Armchair, LayoutTemplate } from 'lucide-react'
 import type { WorkspaceSearchItem } from '@/components/WorkspaceSearch'
 import { OverviewPanel } from '@/components/panels/OverviewPanel'
 import { SelectionHighlight } from '@/components/ui/selection-highlight'
@@ -16,6 +16,7 @@ import { OfficeWorkPanel, type OfficeTaskDraft, type OfficeWorkAccess } from './
 import { gmvMetric, useRoomMetrics } from './room-metrics'
 import { resolveOfficeLayout, roomTemplates } from './rooms'
 import type { OfficeMode } from './three/world'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import './office.css'
 
 const modes: { id: OfficeMode; label: string }[] = [
@@ -171,13 +172,7 @@ export function OfficePage({
             <span title={workspaceName}>{workspaceName}</span>
           </div>
           <div className="office-tools">
-            <button type="button" className="office-tool ui-press" onClick={() => setReferenceOpen(true)}>参考户型</button>
-            {editing && <>
-              <button type="button" className="office-tool ui-press" onClick={() => setEditingOpen(true)}>编排办公室</button>
-              <button type="button" className="office-tool ui-press" onClick={() => setAssigningSeats(true)}>分配工位</button>
-            </>}
-            {workEnabled && <button ref={workButton} type="button" className="office-tool ui-press" data-office-inbox
-              onClick={() => { setPersonal(true); revealTab('work') }}><Inbox size={14} /> 待我处理</button>}
+            {editing && <button type="button" className="office-tool ui-press" onClick={() => setEditingOpen(true)}><Pencil size={14} />编辑办公室</button>}
             {chat && (
               <button type="button" className="office-tool ui-press" data-general-quick data-mentioned={generalMention || undefined}
                 aria-haspopup="dialog" title="单击快速聊天 · 双击进入全员大厅"
@@ -194,40 +189,16 @@ export function OfficePage({
             )}
             {chat && privateMention && <button type="button" className="office-tool ui-press" data-mentioned
               onClick={(event) => openMessage(privateMention.channelId, privateMention.id, event.currentTarget)}><AtSign size={14} /> 私聊中有人提到你</button>}
-            {rooms.length > 0 && (
-              <button
-                className="office-tool ui-press"
-                type="button"
-                aria-pressed={walking}
-                onClick={() => {
-                  if (!walking) setZoom(100)
-                  setWalking(!walking)
-                }}
-              >
-                <Footprints size={14} strokeWidth={1.65} />
-                {walking ? '结束试走' : '试走'}
-              </button>
-            )}
-            {myRoom && (
-              <button
-                className="office-tool ui-press"
-                type="button"
-                onClick={() => selectRoom(myRoom.id)}
-                aria-pressed={selectedRoom === myRoom.id}
-              >
-                <LocateFixed size={14} strokeWidth={1.65} />
-                我的工位
-              </button>
-            )}
-            <div className="office-zoom" aria-label="楼层图缩放">
-              <button className="ui-press" type="button" aria-label="缩小" disabled={zoom === 80} onClick={() => setZoom(Math.max(80, zoom - 20))}>
-                <Minus size={13} strokeWidth={1.65} />
-              </button>
-              <button className="ui-press" type="button" aria-label="重置缩放" title="重置缩放" onClick={() => setZoom(100)}>{zoom}%</button>
-              <button className="ui-press" type="button" aria-label="放大" disabled={zoom === 160} onClick={() => setZoom(Math.min(160, zoom + 20))}>
-                <Plus size={13} strokeWidth={1.65} />
-              </button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><button ref={workButton} type="button" className="office-tool ui-press" aria-label="更多办公室操作"><MoreHorizontal size={16} />更多</button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {workEnabled && <DropdownMenuItem data-office-inbox onSelect={() => { setPersonal(true); revealTab('work') }}><Inbox size={14} />待我处理</DropdownMenuItem>}
+                {myRoom && <DropdownMenuItem onSelect={() => selectRoom(myRoom.id)}><LocateFixed size={14} />我的工位</DropdownMenuItem>}
+                {editing && <DropdownMenuItem onSelect={() => setAssigningSeats(true)}><Armchair size={14} />分配工位</DropdownMenuItem>}
+                {rooms.length > 0 && <DropdownMenuItem onSelect={() => { if (!walking) setZoom(100); setWalking(!walking) }}><Footprints size={14} />{walking ? '结束试走' : '试走办公室'}</DropdownMenuItem>}
+                <DropdownMenuItem onSelect={() => setReferenceOpen(true)}><LayoutTemplate size={14} />参考户型</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
         {assigningSeats && editing && <OfficeSeatAssignments layout={layout} rooms={rooms} team={editing.team}
@@ -300,6 +271,16 @@ export function OfficePage({
               </button>
             ))}
           </div>
+          <div className="office-canvas-tools">
+            <div className="office-zoom" aria-label="楼层图缩放">
+              <button className="ui-press" type="button" aria-label="缩小" disabled={zoom === 80} onClick={() => setZoom(Math.max(80, zoom - 20))}>
+                <Minus size={13} strokeWidth={1.65} />
+              </button>
+              <button className="ui-press" type="button" aria-label="重置缩放" title="重置缩放" onClick={() => setZoom(100)}>{zoom}%</button>
+              <button className="ui-press" type="button" aria-label="放大" disabled={zoom === 160} onClick={() => setZoom(Math.min(160, zoom + 20))}>
+                <Plus size={13} strokeWidth={1.65} />
+              </button>
+            </div>
           <button
             className="office-fit ui-press"
             type="button"
@@ -310,6 +291,7 @@ export function OfficePage({
           >
             <Maximize size={12} strokeWidth={1.65} /> 适应画布
           </button>
+          </div>
         </footer>
       </main>
 

@@ -334,6 +334,8 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
         tasksVisible={canTasks}
         docsVisible={canDocs}
         reportsVisible={canReports}
+        notifyVisible={canNotify}
+        notificationCount={noticeUnread}
         searchItems={searchItems}
         onSearchSelect={(item) => {
           setOfficeSearchHit({ ...item })
