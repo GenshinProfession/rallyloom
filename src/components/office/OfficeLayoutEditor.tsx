@@ -154,7 +154,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
       y: (requested.y - frame.y) / frame.height,
     }, frame)
     const total = draft.rooms.reduce((count, room) => count + (room.furniture?.length ?? 0), 0)
-    const valid = (sourceRoom === target || (target.furniture?.length ?? 0) < 60)
+    const valid = furnitureFits(item, frame) && (sourceRoom === target || (target.furniture?.length ?? 0) < 60)
       && (source.kind === 'furniture' || total < 320)
     return { kind: 'furniture', roomId: target.id, item,
       at: { x: frame.x + item.x * frame.width, y: frame.y + item.y * frame.height }, valid }

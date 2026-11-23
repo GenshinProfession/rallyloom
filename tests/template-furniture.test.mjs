@@ -35,3 +35,9 @@ test('empty walled room has no hidden furniture; chair direction follows the fur
  const seats=furnitureSeats({...shell,furniture:[{id:'chair',kind:'chair',x:.5,y:.5,rotation:90}]})
  assert.equal(seats[0].rotation,90)
 })
+
+test('oversized or diagonally oversized furniture cannot be accepted as fitting a smaller room',()=>{
+ const room={x:0,y:0,width:100,height:100}
+ assert.equal(furnitureFits({id:'desk',kind:'desk',x:.5,y:.5,rotation:0,size:{width:150,depth:50}},room),false)
+ assert.equal(furnitureFits({id:'desk',kind:'desk',x:.5,y:.5,rotation:45,size:{width:90,depth:90}},room),false)
+})

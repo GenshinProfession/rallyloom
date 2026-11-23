@@ -58,6 +58,8 @@ export function fitFurniture(item: FurniturePlacement, room: RoomFrame): Furnitu
 }
 
 export function furnitureFits(item: FurniturePlacement, room: RoomFrame) {
+  const edge = clearances(item, room)
+  if (edge.x > .5 || edge.y > .5) return false
   const fitted = fitFurniture(item, room)
   return Math.abs(fitted.x - item.x) < 0.000001 && Math.abs(fitted.y - item.y) < 0.000001
 }
