@@ -36,7 +36,7 @@ export function OfficeRoomSurfaces({ room, disabled, onUpdate }: {
         <i data-floor={id} style={{ backgroundColor: floor.color }} />{floor.label}
       </button>)}
     </div>
-    {room.template !== 'empty' && <>
+    {!room.boundary && room.template !== 'empty' && <>
       <h3><DoorOpen size={14} />墙与出入口</h3>
       <p>点选四周的墙，设置隔墙或移动出入口。</p>
       <div className="office-wall-plan" role="group" aria-label="选择要编辑的墙">

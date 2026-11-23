@@ -6,6 +6,7 @@ import type { ChatMessage } from '@/lib/chat/types'
 import type { DataSlots } from '@/lib/store/types'
 import type { OfficeLayout, ResolvedRoom } from './rooms/api'
 import { createOfficeView, type OfficeOverlay, type OfficeViewState } from './three/view'
+import {boundaryArea} from './rooms/region-geometry'
 import { OfficeResizeHandle, type OfficeResizeTarget } from './OfficeResizeHandle'
 import { OfficeFreeWalls, type FreeWallEditing } from './OfficeFreeWalls'
 import type { FloorPoint, OfficeDragSource, OfficePlacement } from './office-drag'
@@ -242,7 +243,7 @@ export function OfficeScene({
               >
                 <button type="button" className="office-room-label ui-press" data-room={room.id}
                   aria-pressed={selectedRoom === room.id} style={{ borderLeftColor: room.accent }}
-                  onPointerDown={editing ? (event) => startDrag(event, { kind: 'room', roomId: room.id }) : undefined}
+                  onPointerDown={editing&&!room.boundary ? (event) => startDrag(event, { kind: 'room', roomId: room.id }) : undefined}
                   title="选择房间 · 右键更多操作"
                   onContextMenu={!editing ? event=>{event.preventDefault();setContext({x:event.clientX,y:event.clientY,roomId:room.id})}:undefined}
                   onClick={(event) => {
@@ -253,7 +254,7 @@ export function OfficeScene({
                     else toggle(room.id)
                   }}
                 >
-                  <strong>{room.name}</strong>
+                  <strong>{room.name}</strong>{room.boundary&&editing&&<span className="office-region-area">{(boundaryArea(room.boundary)/(layout.unitsPerMeter??50)**2).toFixed(1)} ㎡</span>}
                   {present > 0 && <span className="office-room-count">{present} 在岗</span>}
                   {slots[room.id] && <span data-slot-chip title={slots[room.id].name}>看板</span>}
                 </button>

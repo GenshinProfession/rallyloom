@@ -56,10 +56,11 @@ export function OfficeFreeWalls({stage,engine,layout,editing,overlay}:{stage:Ref
       }
       const point=at(event);if(!point||!inside(point))return
       event.preventDefault();event.stopPropagation();cancel.current();skipClick.current=true
-      const origin=chain.current??snapWallPoint(point,latest.current.layout)
+      let origin=chain.current??snapWallPoint(point,latest.current.layout)
+      const pressed=snapWallPoint(point,latest.current.layout)
       let endpoint=origin,moved=false
       const make=():WallSegment=>({id:crypto.randomUUID(),start:origin,end:endpoint,height:26,thickness:6,finish:'solid'})
-      const move=(e:PointerEvent)=>{if(e.pointerId!==event.pointerId)return;const p=at(e);if(!p)return;moved=moved||Math.hypot(e.clientX-event.clientX,e.clientY-event.clientY)>4;endpoint=snapWallPoint(p,latest.current.layout,origin,e.shiftKey);preview(make())}
+      const move=(e:PointerEvent)=>{if(e.pointerId!==event.pointerId)return;const p=at(e);if(!p)return;const dragging=Math.hypot(e.clientX-event.clientX,e.clientY-event.clientY)>4;if(dragging&&!moved&&Math.hypot(pressed.x-origin.x,pressed.y-origin.y)>10)origin=pressed;moved=moved||dragging;endpoint=snapWallPoint(p,latest.current.layout,origin,e.shiftKey);preview(make())}
       const stop=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',abort);window.removeEventListener('blur',abort);preview();cancel.current=()=>{}}
       const abort=()=>{stop();chain.current=undefined}
       const up=(e:PointerEvent)=>{
@@ -67,13 +68,13 @@ export function OfficeFreeWalls({stage,engine,layout,editing,overlay}:{stage:Ref
         const p=at(e);if(p)endpoint=snapWallPoint(p,latest.current.layout,origin,e.shiftKey)
         stop()
         if(!p||!inside(p)){chain.current=undefined;return}
-        if(moved||chain.current){const wall=make();if(wallLength(wall)>=12){chain.current=latest.current.editing.add(wall)?endpoint:undefined}}
+        if(moved||chain.current){const wall=make();if(wallLength(wall)>=12){chain.current=latest.current.editing.add(wall)&&!moved?endpoint:undefined}}
         else chain.current=origin
       }
       cancel.current=abort;window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',abort);window.addEventListener('blur',abort)
     }
     const hover=(event:PointerEvent)=>{if(!latest.current.editing.active||!chain.current||event.buttons)return;const p=at(event);if(p&&inside(p))preview({id:'preview',start:chain.current,end:snapWallPoint(p,latest.current.layout,chain.current,event.shiftKey),height:26,thickness:6,finish:'solid'})}
-    const click=(event:MouseEvent)=>{if(skipClick.current||latest.current.editing.active){event.stopPropagation();skipClick.current=false}}
+    const click=(event:MouseEvent)=>{if(event.target instanceof HTMLCanvasElement&&(skipClick.current||latest.current.editing.active)){event.stopPropagation();skipClick.current=false}}
     const key=(event:KeyboardEvent)=>{if(event.key==='Escape'||event.key==='Enter'){cancel.current();chain.current=undefined;preview();if(latest.current.editing.active)latest.current.editing.finish()}}
     const blur=()=>{cancel.current();chain.current=undefined;preview()}
     root.addEventListener('pointerdown',pointerDown,true);root.addEventListener('pointermove',hover);root.addEventListener('click',click,true);window.addEventListener('keydown',key);window.addEventListener('blur',blur)

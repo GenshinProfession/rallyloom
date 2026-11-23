@@ -19,7 +19,7 @@ app.whenReady().then(async()=>{
  const click=async(point)=>{await mouse('mousePressed',point,true);await mouse('mouseReleased',point);await new Promise(r=>setTimeout(r,180))}
  const a=p(.18,.25),b=p(.55,.43),c=p(.78,.28),d=p(.78,.72)
  await mouse('mousePressed',a,true);await mouse('mouseMoved',b,true);await mouse('mouseReleased',b);await new Promise(r=>setTimeout(r,250))
- await click(c);await click(d)
+ await click(b);await click(c);await click(d)
  await win.webContents.debugger.sendCommand('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape'});await new Promise(r=>setTimeout(r,250))
  const endpoints=await win.webContents.executeJavaScript("(()=>{const get=name=>Number(document.querySelector('[aria-label=墙'+name+']').value);return {x:get('终点X'),y:get('终点Y')}})()")
  const handle=await win.webContents.executeJavaScript("(()=>{const r=document.querySelector('[data-wall-node=end]').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()")

@@ -136,6 +136,11 @@ function roomIssue(room) {
   if (!['x', 'y', 'width', 'height'].every((key) => Number.isFinite(frame[key]) && frame[key] >= 0)) {
     return 'frame.x/y/width/height 必须是非负数字'
   }
+  if(room.boundary!==undefined){
+    const boundary=room.boundary
+    const ring=points=>Array.isArray(points)&&points.length>=3&&points.length<=256&&points.every(point=>object(point)&&Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=frame.x-1e-4&&point.y>=frame.y-1e-4&&point.x<=frame.x+frame.width+1e-4&&point.y<=frame.y+frame.height+1e-4)
+    if(!object(boundary)||!ring(boundary.outer)||(boundary.holes!==undefined&&(!Array.isArray(boundary.holes)||boundary.holes.length>32||!boundary.holes.every(ring)))||(boundary.outer.length+(boundary.holes??[]).reduce((count,hole)=>count+hole.length,0))>2048)return 'boundary 包含无效区域边界'
+  }
   if (!optionalBoolean(room.useTemplateFurniture)) return 'useTemplateFurniture 必须为布尔值'
   if (room.floorMaterial !== undefined && !['wood', 'tile', 'concrete', 'quartz', 'terrazzo'].includes(room.floorMaterial)) return 'floorMaterial 包含不支持的地板材质'
   if (room.walls !== undefined && (!object(room.walls) || Object.keys(room.walls).length > 4
@@ -213,6 +218,7 @@ function validateBootstrap(raw, binding, log) {
   if (!object(layout)) fail('缺少 layout 对象（{width,height,rooms,assignments}）')
   if (!(Number.isFinite(layout.width) && layout.width > 0)) fail(`layout.width 应为正数（当前 ${JSON.stringify(layout.width)}）`)
   if (!(Number.isFinite(layout.height) && layout.height > 0)) fail(`layout.height 应为正数（当前 ${JSON.stringify(layout.height)}）`)
+  if(layout.unitsPerMeter!==undefined&&(!Number.isFinite(layout.unitsPerMeter)||layout.unitsPerMeter<10||layout.unitsPerMeter>1000))fail('unitsPerMeter 应为10至1000')
   if (!Array.isArray(layout.rooms)) fail('layout.rooms 应为房间数组')
   if(layout.wallSegments!==undefined){
     if(!Array.isArray(layout.wallSegments)||layout.wallSegments.length>240)fail('layout.wallSegments 最多 240 段')

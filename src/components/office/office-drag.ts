@@ -8,7 +8,7 @@ export type OfficeDragSource =
   | { kind: 'furniture'; roomId: string; id: string }
 
 export type OfficePlacement =
-  | { kind: 'room'; frame: RoomFrame; valid: boolean }
+  | { kind: 'room'; frame: RoomFrame; roomId?:string; valid: boolean }
   | { kind: 'furniture'; at: FloorPoint; roomId?: string; item?: FurniturePlacement; valid: boolean }
 
 export const NEW_ROOM_SIZE = { width: 260, height: 200 }

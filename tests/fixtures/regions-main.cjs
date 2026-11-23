@@ -1,0 +1,41 @@
+const {app,BrowserWindow,ipcMain}=require('electron'),fs=require('node:fs'),path=require('node:path')
+const output=path.join(process.env.RALLY_TEST_FIXTURE,'result.txt');let saved
+ipcMain.on('test-layout',(_event,layout)=>{saved=layout})
+app.whenReady().then(async()=>{
+ const win=new BrowserWindow({show:false,width:1680,height:1080,webPreferences:{preload:path.join(__dirname,'preload.cjs'),backgroundThrottling:false}})
+ const errors=[];win.webContents.on('console-message',(_event,details)=>{if(/THREE.WebGLProgram|Shader Error/i.test(details.message??''))errors.push(details.message)})
+ await win.loadFile(process.env.RALLY_TEST_DIST)
+ await win.webContents.executeJavaScript('('+ (async()=>{
+  const pause=ms=>new Promise(r=>setTimeout(r,ms)),wait=async(fn,label)=>{for(let i=0;i<120;i++){if(fn())return;await pause(70)}throw Error(label+' '+document.body.textContent.slice(-500))}
+  const click=label=>{const button=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===label);if(!button)throw Error('missing '+label);button.click()}
+  await wait(()=>document.querySelector('.office-header'),'office');click('编辑办公室');await wait(()=>document.querySelectorAll('.office-region-area').length===4,'four polygon areas')
+  const rename=async(area,name)=>{const button=[...document.querySelectorAll('.office-room-label')].find(button=>button.textContent.includes(area+' ㎡'));if(!button)throw Error('missing area '+area);button.click();await wait(()=>document.querySelector('[aria-label=区域名称]'),'region inspector');const input=document.querySelector('[aria-label=区域名称]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,name);input.dispatchEvent(new Event('input',{bubbles:true}));await pause(120)}
+  await rename('37.6','洽谈室');await rename('66.0','经理室');await rename('39.6','会议室');await rename('136.8','综合办公区')
+  if(!document.querySelector('.workspace-page-description')?.textContent.includes('280.00'))throw Error('total floor area')
+  window.__lRoom=document.querySelector('.office-room-label[aria-pressed=true]').dataset.room
+  click('浅木地板');await pause(150);click('添加素材');await pause(100);click('家具');await pause(100);document.querySelector('.office-asset-card[aria-label=沙发]').click();await wait(()=>document.querySelector('[data-selected-furniture]'),'sofa added inside L area')
+  await pause(500)
+ }).toString()+')()',true)
+ win.showInactive();win.webContents.debugger.attach('1.3')
+ const mouse=async(type,p,pressed=false)=>win.webContents.debugger.sendCommand('Input.dispatchMouseEvent',{type,x:p.x,y:p.y,button:type==='mouseMoved'?'none':'left',buttons:pressed?1:0,clickCount:type==='mouseMoved'?0:1})
+ const frame=await win.webContents.executeJavaScript("(()=>{const r=document.querySelector('.office-resize-boundary[data-canvas=true]').getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height}})()")
+ const at=(x,y)=>({x:frame.left+x/1000*frame.width,y:frame.top+y/700*frame.height})
+ const start=await win.webContents.executeJavaScript("(()=>{const r=document.querySelector('[data-selected-furniture]').getBoundingClientRect();return {x:r.left+r.width*.5,y:r.top+r.height*.5}})()"),end=at(850,160)
+ await mouse('mousePressed',start,true);await mouse('mouseMoved',{x:start.x+12,y:start.y-8},true);await mouse('mouseMoved',end,true);await mouse('mouseReleased',end);await new Promise(r=>setTimeout(r,400))
+ const insideLeft=at(100,400);await mouse('mousePressed',insideLeft,true);await mouse('mouseReleased',insideLeft);await new Promise(r=>setTimeout(r,200))
+ if(await win.webContents.executeJavaScript("document.querySelector('[aria-label=区域名称]')?.value")!=='洽谈室')throw Error('polygon floor picking used overlapping bounding box '+await win.webContents.executeJavaScript("JSON.stringify({name:document.querySelector('[aria-label=区域名称]')?.value,target:document.elementFromPoint("+insideLeft.x+','+insideLeft.y+")?.className})"))
+ const insideL=at(450,500);await mouse('mousePressed',insideL,true);await mouse('mouseReleased',insideL);await new Promise(r=>setTimeout(r,250))
+ if(await win.webContents.executeJavaScript("document.querySelector('[aria-label=区域名称]')?.value")!=='综合办公区')throw Error('L floor selection')
+ fs.writeFileSync(path.join(__dirname,'regions.png'),(await win.capturePage()).toPNG())
+ await win.webContents.executeJavaScript("[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='发布办公室').click()")
+ await new Promise(r=>setTimeout(r,700))
+ if(!saved||saved.rooms.length!==4||saved.rooms.some(room=>!room.boundary))throw Error('polygon regions not persisted')
+ if(saved.rooms.find(room=>room.name==='综合办公区').boundary.outer.length!==6)throw Error('L-shaped boundary lost')
+ if(!saved.rooms.find(room=>room.name==='会议室').furniture.some(item=>item.kind==='sofa'))throw Error('native furniture drag failed to transfer region '+JSON.stringify(saved.rooms.map(room=>({name:room.name,furniture:room.furniture}))))
+ if(saved.rooms.find(room=>room.name==='综合办公区').floorMaterial!=='wood'||saved.rooms.filter(room=>room.floorMaterial==='wood').length!==1)throw Error('floor material was not per-region')
+ if(saved.assignments.self!==saved.rooms.find(room=>room.name==='综合办公区').id||saved.assignments.managed!==saved.rooms.find(room=>room.name==='洽谈室').id)throw Error('member assignments not remapped to their actual desks')
+ await win.webContents.executeJavaScript("[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='编辑办公室').click()")
+ await new Promise(r=>setTimeout(r,500));if(await win.webContents.executeJavaScript("document.querySelectorAll('.office-region-area').length")!==4)throw Error('reopen lost regions')
+ if(errors.length)throw Error(errors.join('\n'));fs.writeFileSync(output,'PASS user floor plan: four closed regions including L shape, independent names and areas, polygon floor picking, native furniture transfer, per-region material, member seat remapping, save and reopen')
+}).catch(error=>fs.writeFileSync(output,String(error)+'\n'+error.stack)).finally(()=>app.exit())
+setTimeout(()=>{fs.writeFileSync(output,'timeout');app.exit(1)},60000).unref()

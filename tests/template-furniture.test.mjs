@@ -5,7 +5,8 @@ import ts from 'typescript'
 const root=new URL('../src/components/office/rooms/',import.meta.url)
 const url=source=>'data:text/javascript;base64,'+Buffer.from(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64')
 const source=name=>readFileSync(new URL(name,root),'utf8').replaceAll("from 'three'",`from '${import.meta.resolve('three')}'`)
-const api=url(source('api.ts')),furniture=url(source('furniture.ts')),placed=url(source('placed-furniture.ts').replace("from './furniture'",`from '${furniture}'`))
+const regionGeometry=url(source('region-geometry.ts'))
+const api=url(source('api.ts').replace("from './region-geometry'",`from '${regionGeometry}'`)),furniture=url(source('furniture.ts')),placed=url(source('placed-furniture.ts').replace("from './furniture'",`from '${furniture}'`))
 const {materializeRoom,resizeRoomContents,furnitureSeats}=await import(url(source('template-furniture.ts').replace("from './placed-furniture'",`from '${placed}'`)))
 const {furnitureFits,furnitureSize,FURNITURE}=await import(placed)
 const templates=[]
@@ -64,7 +65,7 @@ test('explicit seat reservation fills only vacant indexes for legacy members',()
  assert.deepEqual(seatOrder([{id:'one'}],0,{one:2}),[])
 })
 
-const {validateWallSegments,snapWallPoint,wallLength,replaceWallSegment}=await import(url(source('free-walls.ts')))
+const {validateWallSegments,snapWallPoint,wallLength,replaceWallSegment}=await import(url(source('free-walls.ts').replace("from './region-geometry'",`from '${regionGeometry}'`)))
 test('free walls retain arbitrary endpoints and opening clearance, bounded by the office',()=>{
  const wall={id:'a',start:{x:50,y:40},end:{x:300,y:220},height:26,thickness:6,finish:'glass',opening:{offset:.5,width:42}}
  const layout={width:800,height:500,rooms:[],wallSegments:[wall]};validateWallSegments(layout)

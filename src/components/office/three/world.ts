@@ -12,6 +12,8 @@ import { createAvatarKit, type AvatarLook } from './avatar'
 import { buildGmvScreen } from './gmv-screen'
 import { createFloorMaterial } from './floor-material'
 import { buildFreeWall } from './free-walls'
+import {roomFloorGeometry} from './region-floor'
+import {regionLabelPoint} from '../rooms/region-geometry'
 
 export type OfficeMode = 'daily' | 'presence' | 'tasks'
 
@@ -96,7 +98,7 @@ export function buildOfficeWorld(
   const furnitureModels = new Map<string, THREE.Group>()
   const wallModels=new Map<string,THREE.Group>()
   const staticModels: THREE.Object3D[] = []
-  const highlights = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>()
+  const highlights = new Map<string, THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>>()
   const screens = new Map<string, ReturnType<typeof buildGmvScreen>>()
   let mySeat: THREE.Vector3 | null = null
   const { width, height } = layout
@@ -112,7 +114,7 @@ export function buildOfficeWorld(
   for (const side of ['north', 'south', 'west', 'east'] as const) {
     const horizontal = side === 'north' || side === 'south'
     const length = horizontal ? width : height
-    const intervals = rooms.filter(room => room.template !== 'empty' && room.walls?.[side]!=='open' && (
+    const intervals = rooms.filter(room => !room.boundary && room.template !== 'empty' && room.walls?.[side]!=='open' && (
       side === 'north' ? room.frame.y === 0 : side === 'south' ? room.frame.y + room.frame.height === height
         : side === 'west' ? room.frame.x === 0 : room.frame.x + room.frame.width === width
     )).map(room => horizontal ? [room.frame.x, room.frame.x + room.frame.width] : [room.frame.y, room.frame.y + room.frame.height])
@@ -143,19 +145,20 @@ export function buildOfficeWorld(
     group.userData.roomId = room.id
     scene.add(group)
 
-    const floor = model.box(group, frame.width / 2, -1, frame.height / 2, frame.width, 1, frame.height, room.floor)
+    const floor = new THREE.Mesh(roomFloorGeometry(room),new THREE.MeshStandardMaterial({color:room.floor}))
+    floor.rotation.x=-Math.PI/2;floor.position.y=-.1;group.add(floor)
     floor.castShadow = false
     floor.userData.roomId = room.id
     floors.push(floor)
-    const finish = new THREE.Mesh(new THREE.PlaneGeometry(frame.width, frame.height),
+    const finish = new THREE.Mesh(roomFloorGeometry(room),
       createFloorMaterial(room.floorMaterial ?? (room.appearance.material === 'wood' ? 'wood' : 'tile'), room.floor))
     finish.rotation.x = -Math.PI / 2
-    finish.position.set(frame.width / 2, .05, frame.height / 2)
+    finish.position.set(0,.05,0)
     finish.receiveShadow = true
     group.add(finish)
     const architecture = new THREE.Group()
     group.add(architecture)
-    if (room.template !== 'empty') walls(room, rooms, architecture, model, solids)
+    if (!room.boundary&&room.template !== 'empty') walls(room, rooms, architecture, model, solids)
     const furniture = new THREE.Group()
     group.add(furniture)
     if (room.useTemplateFurniture !== false)
@@ -186,11 +189,11 @@ export function buildOfficeWorld(
     const roomStatics = [architecture, furniture]
 
     const selection = new THREE.Mesh(
-      new THREE.PlaneGeometry(frame.width - 7, frame.height - 7),
+      roomFloorGeometry(room),
       new THREE.MeshBasicMaterial({ color: '#5492db', transparent: true, opacity: .13, depthWrite: false }),
     )
     selection.rotation.x = -Math.PI / 2
-    selection.position.set(frame.width / 2, .13, frame.height / 2)
+    selection.position.set(0,.13,0)
     selection.visible = false
     group.add(selection)
     highlights.set(room.id, selection)
@@ -199,7 +202,7 @@ export function buildOfficeWorld(
     const orderedMembers = seatOrder(roomMembers,room.seats.length,layout.seatAssignments)
     roomAnchors.push({
       room,
-      position: new THREE.Vector3(frame.x + 12, room.appearance.display === 'gmv' ? 55 : 28, frame.y + 5),
+      position: room.boundary?(()=>{const at=regionLabelPoint(room);return new THREE.Vector3(at.x,28,at.y)})():new THREE.Vector3(frame.x + 12, room.appearance.display === 'gmv' ? 55 : 28, frame.y + 5),
       present: roomMembers.filter((member) => member.presence !== 'offline').length,
     })
 

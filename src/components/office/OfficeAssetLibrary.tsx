@@ -9,13 +9,14 @@ import { createAssetPreviewRenderer, officePreview, previewKey, type OfficeAsset
 const roomAssets: OfficeAsset[] = Object.keys(OFFICE_TEMPLATES).filter(id => id !== 'empty').map((id) => ({ kind: 'room', id }))
 const furnitureAssets: OfficeAsset[] = (Object.keys(FURNITURE) as FurnitureKind[]).map((id) => ({ kind: 'furniture', id }))
 
-export function OfficeAssetLibrary({ disabled, onDrag, onAdd }: {
+export function OfficeAssetLibrary({ disabled, onDrag, onAdd, regionMode=false }: {
+  regionMode?:boolean
   disabled: boolean
   onDrag: (event: PointerEvent<HTMLElement>, asset: OfficeAsset) => void
   onAdd: (asset: OfficeAsset) => void
 }) {
   const [query,setQuery] = useState('')
-  const [category, setCategory] = useState<'room' | 'furniture'>('room')
+  const [category, setCategory] = useState<'room' | 'furniture'>(regionMode?'furniture':'room')
   const [images, setImages] = useState<Record<string, string>>({})
   const [unavailable, setUnavailable] = useState(false)
   const assets = (category === 'room' ? roomAssets : furnitureAssets).filter(asset => (asset.kind==='room'?OFFICE_TEMPLATES[asset.id as keyof typeof OFFICE_TEMPLATES]:FURNITURE[asset.id].label).includes(query.trim()))
@@ -43,10 +44,10 @@ export function OfficeAssetLibrary({ disabled, onDrag, onAdd }: {
   return <section className="office-asset-library">
     <div className="office-inspector-heading"><h2>素材库</h2><span>{assets.length} 件素材</span></div><div className="office-asset-search"><Search size={14}/><Input aria-label="搜索素材" placeholder="搜索家具、房间模板" value={query} onChange={event=>setQuery(event.target.value)}/></div>
     <div className="office-asset-tabs" role="group" aria-label="素材类别">
-      <button type="button" aria-pressed={category === 'room'} onClick={() => setCategory('room')}><LayoutGrid size={14} />房间模板</button>
+      <button type="button" aria-pressed={category === 'room'} onClick={() => setCategory('room')}><LayoutGrid size={14} />{regionMode?'布置预设':'房间模板'}</button>
       <button type="button" aria-pressed={category === 'furniture'} onClick={() => setCategory('furniture')}><Armchair size={14} />家具</button>
     </div>
-    <p>拖入场景放置 · 模板内家具可独立编辑</p>
+    <p>{regionMode?'先按实际墙体规划区域；预设只布置家具，不改变区域边界。':'拖入场景放置 · 模板内家具可独立编辑'}</p>
     <div className="office-asset-grid">
       {assets.map((asset) => {
         const image = images[previewKey(asset)] ?? officePreview(asset)

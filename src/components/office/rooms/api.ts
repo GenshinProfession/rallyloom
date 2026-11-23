@@ -1,5 +1,6 @@
 import type { Group } from 'three'
 import type { ModelKit } from '../three/model'
+import {interiorPoint} from './region-geometry'
 
 export interface RoomSeat {
   /** Coordinates relative to the room, from 0 to 1. */
@@ -57,6 +58,7 @@ export interface RoomTemplate {
 }
 
 export interface RoomPlacement {
+  boundary?: RoomBoundary
   id: string
   name: string
   note?: string
@@ -90,7 +92,8 @@ export interface FurniturePlacement {
 }
 
 export interface OfficeLayout {
-  /** Independent world-coordinate segments, unrelated to rectangular room metadata. */
+  unitsPerMeter?: number
+  /** Independent world-coordinate segments used to identify polygon room boundaries. */
   wallSegments?: readonly WallSegment[]
   /** Optional explicit seat index for members already present in assignments. */
   seatAssignments?: Record<string, number>
@@ -98,6 +101,9 @@ export interface OfficeLayout {
   height: number
   rooms: readonly RoomPlacement[]
 }
+
+export type PlanPoint={x:number;y:number}
+export interface RoomBoundary {outer:readonly PlanPoint[];holes?:readonly (readonly PlanPoint[])[]}
 
 export interface WallSegment {
   id: string
@@ -188,8 +194,8 @@ export function resolveOfficeLayout(
     const frame = room.frame
     if (
       !frame || ![frame.x, frame.y, frame.width, frame.height].every(Number.isFinite) ||
-      frame.x < 0 || frame.y < 0 || frame.width <= WALL_THICKNESS * 2 || frame.height <= WALL_THICKNESS * 2 ||
-      frame.x + frame.width > width || frame.y + frame.height > height
+      frame.x < -1e-5 || frame.y < -1e-5 || frame.width <= (room.boundary?0:WALL_THICKNESS * 2) || frame.height <= (room.boundary?0:WALL_THICKNESS * 2) ||
+      frame.x + frame.width > width+1e-5 || frame.y + frame.height > height+1e-5
     ) {
       throw new Error(`房间 ${room.id} 的位置或尺寸超出办公室画布`)
     }
@@ -198,7 +204,8 @@ export function resolveOfficeLayout(
     if (seats.some(({ x, y }) => !(x >= 0 && x <= 1 && y >= 0 && y <= 1))) {
       throw new Error(`房间 ${room.id} 的工位坐标必须在 0 到 1 之间`)
     }
-    const doorway = getRoomDoorway(frame, room.door ?? appearance.door)
+    const anchor=room.boundary?interiorPoint(room.boundary):undefined
+    const doorway:RoomDoorway = anchor?{side:'south',offset:.5,width:0,start:0,end:0,center:anchor,inside:anchor,outside:anchor}:getRoomDoorway(frame, room.door ?? appearance.door)
 
     return {
       ...room,
