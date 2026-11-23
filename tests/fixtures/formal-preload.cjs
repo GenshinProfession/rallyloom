@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('rallyloom',{window:{},workspace:{resume:async()
  else if(path.startsWith('/oa/records/')){const kind=path.split('/')[3].split('?')[0];if(method==='GET')value={items:records[kind],nextCursor:null};else if(method==='POST'){value={...body,id:'created',revision:1,authorId:'self',ownerName:'测试员工',canEdit:true};records[kind].push(value)}else value={...body,id:'task',revision:2}}
  else if(path==='/oa/chat/channels')value=[{id:'general',name:'正式交流室',info:'授权范围'}]
  else if(path.includes('/messages')||path.startsWith('/oa/unread/'))value=[]
+ else if(path.endsWith('/members'))value=[{id:'self',name:'测试员工',presence:'online'}]
  else if(path.endsWith('/mentions'))value={people:[],allowAll:false}
  return {ok:true,value}
 }}})

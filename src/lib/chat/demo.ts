@@ -74,6 +74,11 @@ export class DemoChatClient implements ChatClient {
     return store.history(channelId, () => this.seed(channelId), limit)
   }
 
+  async participants(channelId: string) {
+    const direct = await this.checkChannel(channelId)
+    return direct ? this.members.filter(({ id }) => direct.participantIds.includes(id)) : this.channelMembers(channelId)
+  }
+
   async mentionOptions(channelId: string) {
     const direct = await this.checkChannel(channelId)
     return { allowAll: !direct, people: this.recipients(channelId, direct) }

@@ -25,7 +25,7 @@
 
 房间可用 `seats` 覆盖模板工位。每项为 `{"x":0.3,"y":0.6,"facing":"north"}`，坐标为房间内 0–1，朝向可省略或使用 `north`、`south`。省略数组时使用模板默认值，空数组表示零工位，最多 60 项。办公桌模板按这些工位生成桌和椅，提供方应拒绝超过显式工位容量的分配。
 
-`template: "empty"` 表示没有墙、模板家具和默认工位的空区域，可以摆放自定义家具。可选的 `floorMaterial` 接受 `wood`、`tile` 或 `concrete`，可与可选的 `floor` 颜色一起保存，省略材质时使用模板默认值。
+`template: "empty"` 表示没有墙、模板家具和默认工位的空区域，可以摆放自定义家具。可选的 `floorMaterial` 接受 `wood`、`tile`、`concrete`、`quartz`（暖白石英）或 `terrazzo`（浅灰水磨石），可与可选的 `floor` 颜色一起保存，省略材质时使用模板默认值。
 
 可选的 `door` 设定出入口。例如 `{"side":"east","offset":0.35,"width":42}` 表示右墙从上到下 35% 处、宽 42 的门洞。`side` 支持 `north`、`east`、`south`、`west`；`offset` 为沿墙长度的 0–1 坐标；门洞两端各至少保留 6 个场景单位。省略时使用模板默认门洞。
 
@@ -47,3 +47,5 @@ Bootstrap 可返回 `collaboration:{version:1,scopes:[{id,label}]}` 和提供方
 ## 当前区域名称（0.13.3）
 
 `tenant.name` 是当前已登录账号所在区域的实际展示名，由提供方按认证身份返回，例如平台总部、分公司、事业部。Rallyloom 左上角从最新 bootstrap 的 tenant.name 展示，不能固定使用发现阶段 binding.display_name。binding 名称继续用于绑定和选择服务；workspace_id 与 tenant.id 仍保持稳定，不通过改展示名切换身份或授权范围。Mira 平台返回“平台总部”，租户返回实际租户名称。`collaboration.scopes` 为独立的数据筛选范围，不改变账号所在区域名称。
+
+地板材质枚举需在提供方保存/回读时原样保留。客户端按世界坐标实时渲染固定尺寸的纹理，并使用导数抗锯齿，房间尺寸与视角缩放不改变纹理密度。

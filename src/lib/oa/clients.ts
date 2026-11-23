@@ -2,7 +2,7 @@ import { workspaceValue } from '@/lib/store/workspace-binding'
 import { validateBoard, type TaskBoardDefinition, type TaskClient, type TaskPatch, type TaskPosition, type TaskRecord } from '@/lib/tasks/types'
 import type { DocClient, DocDraft, DocRecord } from '@/lib/docs/types'
 import type { NoticeClient, NoticeRecord } from '@/lib/notify/types'
-import type { ChatClient, ChatDraft, ChatEvent, ChatMessage, ChatPerson, MentionOptions, ChatChannel } from '@/lib/chat/types'
+import type { ChatClient, ChatDraft, ChatEvent, ChatMessage, ChatPerson, ChatParticipant, MentionOptions, ChatChannel } from '@/lib/chat/types'
 
 export async function oa<T>(method: string, path: string, body?: unknown, scope?: string): Promise<T> {
   const bridge = window.rallyloom?.workspace
@@ -87,6 +87,11 @@ export class OaChatClient implements ChatClient {
   channels() { return oa<ChatChannel[]>('GET', '/chat/channels') }
   history(id: string, limit = 200) { return oa<ChatMessage[]>('GET', `/chat/channels/${encodeURIComponent(id)}/messages?limit=${limit}`) }
   async send(id: string, draft: ChatDraft, _sender: ChatPerson) { return oa<ChatMessage>('POST', `/chat/channels/${encodeURIComponent(id)}/messages`, { text: draft.text, mentions: draft.mentions, files: await Promise.all(draft.files.map(fileData)) }) }
+  async participants(id: string) {
+    const people = await oa<ChatParticipant[]>('GET', `/chat/channels/${encodeURIComponent(id)}/members`)
+    if (!Array.isArray(people) || people.some(person => typeof person.id !== 'string' || typeof person.name !== 'string')) throw new Error('企业系统返回了无效的群成员列表。')
+    return people
+  }
   mentionOptions(id: string) { return oa<MentionOptions>('GET', `/chat/channels/${encodeURIComponent(id)}/mentions`) }
   directChannel(peerId: string) { return oa<ChatChannel>('POST', '/chat/direct', { peerId }) }
   unreadMentions() { return oa<ChatMessage[]>('GET', '/unread/message') }

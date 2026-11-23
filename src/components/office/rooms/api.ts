@@ -16,7 +16,7 @@ export interface RoomFrame {
 }
 
 export const WALL_THICKNESS = 6
-export type FloorMaterial = 'wood' | 'tile' | 'concrete'
+export type FloorMaterial = 'wood' | 'tile' | 'concrete' | 'quartz' | 'terrazzo'
 export type WallFinish = 'solid' | 'glass' | 'open'
 
 export interface RoomDoor {

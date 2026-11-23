@@ -6,6 +6,8 @@ export const OFFICE_TEMPLATES = {
 }
 
 export const OFFICE_FLOORS = {
+  quartz: { label: '暖白石英', color: '#eeebe3' },
+  terrazzo: { label: '浅灰水磨石', color: '#d7dcda' },
   wood: { label: '浅木地板', color: '#e2cdb0' },
   tile: { label: '灰白地砖', color: '#e8ebee' },
   concrete: { label: '水泥地面', color: '#aeb6b8' },

@@ -106,3 +106,6 @@
 
 .office-room-geometry summary { cursor:pointer; color:var(--muted-foreground); font-size:12px; padding:5px 0; }
 .office-room-geometry[open] .office-editor-dimensions { margin-top:8px; }
+
+.office-floor-options i[data-floor=quartz] { background-image:radial-gradient(#b8b3a660 .6px,transparent .8px),linear-gradient(125deg,transparent 25%,#fdfbf5 46%,transparent 60%); background-size:7px 9px,60px 38px; }
+.office-floor-options i[data-floor=terrazzo] { background-image:radial-gradient(#8f999a 1px,transparent 1.5px),radial-gradient(#f6f3e9 1.5px,transparent 2px); background-size:12px 11px,17px 15px; background-position:0 0,4px 3px; }

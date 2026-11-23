@@ -137,7 +137,7 @@ function roomIssue(room) {
     return 'frame.x/y/width/height 必须是非负数字'
   }
   if (!optionalBoolean(room.useTemplateFurniture)) return 'useTemplateFurniture 必须为布尔值'
-  if (room.floorMaterial !== undefined && !['wood', 'tile', 'concrete'].includes(room.floorMaterial)) return 'floorMaterial 包含不支持的地板材质'
+  if (room.floorMaterial !== undefined && !['wood', 'tile', 'concrete', 'quartz', 'terrazzo'].includes(room.floorMaterial)) return 'floorMaterial 包含不支持的地板材质'
   if (room.walls !== undefined && (!object(room.walls) || Object.keys(room.walls).length > 4
     || !Object.entries(room.walls).every(([side, finish]) => ['north', 'east', 'south', 'west'].includes(side)
       && ['solid', 'glass', 'open'].includes(finish)))) return 'walls 包含无效隔墙方向或材质'

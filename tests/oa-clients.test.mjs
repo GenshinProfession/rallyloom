@@ -45,3 +45,13 @@ test('notification read writes immediately notify all views; rejected writes pre
     assert.equal(events,1)
   } finally {unsubscribe();window.rallyloom.workspace.oa=previous}
 })
+
+test('group roster is channel-scoped and rejects malformed provider data instead of using the directory', async () => {
+  const previous=window.rallyloom.workspace.oa;let endpoint
+  try {
+    window.rallyloom.workspace.oa=async(method,path)=>{endpoint=path;return {ok:true,value:[{id:'self',name:'本人',presence:'online'}]}}
+    const client=new OaChatClient();assert.equal((await client.participants('room:design'))[0].id,'self');assert.equal(endpoint,'/oa/chat/channels/room%3Adesign/members')
+    window.rallyloom.workspace.oa=async()=>({ok:true,value:{people:[]}})
+    await assert.rejects(client.participants('room:design'),/无效的群成员/)
+  } finally {window.rallyloom.workspace.oa=previous}
+})

@@ -36,6 +36,7 @@ Bootstrap 提供 `collaboration: {version:1, scopes:[{id,label}]}`。工作区�
 | `POST /chat/direct` | `{peerId}`；幂等返回仅双方参与的频道 |
 | `GET /chat/channels/{id}/messages?limit=200` | 最近消息，时间升序；每次请求重新检查成员身份 |
 | `POST /chat/channels/{id}/messages` | `{text,mentions?:DraftMention[],files?:[{name,base64}]}`；最多5附件/合计20MB，作者由令牌决定 |
+| `GET /chat/channels/{id}/members` | `ChatParticipant[]`（`id,name,presence,detail?`），包括本人。必须先验证当前凭据对频道的访问权；公司群仅本公司、房间群仅已分配成员、私聊仅双方。不是可见通讯录，也不是可提及对象列表。 |
 | `GET /chat/channels/{id}/mentions` | `{people:[{id,name,presence}],allowAll:boolean}`，不能用客户端传入的收件人授权 |
 | `GET /chat/attachments/{uuid}` | 受保护二进制下载，不公开存储地址 |
 | `GET /unread/{notice或message}` | 当前用户未读公告或被提及消息，最多100条 |
@@ -81,3 +82,5 @@ DELETE 仍带 revision，只允许删除空文件夹；发现子目录或文档�
 ## 成员表格与身份边界（0.13.2）
 
 可选列在完整授权目录至少有一条非空数据时显示，搜索不改变列结构。正式团队成员是只读目录，角色仅显示提供方的来源名称；不展示工作区角色、角色映射或管理列。成员、角色、移除和数据权限必须在企业源系统管理，桌面不承接这些写入。房间工作看板配置不放在成员目录顶栏。导航用不同语义图形：任务为列式看板、汇报为统计图、文档为打开的书。
+
+群成员查询失败必须显示可重试状态，不能用工作区通讯录或提及列表补造群人数。成员管理留在提供方，客户端只展示、搜索或请求开启获准私聊。

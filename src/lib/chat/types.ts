@@ -73,6 +73,8 @@ export interface ChatClient {
   readonly label: string
   /** 频道列表（正式环境由后端下发；演示环境 = 全员大厅 + 各房间频道） */
   channels(): Promise<ChatChannel[]>
+  /** Provider-authorized channel roster, including the current member. Never infer it from directory visibility. */
+  participants(channelId: string): Promise<readonly ChatParticipant[]>
   /** 拉取某频道的历史消息 */
   history(channelId: string, limit?: number): Promise<ChatMessage[]>
   /** 发送消息；正式实现走后端，演示实现本地回显 + 自动回复 */

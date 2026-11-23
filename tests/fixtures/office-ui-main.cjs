@@ -2,7 +2,9 @@ const {app,BrowserWindow,ipcMain}=require('electron'),fs=require('node:fs'),path
 const output=path.join(process.env.RALLY_TEST_FIXTURE,'result.txt')
 ipcMain.on('test-layout',(_event,layout)=>fs.writeFileSync(path.join(process.env.RALLY_TEST_FIXTURE,'layout.json'),JSON.stringify(layout)))
 app.whenReady().then(async()=>{
+ const shaderErrors=[]
  const win=new BrowserWindow({show:false,width:1500,height:1050,webPreferences:{preload:path.join(__dirname,'preload.cjs'),backgroundThrottling:false}})
+ win.webContents.on('console-message',(_event,details)=>{if(/THREE.WebGLProgram|VALIDATE_STATUS|Shader Error/i.test(details.message??''))shaderErrors.push(details.message)})
  await win.loadFile(process.env.RALLY_TEST_DIST)
  const result=await win.webContents.executeJavaScript('('+ (async()=>{
   const pause=ms=>new Promise(r=>setTimeout(r,ms));const wait=async(fn,label)=>{for(let i=0;i<120;i++){const v=fn();if(v)return v;await pause(70)}throw Error(label+' '+document.body.textContent.slice(-1000))}
@@ -21,7 +23,7 @@ app.whenReady().then(async()=>{
   if(document.querySelector('.office-asset-library'))throw Error('assets stacked above properties')
   const checkbox=document.querySelector('.office-editor-sidebar input[type=checkbox]')
   if(checkbox.getBoundingClientRect().width>20)throw Error('stretched checkbox')
-  click('灰白地砖');await pause(80)
+  click('浅灰水磨石');await pause(80);click('暖白石英');await pause(80)
   document.querySelector('[aria-label="选择右侧墙"]').click();await pause(80)
   click('玻璃墙');await pause(80)
   if(document.querySelector('[aria-label="右侧墙材质"] [aria-pressed=true]').textContent!=='玻璃墙')throw Error('wall not updated')
@@ -34,7 +36,7 @@ app.whenReady().then(async()=>{
   return 'PASS compact toolbar/banner, notification navigation, selection inspector, floor/wall/door edits, checkbox sizing and provider layout publish'
  }).toString()+')()',true)
  const layout=JSON.parse(fs.readFileSync(path.join(__dirname,'layout.json'),'utf8')),room=layout.rooms[0]
- if(room.floorMaterial!=='tile'||room.walls.east!=='glass'||room.door.side!=='east'||room.door.offset!==.5)throw Error('saved layout mismatch '+JSON.stringify(room))
+ if(room.floorMaterial!=='quartz'||room.walls.east!=='glass'||room.door.side!=='east'||room.door.offset!==.5)throw Error('saved layout mismatch '+JSON.stringify(room))
  await win.webContents.executeJavaScript('('+ (async()=>{
    const pause=ms=>new Promise(r=>setTimeout(r,ms));
    [...document.querySelectorAll('button')].find(b=>b.textContent==='编辑办公室').click();await pause(1600);
@@ -43,6 +45,11 @@ app.whenReady().then(async()=>{
  }).toString()+')()',true)
  win.showInactive();await new Promise(r=>setTimeout(r,650));
  fs.writeFileSync(path.join(__dirname,'editor.png'),(await win.capturePage()).toPNG())
- fs.writeFileSync(output,result)
+ for(const zoom of [65,100,165]){
+   await win.webContents.executeJavaScript(`(()=>{const input=document.querySelector('.office-editor-actions input[type=range]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'${zoom}');input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
+   await new Promise(r=>setTimeout(r,200));fs.writeFileSync(path.join(__dirname,'quartz-'+zoom+'.png'),(await win.capturePage()).toPNG())
+ }
+ if(shaderErrors.length)throw Error(shaderErrors.join('\n'))
+ fs.writeFileSync(output,result+'; quartz rendered at 65/100/165 percent without shader errors')
 }).catch(e=>fs.writeFileSync(output,String(e))).finally(()=>app.exit())
 setTimeout(()=>{fs.writeFileSync(output,'timeout');app.exit(1)},45000).unref()

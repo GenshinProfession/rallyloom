@@ -7,7 +7,7 @@ import { createModelKit, type ModelKit } from './model'
 import { createWalker } from './walker'
 import { createAvatarKit, type AvatarLook } from './avatar'
 import { buildGmvScreen } from './gmv-screen'
-import woodFloorUrl from '@/assets/office/wood-floor.webp?inline'
+import { createFloorMaterial } from './floor-material'
 
 export type OfficeMode = 'daily' | 'presence' | 'tasks'
 
@@ -16,32 +16,6 @@ type PersonAnchor = { member: Member; position: THREE.Vector3; mesh: THREE.Mesh 
 
 const WALL_COLOR = '#515957'
 const BASE_LEVEL = -11
-
-function floorPattern(room: ResolvedRoom, parent: THREE.Group) {
-  if (room.floorMaterial === 'concrete') return
-  const { width, height } = room.frame
-  const wood = (room.floorMaterial ?? room.appearance.material) === 'wood'
-  const lines: number[] = []
-  const interval = wood ? 13 : 64
-  const firstZ = interval - room.frame.y % interval
-  for (let z = firstZ; z < height; z += interval) {
-    lines.push(0, .09, z, width, .09, z)
-  }
-  for (let x = wood ? 28 : 64 - room.frame.x % 64; x < width; x += wood ? 90 : 64) {
-    if (wood) {
-      for (let z = 0; z < height; z += interval) {
-        const joint = x + (Math.round(z / interval) % 3) * 24
-        if (joint < width) lines.push(joint, .09, z, joint, .09, Math.min(z + interval, height))
-      }
-    } else {
-      lines.push(x, .09, 0, x, .09, height)
-    }
-  }
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3))
-  const material = new THREE.LineBasicMaterial({ color: wood ? '#ac9478' : '#87919a', transparent: true, opacity: wood ? .085 : .058 })
-  parent.add(new THREE.LineSegments(geometry, material))
-}
 
 function walls(room: ResolvedRoom, rooms: readonly ResolvedRoom[], parent: THREE.Group, model: ModelKit, solids: THREE.Object3D[]) {
   const { width, height } = room.frame
@@ -116,7 +90,7 @@ export function buildOfficeWorld(
   rooms: readonly ResolvedRoom[],
   roster: ReadonlyMap<string, Member[]>,
   meId: string | null,
-  onTexture: () => void,
+  _onTexture: () => void,
   editable = false,
 ) {
   const scene = new THREE.Scene()
@@ -131,15 +105,6 @@ export function buildOfficeWorld(
   const staticModels: THREE.Object3D[] = []
   const highlights = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>()
   const screens = new Map<string, ReturnType<typeof buildGmvScreen>>()
-  let disposed = false
-  const wood = rooms.some((room) => (room.floorMaterial ?? room.appearance.material) === 'wood')
-    ? new THREE.TextureLoader().load(woodFloorUrl, (texture) => { if (disposed) texture.dispose(); else onTexture() })
-    : undefined
-  if (wood) {
-    wood.colorSpace = THREE.SRGBColorSpace
-    wood.wrapS = wood.wrapT = THREE.RepeatWrapping
-    wood.anisotropy = 4
-  }
   let mySeat: THREE.Vector3 | null = null
   const { width, height } = layout
   const center = new THREE.Vector3(width / 2, 0, height / 2)
@@ -168,16 +133,12 @@ export function buildOfficeWorld(
     floor.castShadow = false
     floor.userData.roomId = room.id
     floors.push(floor)
-    if ((room.floorMaterial ?? room.appearance.material) === 'wood' && wood) {
-      const grain = new THREE.PlaneGeometry(frame.width, frame.height)
-      const uv = grain.getAttribute('uv')
-      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * frame.width / 285, uv.getY(i) * frame.height / 285)
-      const finish = new THREE.Mesh(grain, new THREE.MeshStandardMaterial({ color: room.floor, map: wood, roughness: .65 }))
-      finish.rotation.x = -Math.PI / 2
-      finish.position.set(frame.width / 2, .05, frame.height / 2)
-      finish.receiveShadow = true
-      group.add(finish)
-    } else floorPattern(room, group)
+    const finish = new THREE.Mesh(new THREE.PlaneGeometry(frame.width, frame.height),
+      createFloorMaterial(room.floorMaterial ?? (room.appearance.material === 'wood' ? 'wood' : 'tile'), room.floor))
+    finish.rotation.x = -Math.PI / 2
+    finish.position.set(frame.width / 2, .05, frame.height / 2)
+    finish.receiveShadow = true
+    group.add(finish)
     const architecture = new THREE.Group()
     group.add(architecture)
     if (room.template !== 'empty') walls(room, rooms, architecture, model, solids)
@@ -285,8 +246,6 @@ export function buildOfficeWorld(
       return walker
     },
     dispose() {
-      disposed = true
-      wood?.dispose()
       for (const screen of screens.values()) screen.dispose()
       const geometries = new Set<THREE.BufferGeometry>()
       const materials = new Set<THREE.Material>()
