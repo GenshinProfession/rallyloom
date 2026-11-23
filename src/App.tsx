@@ -251,8 +251,8 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
   /* 任务看板客户端：演示源内存模拟；接云端后换 OaTaskClient（同一契约） */
   const [taskScope, setTaskScope] = useState(snapshot.collaboration?.scopes[0]?.id)
   const taskClient = useMemo(() => demo ? new DemoTaskClient() : new OaTaskClient(taskScope), [demo, taskScope])
-  const docClient = useMemo(() => demo ? new DemoDocClient(snapshot.tenant.id, me?.displayName) : new OaDocClient(),
-    [demo, snapshot.tenant.id, me?.displayName])
+  const docClient = useMemo(() => demo ? new DemoDocClient(snapshot.tenant.id, me?.displayName) : new OaDocClient(snapshot.collaboration?.documents?.folders === true),
+    [demo, snapshot.tenant.id, me?.displayName, snapshot.collaboration?.documents?.folders])
   /* 通知中心客户端：演示源内存模拟；接云端后换 OaNoticeClient（同一契约） */
   const noticeClient = useMemo(() => demo ? new DemoNoticeClient() : new OaNoticeClient(), [demo])
   /* 存储中心（超管）：演示模式只做「连接测试」探测，不切换演示租户的种子快照；

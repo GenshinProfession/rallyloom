@@ -54,7 +54,7 @@ export class OaTaskClient extends Records<TaskRecord & Versioned> implements Tas
 export class OaDocClient extends Records<DocRecord & Versioned> implements DocClient {
   readonly kind = 'oa-rest' as const
   readonly label = '企业文档'
-  constructor() { super('doc') }
+  constructor(public readonly supportsFolders = false) { super('doc') }
   async create(draft: DocDraft) { return super.create(draft) }
   async update(id: string, draft: DocDraft) { return super.update(id, draft) }
 }

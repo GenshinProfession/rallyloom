@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  ChevronRight, ExternalLink, FilePlus2, FileText, Paperclip, Search, Maximize2, Minimize2,
+  ChevronRight, ExternalLink, FilePlus2, FileText, Paperclip, Search, Maximize2, Minimize2, FolderPlus, Trash2,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -76,6 +76,10 @@ export function DocsPage({ client }: DocsPageProps) {
     return true
   }
   const [query, setQuery] = useState('')
+  const [location,setLocation]=useState<readonly string[]>([])
+  const [newFolder,setNewFolder]=useState(false),[folderName,setFolderName]=useState(''),[library,setLibrary]=useState(''),[folderBusy,setFolderBusy]=useState(false),[folderError,setFolderError]=useState('')
+  const documents=records.filter(r=>r.entryType!=='folder')
+  const activeFolder=records.find(r=>r.entryType==='folder'&&JSON.stringify([...documentPath(r),r.title])===JSON.stringify(location))
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<DocRecord | null>(null)
   const [removing, setRemoving] = useState(false)
@@ -97,7 +101,7 @@ export function DocsPage({ client }: DocsPageProps) {
 
   const spaces = useMemo(() => {
     const map = new Map<string, DocRecord[]>()
-    for (const doc of records) {
+    for (const doc of records.filter(r=>r.entryType!=='folder')) {
       const key = documentPath(doc)[0]
       const bucket = map.get(key)
       if (bucket) bucket.push(doc)
@@ -108,10 +112,11 @@ export function DocsPage({ client }: DocsPageProps) {
 
   const q = query.trim().toLocaleLowerCase()
   const matches = useCallback((doc: DocRecord) => {
+    if(location.length && !location.every((part,i)=>documentPath(doc)[i]===part))return false
     if (!q) return true
     return [doc.title, doc.ownerName ?? '', ...documentPath(doc), ...Object.values(doc.attrs ?? {}), docExcerpt(doc, 400)]
       .some((value) => value.toLocaleLowerCase().includes(q))
-  }, [q])
+  }, [q,location])
 
   const visibleSpaces = spaces
     .map(([space, docs]) => [space, docs.filter(matches)] as const)
@@ -124,6 +129,7 @@ export function DocsPage({ client }: DocsPageProps) {
     if (view.kind !== 'edit') return
     const saved = view.doc ? await client.update(view.doc.id, draft) : await client.create(draft)
     setQuery('')
+    setLocation(documentPath(saved))
     setSelectedId(saved.id)
     setView({ kind: 'read', id: saved.id })
   }
@@ -135,6 +141,7 @@ export function DocsPage({ client }: DocsPageProps) {
     try {
       await client.remove(deleting.id)
       setDeleting(null)
+      if(deleting.entryType==='folder')setLocation(documentPath(deleting))
       if (view.kind === 'read' && view.id === deleting.id) setView({ kind: 'list' })
     } catch (failure) {
       setRemoveError(failure instanceof Error ? failure.message : '删除失败，请重试。')
@@ -146,11 +153,12 @@ export function DocsPage({ client }: DocsPageProps) {
       <header className="workspace-header border-b border-border/70 bg-white">
         <h1 className="text-ui-title font-semibold">文档中心</h1>
         <span className="text-ui-label text-muted-foreground">
-          {load === 'ready' ? `${spaces.length} 个知识库 · ${records.length} 篇文档` : client.label}
+          {load === 'ready' ? `${new Set(records.map(r=>documentPath(r)[0])).size} 个知识库 · ${documents.length} 篇文档` : client.label}
         </span>
-        <Button size="sm" className="ml-auto h-7 text-ui-label" disabled={load !== 'ready'}
+        {client.supportsFolders && <Button variant="outline" size="sm" className="ml-auto h-7 text-ui-label" disabled={load!=='ready'} data-doc-new-folder onClick={()=>{setLibrary(location[0]??records[0]?.space??'知识库');setFolderName('');setFolderError('');setNewFolder(true)}}><FolderPlus/>新建文件夹</Button>}
+        <Button size="sm" className={`${client.supportsFolders ? '' : 'ml-auto'} h-7 text-ui-label`} disabled={load !== 'ready'}
           data-doc-new="true"
-          onClick={() => changeView({ kind: 'edit', doc: null, location: selected ? documentPath(selected) : [] })}>
+          onClick={() => changeView({ kind: 'edit', doc: null, location: location.length ? location : selected ? documentPath(selected) : [] })}>
           <FilePlus2 /> 新建文档
         </Button>
       </header>
@@ -165,8 +173,9 @@ export function DocsPage({ client }: DocsPageProps) {
             </div>
           </div>
           <ScrollArea className="min-h-0 flex-1 px-2 pb-2 [&>[data-radix-scroll-area-viewport]>div]:!block">
-            <DocumentTree records={records} query={query} selected={selected}
-              onSelect={(id) => { if (changeView({ kind: 'read', id })) setSelectedId(id) }} />
+            <Button variant="ghost" size="sm" onClick={()=>{if(changeView({kind:'list'})){setLocation([]);setSelectedId(null)}}}>全部文档</Button>
+            <DocumentTree records={records} query={query} selected={selected} location={location} onFolderSelect={path=>{if(changeView({kind:'list'})){setLocation(path);setSelectedId(null);setQuery('')}}}
+              onSelect={(id) => { if (changeView({ kind: 'read', id })) {setSelectedId(id);const doc=records.find(r=>r.id===id);if(doc)setLocation(documentPath(doc))} }} />
           </ScrollArea>
         </section>
 
@@ -184,8 +193,8 @@ export function DocsPage({ client }: DocsPageProps) {
               onDelete={() => { setRemoveError(''); setDeleting(current) }} onBack={() => changeView({ kind: 'list' })} /> : <>
 
           <header className="doc-list-head">
-            <span className="doc-list-title">全部文档</span>
-            <span className="text-[11px] text-muted-foreground">{q ? `匹配 ${visibleSpaces.reduce((sum, [, docs]) => sum + docs.length, 0)} 篇` : `${records.length} 篇`}</span>
+            <span className="doc-list-title">{location.length ? location.join(' / ') : '全部文档'}</span>{activeFolder?.canDelete !== false && activeFolder && <Button size="sm" variant="ghost" onClick={()=>{setRemoveError('');setDeleting(activeFolder)}}><Trash2 className="size-3.5"/>删除空文件夹</Button>}
+            <span className="text-[11px] text-muted-foreground">{q ? `匹配 ${visibleSpaces.reduce((sum, [, docs]) => sum + docs.length, 0)} 篇` : `${documents.length} 篇`}</span>
             <span className="ml-auto text-[11px] text-muted-foreground">点击左侧文档，可在右侧快速切换阅读</span>
           </header>
           <ScrollArea className="min-h-0 flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block">
@@ -193,7 +202,7 @@ export function DocsPage({ client }: DocsPageProps) {
               {load === 'error' && <p className="doc-list-empty">暂时无法读取文档。</p>}
               {load === 'loading' && <p className="doc-list-empty">正在加载文档…</p>}
               {load === 'ready' && visibleSpaces.length === 0 && (
-                <p className="doc-list-empty">{q ? '没有匹配的文档。' : '还没有文档，点击「新建文档」开始写作。'}</p>
+                <p className="doc-list-empty">{q ? '没有匹配的文档。' : location.length ? '此文件夹暂无文档，可继续创建子文件夹，或点击「新建文档」。' : '还没有文档，可先创建文件夹，再添加文档。'}</p>
               )}
               {visibleSpaces.map(([space, docs]) => (
                 <section key={space} className="doc-list-group" data-doc-space={space}>
@@ -201,7 +210,7 @@ export function DocsPage({ client }: DocsPageProps) {
                   <div className="doc-list-cards">
                     {docs.map((doc) => (
                       <DocCard key={doc.id} doc={doc}
-                        onOpen={() => { setSelectedId(doc.id); setView({ kind: 'read', id: doc.id }) }} />
+                        onOpen={() => { setSelectedId(doc.id); setLocation(documentPath(doc)); setView({ kind: 'read', id: doc.id }) }} />
                     ))}
                   </div>
                 </section>
@@ -212,6 +221,7 @@ export function DocsPage({ client }: DocsPageProps) {
         </section>
       </div>
 
+      {newFolder && <Dialog open onOpenChange={open=>{if(!open&&!folderBusy)setNewFolder(false)}}><DialogContent className="max-w-[420px]"><DialogHeader><DialogTitle>新建文件夹</DialogTitle><DialogDescription>文件夹会独立保存，无需先创建文档。</DialogDescription></DialogHeader><label className="grid gap-1 text-ui-label">知识库<Input aria-label="文件夹所属知识库" disabled={folderBusy||location.length>0} value={library} onChange={e=>setLibrary(e.target.value)}/></label><p className="text-ui-label text-muted-foreground">位置：{location.length ? location.join(' / ') : library+' / 根目录'}</p><label className="grid gap-1 text-ui-label">文件夹名称<Input autoFocus aria-label="新文件夹名称" maxLength={100} disabled={folderBusy} value={folderName} onChange={e=>setFolderName(e.target.value)}/></label>{folderError&&<p role="alert" className="text-destructive">{folderError}</p>}<DialogFooter><Button variant="outline" disabled={folderBusy} onClick={()=>setNewFolder(false)}>取消</Button><Button disabled={folderBusy||!folderName.trim()||!library.trim()} onClick={async()=>{setFolderBusy(true);try{const title=folderName.trim();if(title.includes('/')||title.includes('\\')||location.length>10)throw new Error('名称不能包含斜线，目录最多10层。');const record=await client.create({entryType:'folder',title,space:library.trim(),folderPath:location.slice(1),format:'markdown',content:''});setRecords(await client.list());if(changeView({kind:'list'})){setLocation([...documentPath(record),record.title]);setSelectedId(null);setQuery('')}setNewFolder(false)}catch(e){setFolderError(e instanceof Error?e.message:'创建失败')}finally{setFolderBusy(false)}}}>创建文件夹</Button></DialogFooter></DialogContent></Dialog>}
       {deleting && <DeleteDialog doc={deleting} removing={removing} error={removeError}
         onClose={() => { if (!removing) setDeleting(null) }} onConfirm={() => void remove()} />}
     </main>
@@ -229,8 +239,8 @@ function DeleteDialog({ doc, removing, error, onClose, onConfirm }: {
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="max-w-[390px]">
         <DialogHeader>
-          <DialogTitle>删除文档</DialogTitle>
-          <DialogDescription>「{doc.title}」将从当前知识库删除。</DialogDescription>
+          <DialogTitle>{doc.entryType==='folder'?'删除空文件夹':'删除文档'}</DialogTitle>
+          <DialogDescription>「{doc.title}」将从当前知识库删除。{doc.entryType==='folder'?'包含文档或子文件夹时不能删除。':''}</DialogDescription>
         </DialogHeader>
         {error && <p role="alert" className="text-ui-label text-destructive">{error}</p>}
         <DialogFooter>

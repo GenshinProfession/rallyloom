@@ -14,21 +14,21 @@ export function documentPath(doc: DocRecord) {
   return [doc.space?.trim() || '未分组', ...(doc.folderPath ?? []).map((part) => part.trim()).filter(Boolean)]
 }
 
-function folderTree(docs: readonly DocRecord[]) {
+export function folderTree(docs: readonly DocRecord[]) {
   const root: FolderNode = { path: [], count: 0, folders: new Map(), documents: [] }
   const ordered = [...docs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title, 'zh-CN'))
   for (const doc of ordered) {
     let parent = root
-    for (const name of documentPath(doc)) {
+    for (const name of (doc.entryType === 'folder' ? [...documentPath(doc),doc.title] : documentPath(doc))) {
       let next = parent.folders.get(name)
       if (!next) {
         next = { path: [...parent.path, name], count: 0, folders: new Map(), documents: [] }
         parent.folders.set(name, next)
       }
-      next.count++
+      if(doc.entryType !== 'folder') next.count++
       parent = next
     }
-    parent.documents.push(doc)
+    if(doc.entryType !== 'folder') parent.documents.push(doc)
   }
   return root.folders
 }
@@ -41,6 +41,7 @@ interface BranchProps {
   selectedPath: readonly string[]
   onToggle: (key: string, open: boolean) => void
   onSelect: (id: string) => void
+  onFolderSelect?: (path: string[]) => void
 }
 
 function Branch(props: BranchProps) {
@@ -55,7 +56,7 @@ function Branch(props: BranchProps) {
   return (
     <li>
       <button type="button" className="docs-folder ui-press" data-doc-folder={name} data-space={space ? name : undefined}
-        title={name} aria-expanded={open} aria-controls={listId} disabled={searching} onClick={() => onToggle(key, !open)}
+        title={name} aria-expanded={open} aria-controls={listId} onClick={() =>  { onToggle(key, !open); props.onFolderSelect?.(node.path) }}
       >
         <ChevronRight className="docs-folder-chevron" size={13} aria-hidden />
         <Icon size={14} strokeWidth={1.7} aria-hidden />
@@ -82,8 +83,10 @@ function Branch(props: BranchProps) {
   )
 }
 
-export function DocumentTree({ records, query, selected, onSelect }: {
+export function DocumentTree({ records, query, selected, onSelect, location, onFolderSelect }: {
   records: readonly DocRecord[]
+  location?: readonly string[]
+  onFolderSelect?: (path: string[]) => void
   query: string
   selected: DocRecord | null
   onSelect: (id: string) => void
@@ -94,7 +97,7 @@ export function DocumentTree({ records, query, selected, onSelect }: {
     [doc.title, doc.ownerName ?? '', ...documentPath(doc), ...Object.values(doc.attrs ?? {})]
       .some((value) => value.toLocaleLowerCase().includes(q)),
   ) : records), [records, q])
-  const selectedPath = selected ? documentPath(selected) : []
+  const selectedPath = location ?? (selected ? documentPath(selected) : [])
   const selectedKey = JSON.stringify(selectedPath)
 
   useEffect(() => {
@@ -115,6 +118,7 @@ export function DocumentTree({ records, query, selected, onSelect }: {
             searching={Boolean(q)}
             onToggle={(key, open) => setExpanded((current) => ({ ...current, [key]: open }))}
             onSelect={onSelect}
+            onFolderSelect={onFolderSelect}
           />
         ))}</ul>
       )}

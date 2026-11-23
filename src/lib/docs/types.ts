@@ -16,6 +16,8 @@ export interface DocAttachment {
 }
 
 export interface DocRecord {
+  /** Omitted for legacy documents; folders persist even when empty. */
+  entryType?: 'document' | 'folder'
   revision?: number
   canEdit?: boolean
   canDelete?: boolean
@@ -44,6 +46,7 @@ export interface DocRecord {
 }
 
 export interface DocClient {
+  supportsFolders?: boolean
   kind: 'demo-local' | 'oa-rest'
   label: string
   list(): Promise<DocRecord[]>
@@ -55,7 +58,7 @@ export interface DocClient {
 
 export type DocDraft = Pick<
   DocRecord,
-  'title' | 'space' | 'folderPath' | 'format' | 'content' | 'url' | 'attachments'
+  'entryType' | 'title' | 'space' | 'folderPath' | 'format' | 'content' | 'url' | 'attachments'
 > & { revision?: number }
 
 export function documentUrl(value: string | undefined) {

@@ -1,9 +1,9 @@
 const {contextBridge}=require('electron')
 const employee=process.env.RALLY_TEST_ROLE==='employee'
 const self={id:'self',connectorId:'synthetic',idpId:'synthetic-self',displayName:'测试员工',role:'member',roleId:employee?'employee':'platform_admin',roleName:employee?'员工':'平台超管',attrs:{},externalGroups:[],presence:'online',officeAssignable:true}
-const permissions=['office.view','tasks.use','docs.use','chat.use','notify.view','reports.use',...(employee?['reports.write']:['tasks.coordinate','notify.publish','team.view','reports.configure'])]
+const permissions=['office.view','tasks.use','docs.use','chat.use','notify.view','reports.use',...(employee?['reports.write']:['tasks.coordinate','notify.publish','team.view','reports.configure','members.role'])]
 const binding={baseUrl:'https://oa.example.com',display_name:'测试公司',installation_id:'test',workspace_id:'test',api_version:'v1',authorization:{issuer:'https://oa.example.com',client_id:'desktop',resource:'workspace'}}
-const snapshot={tenant:{id:'test',name:'测试公司'},team:[self],policy:{},datasource:{kind:'oa-rest'},layout:{width:800,height:500,rooms:[],assignments:{}},dataSlots:{},collaboration:{version:1,reporting:{version:1},scopes:[{id:'division-rd',label:'研发事业部'}]}}
+const snapshot={tenant:{id:'test',name:'测试公司'},team:employee?[self]:[self,{...self,id:'managed',displayName:'可管理成员',memberActions:{roleOptions:[{id:'employee',label:'员工'}],canResetRole:true,canRemove:true}}],policy:{},datasource:{kind:'oa-rest'},layout:{width:800,height:500,rooms:[],assignments:{}},dataSlots:{},collaboration:{version:1,reporting:{version:1},documents:{folders:true},scopes:[{id:'division-rd',label:'研发事业部'}]}}
 const joined={binding,memberId:'self',permissions,snapshot}
 const board={revision:1,defaultStatus:'custom',statuses:[{id:'custom',label:'企业自定义流程',dot:'#123456',category:'pending'}],fields:[]}
 const records={task:[{id:'task',title:'正式任务',status:'custom',attrs:{},updatedAt:new Date().toISOString(),origin:'local',sourceId:'mira',externalTaskId:'task',revision:1,createdBy:'self',canEdit:true,canManage:true,canDelete:true}],doc:[{id:'doc',title:'正式文档',space:'知识库',format:'rich',content:'<p>正式内容</p>',updatedAt:new Date().toISOString(),origin:'local',sourceId:'mira',externalDocId:'doc',revision:1,canEdit:true}],notice:[],report:[]}

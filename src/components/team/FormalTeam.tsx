@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Search } from 'lucide-react'
+import { Search, UserRoundCog, UserRoundMinus, MoreHorizontal, RotateCcw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PRESENCE_META } from '@/data/office'
 import type { ProviderRoleSettings, TeamMember } from '@/lib/identity/types'
@@ -18,6 +20,9 @@ export function FormalTeam({ members, onManage, roleSettings, onSaveSettings, to
   const [removeTarget, setRemoveTarget] = useState<TeamMember | null>(null)
   const [draftSettings, setDraftSettings] = useState<Record<string, string> | null>(null)
   const [resetPending, setResetPending] = useState(false)
+  const has = (value: string | undefined) => Boolean(value?.trim())
+  const columns = { email: members.some(m => has(m.email)), company: members.some(m => has(m.attrs['公司'])), sourceRole: members.some(m => has(m.sourceRoleName)), role: members.some(m => has(m.roleName)), manage: Boolean(onManage && members.some(m => m.memberActions && (m.memberActions.roleOptions.length || m.memberActions.canResetRole || m.memberActions.canRemove))) }
+  const columnCount = 2 + Object.values(columns).filter(Boolean).length
   const term = query.trim().toLowerCase()
   const visible = members.filter(({ displayName, email, attrs, sourceRoleName, roleName }) =>
     [displayName, email, attrs['公司'], sourceRoleName, roleName].some((value) => value?.toLowerCase().includes(term)),
@@ -115,41 +120,32 @@ export function FormalTeam({ members, onManage, roleSettings, onSaveSettings, to
           <TableHeader className="bg-muted/50">
             <TableRow>
               <TableHead className="pl-4">姓名</TableHead>
-              <TableHead>邮箱</TableHead>
-              <TableHead>公司</TableHead>
-              <TableHead>账号角色</TableHead>
-              <TableHead>工作区角色</TableHead>
+              {columns.email && <TableHead>邮箱</TableHead>}
+              {columns.company && <TableHead>公司</TableHead>}
+              {columns.sourceRole && <TableHead>账号角色</TableHead>}
+              {columns.role && <TableHead>工作区角色</TableHead>}
               <TableHead>状态</TableHead>
-              {onManage && <TableHead>管理</TableHead>}
+              {columns.manage && <TableHead className="w-40">管理</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {visible.map((member) => (
               <TableRow key={member.id}>
                 <TableCell className="pl-4 font-medium">{member.displayName}</TableCell>
-                <TableCell className="text-muted-foreground">{member.email || '—'}</TableCell>
-                <TableCell>{member.attrs['公司'] || '—'}</TableCell>
-                <TableCell>{member.sourceRoleName ?? '—'}</TableCell>
-                <TableCell>{member.roleName ?? '—'}</TableCell>
+                {columns.email && <TableCell className="text-muted-foreground">{member.email || '—'}</TableCell>}
+                {columns.company && <TableCell>{member.attrs['公司'] || '—'}</TableCell>}
+                {columns.sourceRole && <TableCell>{member.sourceRoleName ?? '—'}</TableCell>}
+                {columns.role && <TableCell>{member.roleName ?? '—'}</TableCell>}
                 <TableCell>
                   <span className="inline-flex items-center gap-1.5"><span className="size-1.5 rounded-full" style={{ background: PRESENCE_META[member.presence].color }} />{PRESENCE_META[member.presence].label}</span>
                 </TableCell>
-                {onManage && <TableCell>{member.memberActions && (
-                  <div className="flex items-center gap-2">
-                    {(member.memberActions.roleOptions.length > 0 || member.memberActions.canResetRole) &&
-                      <select aria-label={`${member.displayName}的工作区角色`} className="rounded border bg-background p-1"
-                        value={member.memberActions.selectedRoleId ?? ''} disabled={busy || !!removeTarget || !!draftSettings}
-                        onChange={(event) => void manage(member, { kind: 'role', roleId: event.target.value || null })}>
-                        <option value="" disabled={!member.memberActions.canResetRole}>{member.memberActions.canResetRole ? '跟随来源' : '选择角色'}</option>
-                        {member.memberActions.roleOptions.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
-                      </select>}
-                    {member.memberActions.canRemove &&
-                      <button type="button" className="text-destructive underline" disabled={busy || !!removeTarget || !!draftSettings} onClick={() => setRemoveTarget(member)}>移除</button>}
-                  </div>
-                )}</TableCell>}
+                {columns.manage && <TableCell>{member.memberActions && <div className="flex items-center gap-1 whitespace-nowrap">
+                  {member.memberActions.roleOptions.length > 0 ? <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="ghost" disabled={busy || !!removeTarget || !!draftSettings}><UserRoundCog className="size-3.5"/>设置角色</Button></DropdownMenuTrigger><DropdownMenuContent align="end">{member.memberActions.roleOptions.map(option => <DropdownMenuItem key={option.id} onSelect={() => void manage(member,{kind:'role',roleId:option.id})}><UserRoundCog className="mr-2 size-3.5"/>{option.label}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu> : member.memberActions.canRemove ? <Button size="sm" variant="ghost" className="text-destructive" disabled={busy || !!removeTarget || !!draftSettings} onClick={() => setRemoveTarget(member)}><UserRoundMinus className="size-3.5"/>移除</Button> : member.memberActions.canResetRole ? <Button size="sm" variant="ghost" disabled={busy || !!removeTarget || !!draftSettings} onClick={() => void manage(member,{kind:'role',roleId:null})}><RotateCcw className="size-3.5"/>跟随来源</Button> : null}
+                  {member.memberActions.roleOptions.length > 0 && (member.memberActions.canResetRole || member.memberActions.canRemove) && <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" className="size-7" aria-label={`${member.displayName}的更多管理操作`} disabled={busy || !!removeTarget || !!draftSettings}><MoreHorizontal className="size-4"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end">{member.memberActions.canResetRole && <DropdownMenuItem onSelect={() => void manage(member,{kind:'role',roleId:null})}><RotateCcw className="mr-2 size-3.5"/>跟随来源角色</DropdownMenuItem>}{member.memberActions.canRemove && <DropdownMenuItem className="text-destructive" onSelect={() => setRemoveTarget(member)}><UserRoundMinus className="mr-2 size-3.5"/>移出工作区</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
+                </div>}</TableCell>}
               </TableRow>
             ))}
-            {!visible.length && <TableRow><TableCell colSpan={onManage ? 7 : 6} className="py-8 text-center text-muted-foreground">没有符合搜索条件的成员</TableCell></TableRow>}
+            {!visible.length && <TableRow><TableCell colSpan={columnCount} className="py-8 text-center text-muted-foreground">没有符合搜索条件的成员</TableCell></TableRow>}
           </TableBody>
         </Table>
       </div>

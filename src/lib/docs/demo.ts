@@ -147,6 +147,7 @@ function normalizeDraft(draft: DocDraft): DocDraft {
   const folderPath = (draft.folderPath ?? []).map((name) => name.trim()).filter(Boolean)
   if (!title || !space) throw new Error('请填写文档标题和知识库。')
   if ([space, ...folderPath].some((name) => name.includes('/'))) throw new Error('知识库或文件夹名称不能包含斜杠。')
+  if (draft.entryType === 'folder') { if (title.includes('/') || title.includes('\\') || title.length>100 || folderPath.length>=10) throw new Error('文件夹名称或层级无效。'); return {entryType:'folder',title,space,folderPath,format:'markdown',content:''} }
   if (draft.format === 'rich') {
     return { title, space, folderPath, format: 'rich', content: draft.content ?? '', attachments: normalizeAttachments(draft.attachments) }
   }
@@ -161,6 +162,7 @@ function normalizeDraft(draft: DocDraft): DocDraft {
 export class DemoDocClient implements DocClient {
   readonly kind = 'demo-local' as const
   readonly label = '演示文档源'
+  readonly supportsFolders = true
   private readonly storageKey: string
   private listeners = new Set<(records: DocRecord[]) => void>()
 
@@ -181,6 +183,7 @@ export class DemoDocClient implements DocClient {
   async list() { return this.read() }
 
   async create(draft: DocDraft) {
+    if (draft.entryType === 'folder' && this.read().some(r => r.entryType === 'folder' && r.space === draft.space && r.title === draft.title.trim() && JSON.stringify(r.folderPath??[]) === JSON.stringify(draft.folderPath??[]))) throw new Error('此位置已有同名文件夹。')
     const id = crypto.randomUUID()
     const doc: DocRecord = { ...normalizeDraft(draft), id, sourceId: 'rallyloom', externalDocId: id,
       ownerName: this.actor, updatedAt: new Date().toISOString(), origin: 'local' }
@@ -200,7 +203,8 @@ export class DemoDocClient implements DocClient {
 
   async remove(id: string) {
     const records = this.read()
-    records.splice(this.editableIndex(records, id), 1)
+    const index=this.editableIndex(records,id),folder=records[index];if(folder.entryType==='folder'){const prefix=[...(folder.folderPath??[]),folder.title];if(records.some(r=>r.id!==id&&r.space===folder.space&&prefix.every((name,i)=>r.folderPath?.[i]===name)))throw new Error('请先移出文件夹中的文档或子文件夹。')}
+    records.splice(index, 1)
     this.save(records)
   }
 

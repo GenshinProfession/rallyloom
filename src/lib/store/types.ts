@@ -101,7 +101,7 @@ export interface TenantContext {
 
 /** 存储后端的全量快照 —— 客户端状态只是它的投影 */
 export interface WorkspaceSnapshot {
-  collaboration?: { version: number; reporting?: { version: number }; scopes: { id: string; label: string }[] }
+  collaboration?: { version: number; reporting?: { version: number }; documents?: { folders: boolean }; scopes: { id: string; label: string }[] }
   tenant: TenantContext
   team: TeamMember[]
   policy: SyncPolicy
