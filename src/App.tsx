@@ -421,7 +421,7 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
         ) : activePage === 'docs' && docClient ? (
           <DocsPage client={docClient} />
         ) : activePage === 'notify' && noticeClient ? (
-          <NoticePage canPublish={!demo && permissions.includes('notify.publish')} client={noticeClient} onBack={() => navigate('office')} />
+          <NoticePage canPublish={!demo && permissions.includes('notify.publish')} client={noticeClient} />
         ) : (
           <main className="flex min-w-0 flex-1 flex-col bg-[#f4f4f6]">
             {isGroup ? <GroupConsole directory={team} groupName={groupName} onEnterWorkspace={onEnterWorkspace} /> : entry.mode === 'demo' ? <TeamManage

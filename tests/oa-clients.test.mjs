@@ -5,7 +5,7 @@ import ts from 'typescript'
 const url = (source) => 'data:text/javascript;base64,' + Buffer.from(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText).toString('base64')
 const types = url(readFileSync(new URL('../src/lib/tasks/types.ts', import.meta.url), 'utf8'))
 const source = readFileSync(new URL('../src/lib/oa/clients.ts', import.meta.url), 'utf8').replace("import { workspaceValue } from '@/lib/store/workspace-binding'", "const workspaceValue = (result) => { if (!result.ok) throw new Error(result.error); return result.value }").replace("from '@/lib/tasks/types'", `from '${types}'`)
-const { OaTaskClient, OaDocClient, OaChatClient } = await import(url(source))
+const { OaTaskClient, OaDocClient, OaChatClient, OaNoticeClient } = await import(url(source))
 const board = { defaultStatus: 'review', statuses: [{ id: 'review', label: '企业审核', dot: '#123456' }], fields: [{ id: 'budget', label: '预算', type: 'number' }] }
 let requests = []
 globalThis.window = { rallyloom: { workspace: { oa: async (method, path, body, scope) => { requests.push({ method, path, body, scope }); if (path === '/oa/task-board') return { ok: true, value: board }; if (path.includes('/records/task?')) return { ok: true, value: { items: [{ id: 'a', revision: 7, sortOrder: 2 }, { id: 'b', revision: 4, sortOrder: 1 }], nextCursor: null } }; if (path.includes('/records/doc?')) return { ok: true, value: { items: [{ id: 'doc-a', revision: 3 }], nextCursor: null } }; return { ok: true, value: { id: 'a', revision: 8 } } } } } }
@@ -30,4 +30,18 @@ test('backend denials do not fall back to demo data', async () => {
 test('writes update the live document view immediately instead of waiting for polling', async () => {
   requests=[];const client=new OaDocClient();let received=[];const unsubscribe=client.subscribe((rows)=>{received=rows});
   await client.create({title:'新文档',space:'知识库',format:'rich'});assert.equal(received[0].id,'a');unsubscribe();
+})
+
+test('notification read writes immediately notify all views; rejected writes preserve unread state', async () => {
+  const previous=window.rallyloom.workspace.oa
+  let reject=false,received=[],events=0
+  window.rallyloom.workspace.oa=async(method,path)=>path.includes('/records/notice?')?{ok:true,value:{items:[{id:'notice-a',isRead:false}],nextCursor:null}}:reject?{ok:false,error:'拒绝写入'}:{ok:true,value:{}}
+  const client=new OaNoticeClient(),unsubscribe=client.subscribe(rows=>{received=rows;events++})
+  try {
+    await client.list();await client.markRead(['notice-a'])
+    assert.equal(events,1);assert.equal(received[0].isRead,true)
+    await client.list();reject=true
+    await assert.rejects(client.markRead(['notice-a']),/拒绝写入/)
+    assert.equal(events,1)
+  } finally {unsubscribe();window.rallyloom.workspace.oa=previous}
 })

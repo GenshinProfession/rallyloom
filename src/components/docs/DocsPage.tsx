@@ -1,3 +1,4 @@
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 /* Document tree stays mounted alongside the reader/editor; fullscreen only expands the right pane. */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -148,20 +149,18 @@ export function DocsPage({ client }: DocsPageProps) {
     } finally { setRemoving(false) }
   }
 
+  const fullscreenControl = <Button className="ml-auto" variant="ghost" size="sm" aria-label={fullscreen ? '退出全屏' : '全屏文档'} aria-pressed={fullscreen} onClick={() => setFullscreen(!fullscreen)}>{fullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}{fullscreen ? '退出全屏' : '全屏'}</Button>
+
   return (
     <main data-docs="root" className="flex min-w-0 flex-1 flex-col bg-[#f4f4f6]">
-      <header className="workspace-header border-b border-border/70 bg-white">
-        <h1 className="text-ui-title font-semibold">文档中心</h1>
-        <span className="text-ui-label text-muted-foreground">
-          {load === 'ready' ? `${new Set(records.map(r=>documentPath(r)[0])).size} 个知识库 · ${documents.length} 篇文档` : client.label}
-        </span>
+      <WorkspaceHeader title="文档中心" description={load === 'ready' ? `${new Set(records.map(r=>documentPath(r)[0])).size} 个知识库 · ${documents.length} 篇文档` : client.label}>
         {client.supportsFolders && <Button variant="toolbar" size="sm" className="ml-auto h-8 text-ui-label" disabled={load!=='ready'} data-doc-new-folder onClick={()=>{setLibrary(location[0]??records[0]?.space??'知识库');setFolderName('');setFolderError('');setNewFolder(true)}}><FolderPlus/>新建文件夹</Button>}
         <Button variant="toolbar" size="sm" className={`${client.supportsFolders ? '' : 'ml-auto'} h-8 text-ui-label`} disabled={load !== 'ready'}
           data-doc-new="true"
           onClick={() => changeView({ kind: 'edit', doc: null, location: location.length ? location : selected ? documentPath(selected) : [] })}>
           <FilePlus2 /> 新建文档
         </Button>
-      </header>
+      </WorkspaceHeader>
 
       <div className="workspace-content flex min-h-0 flex-1 gap-3 py-3">
         <section className="flex w-[278px] shrink-0 flex-col overflow-hidden rounded-lg border border-border/80 bg-[#fbfcfd]">
@@ -180,22 +179,17 @@ export function DocsPage({ client }: DocsPageProps) {
         </section>
 
         <section data-doc-pane data-fullscreen={fullscreen || undefined} className={fullscreen ? 'fixed inset-x-0 bottom-0 top-8 z-40 flex min-h-0 flex-col bg-white' : 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/80 bg-white'}>
-          <div className="flex shrink-0 items-center justify-between border-b px-3 py-1.5">
-            <span className="text-ui-label text-muted-foreground">{view.kind === 'edit' ? '编辑文档' : current ? '阅读文档' : '全部文档'}</span>
-            <Button variant="ghost" size="sm" aria-label={fullscreen ? '退出全屏' : '全屏文档'} aria-pressed={fullscreen} onClick={() => setFullscreen(!fullscreen)}>
-              {fullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}{fullscreen ? '退出全屏' : '全屏'}
-            </Button>
-          </div>
           {view.kind === 'edit' ? <DocEditorPage key={`${view.doc?.id ?? 'new'}-${editorEpoch}`} doc={view.doc} records={records} location={view.location}
+            toolbarActions={fullscreenControl}
             onDirtyChange={setEditorDirty} onSave={async (draft) => { await save(draft); setEditorDirty(false) }}
             onCancel={() => { setEditorDirty(false); setView(view.doc ? { kind: 'read', id: view.doc.id } : { kind: 'list' }) }} />
-            : current ? <DocReaderPage doc={current} canEdit={current.canEdit !== false} onEdit={() => changeView({ kind: 'edit', doc: current, location: documentPath(current) })}
+            : current ? <DocReaderPage toolbarActions={fullscreenControl} doc={current} canEdit={current.canEdit !== false} onEdit={() => changeView({ kind: 'edit', doc: current, location: documentPath(current) })}
               onDelete={() => { setRemoveError(''); setDeleting(current) }} onBack={() => changeView({ kind: 'list' })} /> : <>
 
           <header className="doc-list-head">
             <span className="doc-list-title">{location.length ? location.join(' / ') : '全部文档'}</span>{activeFolder?.canDelete !== false && activeFolder && <Button size="sm" variant="ghost" onClick={()=>{setRemoveError('');setDeleting(activeFolder)}}><Trash2 className="size-3.5"/>删除空文件夹</Button>}
             <span className="text-[11px] text-muted-foreground">{q ? `匹配 ${visibleSpaces.reduce((sum, [, docs]) => sum + docs.length, 0)} 篇` : `${documents.length} 篇`}</span>
-            <span className="ml-auto text-[11px] text-muted-foreground">点击左侧文档，可在右侧快速切换阅读</span>
+            {fullscreenControl}
           </header>
           <ScrollArea className="min-h-0 flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block">
             <div className="doc-list-body">

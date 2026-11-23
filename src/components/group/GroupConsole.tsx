@@ -1,9 +1,10 @@
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 /* Rallyloom — 集团控制台（平台运维轴 · 可选管辖层）
    「合并租户」= 归属同一管辖体系的配置：数据仍按公司硬隔离，
    这里只做联邦目录与跨租户入口；集团超管不进任何公司成员表。
    不属任何集团的公司不带 groupId —— 这一层对它们完全不可见。 */
 
-import { ArrowRight, Building2, Crown, GitMerge, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Building2, Crown, ShieldCheck } from 'lucide-react'
 import type { RoleId, TeamMember } from '@/lib/identity/types'
 import { GROUP_TENANT_IDS, demoTenantSummary } from '@/lib/store/client'
 import { cn } from '@/lib/utils'
@@ -60,25 +61,12 @@ export function GroupConsole({
 
   return (
     <main data-group="root" className="flex min-w-0 flex-1 flex-col bg-[#f4f4f6]">
-      <header className="px-6 pb-3 pt-5">
-        <div className="flex items-center gap-2">
-          <GitMerge className="size-3.5 text-muted-foreground" strokeWidth={1.7} />
-          <span className="eyebrow">平台运维轴 · 可选管辖层</span>
-        </div>
-        <div className="mt-1.5 flex items-end justify-between">
-          <div>
-            <h1 className="text-[15px] font-semibold leading-none">{groupName} · 集团控制台</h1>
-            <p className="mt-1.5 text-[12px] text-muted-foreground">
-              合并租户 = 归属同一管辖体系的配置：数据按公司硬隔离，员工目录联邦展示，策略可标记「跟随总部」。
-              不属任何集团的公司不带该配置，照常独立运行。
-            </p>
-          </div>
+      <WorkspaceHeader title="集团控制台" description={groupName}>
           <Badge variant="outline" className="h-[20px] shrink-0 gap-1 border-[#ecd9b5] bg-[#fdf3e3] px-2 text-[11px] text-[#b45309]">
             <ShieldCheck className="size-3" strokeWidth={1.7} />
             集团超管不进任何公司成员表
           </Badge>
-        </div>
-      </header>
+      </WorkspaceHeader>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 px-6 pb-5">
         <div className="grid grid-cols-2 gap-3">

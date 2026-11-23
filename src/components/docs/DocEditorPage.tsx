@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 /* 文档中心 — 全页面富文本编辑器（类钉钉文档）
    新建与编辑都进入独立页面（不再用弹窗）。能力：
    · 标题/正文、粗斜下删高亮行内代码、有序/无序/待办、引用、代码块（语言+复制）、表格、链接、图片
@@ -92,10 +93,11 @@ export interface DocEditorPageProps {
   location: readonly string[]
   onSave: (draft: DocDraft) => Promise<void>
   onDirtyChange?: (dirty: boolean) => void
+  toolbarActions?: ReactNode
   onCancel: () => void
 }
 
-export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirtyChange }: DocEditorPageProps) {
+export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirtyChange, toolbarActions }: DocEditorPageProps) {
   const initialRevision = useRef(doc?.revision)
   const spaces = Array.from(new Set(records.map((item) => item.space))).filter(Boolean)
   const defaultSpace = location[0] ?? spaces[0] ?? '制度规范'
@@ -338,6 +340,7 @@ export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirt
         <Button type="button" size="sm" className="h-7" onClick={() => void save()} disabled={saving} data-doc-save="true">
           {saving ? <Loader2 className="animate-spin" /> : <Save />} 保存
         </Button>
+        {toolbarActions}
       </header>
 
       <div className="doc-page-body">

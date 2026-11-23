@@ -26,7 +26,7 @@ type Versioned = { id: string; revision?: number; sortOrder?: number }
 class Records<T extends Versioned> {
   protected cache = new Map<string, T>()
   private listeners = new Set<(rows: T[]) => void>()
-  private notify() { for (const callback of this.listeners) callback([...this.cache.values()]) }
+  protected notify() { for (const callback of this.listeners) callback([...this.cache.values()]) }
   constructor(protected resourceKind: string, public scope?: string) {}
   async list() { const rows = await all<T>(this.resourceKind, this.scope); this.cache = new Map(rows.map((row) => [row.id, row])); return rows }
   async create(body: unknown) { const row = await oa<T>('POST', `/records/${this.resourceKind}`, body, this.scope); this.cache.set(row.id, row); this.notify(); return row }
@@ -63,7 +63,14 @@ export class OaNoticeClient extends Records<NoticeRecord & Versioned> implements
   readonly label = '企业通知'
   constructor() { super('notice') }
   async unreadIds() { return (await this.list()).filter((row) => !row.isRead).map(({ id }) => id) }
-  async markRead(ids: string[]) { for (let index = 0; index < ids.length; index += 100) await oa('POST', '/read/notice', { ids: ids.slice(index, index + 100) }) }
+  async markRead(ids: string[]) {
+    for (let index = 0; index < ids.length; index += 100) {
+      const batch = ids.slice(index, index + 100)
+      await oa('POST', '/read/notice', { ids: batch })
+      for (const id of batch) { const row = this.cache.get(id); if (row) this.cache.set(id, { ...row, isRead: true }) }
+      this.notify()
+    }
+  }
   async markAllRead() { await this.markRead(await this.unreadIds()) }
   async upsert(record: Omit<NoticeRecord, 'id' | 'occurredAt' | 'origin'>) { return super.create(record) }
   // Legacy ingestion uses source IDs; UI deletion passes the authoritative record ID.

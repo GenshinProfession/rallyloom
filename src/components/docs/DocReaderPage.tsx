@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 /* 文档中心 — 全页面阅读器
    只读 TipTap 渲染（与编辑器同一套 node/mark），代码块带语法高亮与复制，
    正文中的附件卡片可直接下载，右侧为文档大纲。 */
@@ -59,10 +60,11 @@ export interface DocReaderPageProps {
   canEdit: boolean
   onEdit: () => void
   onDelete: () => void
+  toolbarActions?: ReactNode
   onBack: () => void
 }
 
-export function DocReaderPage({ doc, canEdit, onEdit, onDelete, onBack }: DocReaderPageProps) {
+export function DocReaderPage({ doc, canEdit, onEdit, onDelete, onBack, toolbarActions }: DocReaderPageProps) {
   const html = useMemo(() => docHtml(doc), [doc])
   const stats = useMemo(() => textStats(doc.format === 'link' ? (doc.url ?? '') : html.replace(/<[^>]+>/g, ' ')), [doc, html])
   const [outline, setOutline] = useState<OutlineItem[]>([])
@@ -116,6 +118,7 @@ export function DocReaderPage({ doc, canEdit, onEdit, onDelete, onBack }: DocRea
             </Button>
           </div>
         )}
+        {toolbarActions}
       </header>
 
       <div className="doc-page-body doc-reader-body">

@@ -1,3 +1,4 @@
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AtSign, Footprints, Inbox, LocateFixed, Maximize, MessageCircle, Minus, Plus, MoreHorizontal, Pencil, Armchair, LayoutTemplate } from 'lucide-react'
 import type { WorkspaceSearchItem } from '@/components/WorkspaceSearch'
@@ -166,11 +167,7 @@ export function OfficePage({
   return (
     <>
       <main className="office-page">
-        <header className="office-header">
-          <div className="office-heading">
-            <h1>办公室</h1>
-            <span title={workspaceName}>{workspaceName}</span>
-          </div>
+        <WorkspaceHeader className="office-header" title="办公室" description={workspaceName}>
           <div className="office-tools">
             {editing && <button type="button" className="office-tool ui-press" onClick={() => setEditingOpen(true)}><Pencil size={14} />编辑办公室</button>}
             {chat && (
@@ -200,7 +197,7 @@ export function OfficePage({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </header>
+        </WorkspaceHeader>
         {assigningSeats && editing && <OfficeSeatAssignments layout={layout} rooms={rooms} team={editing.team}
           onSave={editing.publish} onClose={() => setAssigningSeats(false)} />}
         {referenceOpen && <OfficeReferencePreview onClose={() => setReferenceOpen(false)} />}

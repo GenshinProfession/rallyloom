@@ -1,3 +1,4 @@
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 /**
  * 任务看板页（必接板块之四）。
  * 交互参考开源界（Teable/Baserow 的字段模型、Focalboard/Planka 的看板拖拽），
@@ -25,7 +26,6 @@ import { createPortal } from 'react-dom'
 import { Plus, SquareKanban, Table2, RotateCw, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -414,14 +414,7 @@ export function TaskBoardPage({ members, client, scopes, scope, onScope, canConf
 
   return (
     <main data-tasks="root" className="workspace-view bg-[#f3f3f2]">
-      <header className="workspace-header flex-wrap gap-y-2 border-b border-border/70 py-2">
-        <h1 className="shrink-0 text-ui-title font-semibold text-foreground">任务看板</h1>
-        <Badge variant="secondary" className="shrink-0 text-ui-meta font-normal">
-          {tasks ? `${tasks.length} 项 · ${doingCount} 进行中${overdue ? ` · ${overdue} 逾期` : ''}` : '加载中…'}
-        </Badge>
-        <span className="hidden truncate text-ui-meta text-muted-foreground lg:inline" title={client.label}>
-          {client.label}
-        </span>
+      <WorkspaceHeader title="任务看板" description={tasks ? `${tasks.length} 项 · ${doingCount} 进行中${overdue ? ` · ${overdue} 逾期` : ''}` : '加载中…'}>
         <div data-task-toolbar className="ml-auto flex flex-wrap items-center gap-2">
           {scopes && scopes.length > 1 && <Select value={scope} onValueChange={onScope}><SelectTrigger aria-label="公司任务范围" className="h-8 w-44 rounded-md border-black/[0.06] bg-white py-0 text-ui-label shadow-[0_1px_2px_rgba(17,18,22,0.04)] hover:bg-muted/60"><SelectValue /></SelectTrigger><SelectContent>{scopes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select>}
           <Button variant="toolbar" size="sm" onClick={() => void refresh()}><RotateCw strokeWidth={1.7}/>刷新</Button>
@@ -441,7 +434,7 @@ export function TaskBoardPage({ members, client, scopes, scope, onScope, canConf
             <Plus className="size-3.5" strokeWidth={2} />新建任务
           </Button>
         </div>
-      </header>
+      </WorkspaceHeader>
 
       {moveError && <p className="px-4 pt-2 text-ui-label text-destructive" role="alert">{moveError}</p>}
       <div data-task-viewport className="workspace-content min-h-0 flex-1 overflow-auto py-3">

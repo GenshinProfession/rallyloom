@@ -1,3 +1,4 @@
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useEffect, useRef, useState } from 'react'
 import { ArrowUpRight, Hash, LayoutGrid, MessageCircle } from 'lucide-react'
 import '@chatscope/chat-ui-kit-styles/dist/default/styles.min.css'
@@ -104,11 +105,7 @@ export function ChatPage({ sender, client, members, channelId, targetId, mention
 
   return (
     <main data-chat="root" className="workspace-view bg-[#f3f3f2]">
-      <header className="workspace-header border-b border-border/70">
-        <h1 className="text-ui-title font-semibold text-foreground">交流室</h1>
-        <span className="text-ui-label text-muted-foreground">{channels.filter(({ peerId }) => !peerId).length} 个频道</span>
-        <span className="ml-auto text-ui-meta text-muted-foreground">{client.label}</span>
-      </header>
+      <WorkspaceHeader title="交流室" description={`${channels.filter(({ peerId }) => !peerId).length} 个频道`} />
 
       <div className="workspace-content flex min-h-0 flex-1 py-3">
         <div className="workspace-chat-surface">

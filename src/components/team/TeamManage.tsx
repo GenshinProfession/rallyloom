@@ -1,3 +1,4 @@
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 /* Rallyloom — 团队管理
    四个页签：成员（承接身份 + 本地角色设置）、角色与权限（RBAC 矩阵）、接入管理（源系统与同步策略）、存储（超管）。
    「承接对方的数据，权限交由本系统设置」在这里落地：
@@ -472,26 +473,18 @@ export function TeamManage({
 
   return (
     <div className="workspace-view overflow-y-auto bg-[#f3f3f2]" data-team="root">
-      <header className="workspace-header justify-between border-b border-border/70">
-        <div className="min-w-0">
-          <h1 className="text-ui-title font-semibold">团队管理</h1>
-          <p className="truncate text-ui-meta text-muted-foreground">
-            {team.length} 位成员 · {connectorsInUse.length} 个接入源 · 数据源{' '}
-            {DATASOURCE_LABEL[datasource.kind]} · 当前身份 {me.displayName}（{ROLE_LABEL[me.role]}）
-            {me.localRoleOverride ? ' · 本地设置' : ' · 外部组映射'}
-          </p>
-        </div>
+      <WorkspaceHeader title="团队管理" description={`${team.length} 位成员 · ${connectorsInUse.length} 个接入源 · ${DATASOURCE_LABEL[datasource.kind]}`}>
         {can(me.role, 'members.invite') && (
           <Button
             size="sm"
-            className="h-7 rounded-md bg-[#2563eb] px-2.5 text-ui-label hover:bg-[#1d4ed8]"
+            variant="toolbar"
             onClick={() => setInviteOpen(true)}
           >
             <Plus className="mr-1 size-3" />
             邀请成员
           </Button>
         )}
-      </header>
+      </WorkspaceHeader>
 
       <div className="workspace-content flex-1 py-3">
         <Tabs defaultValue="members" className="gap-3">

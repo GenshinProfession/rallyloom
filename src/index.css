@@ -205,3 +205,20 @@ input {
       0 12px 32px -12px rgba(17, 18, 22, 0.18);
   }
 }
+
+/* All workspace page chrome follows the document-center header. */
+.workspace-page-header { min-height:var(--workspace-header-height); width:100%; gap:10px; background:#fff; border-bottom:1px solid var(--border); padding:10px var(--workspace-gutter); flex-wrap:wrap; }
+.workspace-page-heading { display:flex; align-items:baseline; gap:10px; min-width:0; }
+.workspace-page-heading h1 { flex:none; margin:0; font-size:var(--ui-size-title); line-height:var(--ui-line-title); font-weight:600; letter-spacing:0; }
+.workspace-page-description { color:var(--muted-foreground); font-size:var(--ui-size-label); line-height:var(--ui-line-label); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.workspace-page-actions { display:flex; align-items:center; gap:8px; margin-left:auto; flex-wrap:wrap; }
+.office-header.workspace-page-header { height:auto; z-index:2; }
+.office-header .office-tool { height:32px; border-radius:6px; background:#fff; border-color:#0000000f; box-shadow:0 1px 2px #1112160a; color:var(--foreground); padding:0 12px; gap:8px; font-weight:500; }
+.office-editor > .workspace-page-header { width:auto; margin:-18px -18px 0; }
+.office-editor .workspace-page-header button { height:32px; padding:0 12px; border-color:#0000000f; box-shadow:0 1px 2px #1112160a; }
+@media(max-width:900px) { .workspace-page-heading { max-width:100%; } .workspace-page-description { max-width:260px; } }
+
+.office-editor > .workspace-page-header h1 { font-size:var(--ui-size-title); }
+.office-editor > .workspace-page-header button { font-size:var(--ui-size-label); }
+
+.office-header .office-tool svg { width:16px; height:16px; }

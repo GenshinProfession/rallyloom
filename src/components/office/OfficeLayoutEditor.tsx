@@ -1,3 +1,6 @@
+import { X, Upload } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { LayoutState } from '@/lib/store/types'
 import { OfficeAssetLibrary } from './OfficeAssetLibrary'
@@ -281,15 +284,14 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
 
   return (
     <main className="office-editor">
-      <header>
-        <h1>编排办公室</h1>
+      <WorkspaceHeader title="编排办公室">
         <div className="office-editor-actions">
-          <button type="button" disabled={busy} onClick={onClose}>取消编辑</button>
-          <button className="office-editor-primary" type="button" disabled={busy || !!validation.error} onClick={() => void publish()}>
+          <Button variant="toolbar" size="sm" disabled={busy} onClick={onClose}><X />取消编辑</Button>
+          <Button variant="toolbar" size="sm" disabled={busy || !!validation.error} onClick={() => void publish()}><Upload />
             {busy ? '正在发布…' : confirmEmpty && !draft.rooms.length ? '确认发布空办公室' : '发布办公室'}
-          </button>
+          </Button>
         </div>
-      </header>
+      </WorkspaceHeader>
       {(message || validation.error) && <p className="office-editor-error" role="alert">{message || validation.error}</p>}
       {!validation.error && assignmentsReleased > 0 && <p className="office-editor-seat-notice">
         发布后，原工位不足的 {assignmentsReleased} 位成员会转为未分配，可在办公室的「分配工位」重新安排。
