@@ -11,6 +11,7 @@ import { createWalker } from './walker'
 import { createAvatarKit, type AvatarLook } from './avatar'
 import { buildGmvScreen } from './gmv-screen'
 import { createFloorMaterial } from './floor-material'
+import { buildFreeWall } from './free-walls'
 
 export type OfficeMode = 'daily' | 'presence' | 'tasks'
 
@@ -93,6 +94,7 @@ export function buildOfficeWorld(
   const solids: THREE.Object3D[] = []
   const roomModels = new Map<string, THREE.Group>()
   const furnitureModels = new Map<string, THREE.Group>()
+  const wallModels=new Map<string,THREE.Group>()
   const staticModels: THREE.Object3D[] = []
   const highlights = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>()
   const screens = new Map<string, ReturnType<typeof buildGmvScreen>>()
@@ -110,7 +112,7 @@ export function buildOfficeWorld(
   for (const side of ['north', 'south', 'west', 'east'] as const) {
     const horizontal = side === 'north' || side === 'south'
     const length = horizontal ? width : height
-    const intervals = rooms.filter(room => room.template !== 'empty' && (
+    const intervals = rooms.filter(room => room.template !== 'empty' && room.walls?.[side]!=='open' && (
       side === 'north' ? room.frame.y === 0 : side === 'south' ? room.frame.y + room.frame.height === height
         : side === 'west' ? room.frame.x === 0 : room.frame.x + room.frame.width === width
     )).map(room => horizontal ? [room.frame.x, room.frame.x + room.frame.width] : [room.frame.y, room.frame.y + room.frame.height])
@@ -252,6 +254,7 @@ export function buildOfficeWorld(
   }
 
   const roomPresence = new Map<string, number>()
+  for(const wall of layout.wallSegments??[]){const group=buildFreeWall(wall,model);scene.add(group);wallModels.set(wall.id,group);solids.push(...group.children)}
   for (const person of people) if (person.member.presence !== 'offline') roomPresence.set(person.member.roomId, (roomPresence.get(person.member.roomId) ?? 0) + 1)
   for (const anchor of roomAnchors) anchor.present = roomPresence.get(anchor.room.id) ?? 0
   if (!editable) model.batchStatic(scene, staticModels)
@@ -275,7 +278,7 @@ export function buildOfficeWorld(
   if (editable) scene.updateMatrixWorld(true)
 
   return {
-    scene, floors, seatTargets, roomAnchors, people, highlights, mySeat, solids, screens, roomModels, furnitureModels,
+    scene, floors, seatTargets, roomAnchors, people, highlights, mySeat, solids, screens, roomModels, furnitureModels,wallModels,
     addWalker(look: AvatarLook) {
       const walker = createWalker(avatars, look)
       scene.add(walker.mesh)

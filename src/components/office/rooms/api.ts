@@ -90,11 +90,23 @@ export interface FurniturePlacement {
 }
 
 export interface OfficeLayout {
+  /** Independent world-coordinate segments, unrelated to rectangular room metadata. */
+  wallSegments?: readonly WallSegment[]
   /** Optional explicit seat index for members already present in assignments. */
   seatAssignments?: Record<string, number>
   width: number
   height: number
   rooms: readonly RoomPlacement[]
+}
+
+export interface WallSegment {
+  id: string
+  start: {x:number;y:number}
+  end: {x:number;y:number}
+  thickness: number
+  height: number
+  finish: 'solid' | 'glass'
+  opening?: {offset:number;width:number}
 }
 
 export interface ResolvedRoom extends RoomPlacement {

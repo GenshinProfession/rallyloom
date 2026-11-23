@@ -11,7 +11,7 @@ app.whenReady().then(async()=>{
   await wait(()=>document.querySelector('.office-header'),'office')
   if(document.querySelector('[data-general-quick]')||document.querySelector('[data-room-quick]')||document.body.textContent.includes('参考户型'))throw Error('redundant shortcuts')
   click('编辑办公室');await wait(()=>document.querySelector('.office-asset-library'),'assets');if(document.querySelector('.office-asset-card[aria-label=空区域]'))throw Error('open area retained')
-  click('划分隔墙');await pause(500)
+  click('矩形分区');await pause(500)
  }).toString()+')()',true)
  win.showInactive();win.webContents.debugger.attach('1.3')
  const r=await win.webContents.executeJavaScript("(()=>{const r=document.querySelector('.office-resize-boundary[data-canvas=true]').getBoundingClientRect();return {x:r.left+r.width*.5,y:r.top+r.height*.25,end:r.top+r.height*.75}})()")

@@ -7,6 +7,7 @@ import type { DataSlots } from '@/lib/store/types'
 import type { OfficeLayout, ResolvedRoom } from './rooms/api'
 import { createOfficeView, type OfficeOverlay, type OfficeViewState } from './three/view'
 import { OfficeResizeHandle, type OfficeResizeTarget } from './OfficeResizeHandle'
+import { OfficeFreeWalls, type FreeWallEditing } from './OfficeFreeWalls'
 import type { FloorPoint, OfficeDragSource, OfficePlacement } from './office-drag'
 
 export type OfficeSceneControls = {
@@ -29,6 +30,7 @@ interface OfficeSceneProps extends OfficeViewState {
   onAssignSeat?: (roomId: string, seatIndex: number) => void
   onOpenGmv?: () => void
   editing?: {
+    freeWalls?:FreeWallEditing
     selectedFurniture?: string
     wallTool?: boolean
     partition?: (start: FloorPoint, end: FloorPoint) => void
@@ -159,7 +161,7 @@ export function OfficeScene({
       data-walking={walking || undefined}
       ref={viewport}
       data-seat-locked={seatLocked || undefined}
-      data-wall-tool={editing?.wallTool || undefined}
+      data-wall-tool={editing?.wallTool || editing?.freeWalls?.active || undefined}
       onContextMenu={!editing ? event => {
         if (!(event.target instanceof HTMLCanvasElement)) return
         const at = point(event.clientX,event.clientY), seat = engine.current?.pickSeat(...at, 36)
@@ -314,6 +316,7 @@ export function OfficeScene({
         </div>
       )}
       <svg ref={wallGuide} className="office-partition-guide" style={{display:'none'}} aria-hidden="true"><line/></svg>
+      {editing?.freeWalls&&<OfficeFreeWalls stage={viewport} engine={engine} layout={layout} editing={editing.freeWalls} overlay={overlay}/>}
       <DropdownMenu open={!!context} onOpenChange={open=>{if(!open)setContext(undefined)}} modal={false}>
         <DropdownMenuTrigger asChild><button aria-hidden="true" tabIndex={-1} className="office-context-anchor" style={{left:context?.x??0,top:context?.y??0}} /></DropdownMenuTrigger>
         <DropdownMenuContent align="start" sideOffset={0} className="office-context-menu">

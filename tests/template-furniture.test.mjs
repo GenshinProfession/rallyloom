@@ -63,3 +63,26 @@ test('explicit seat reservation fills only vacant indexes for legacy members',()
  assert.deepEqual(result.map(member=>member?.id),['pinned','old','last'])
  assert.deepEqual(seatOrder([{id:'one'}],0,{one:2}),[])
 })
+
+const {validateWallSegments,snapWallPoint,wallLength,replaceWallSegment}=await import(url(source('free-walls.ts')))
+test('free walls retain arbitrary endpoints and opening clearance, bounded by the office',()=>{
+ const wall={id:'a',start:{x:50,y:40},end:{x:300,y:220},height:26,thickness:6,finish:'glass',opening:{offset:.5,width:42}}
+ const layout={width:800,height:500,rooms:[],wallSegments:[wall]};validateWallSegments(layout)
+ assert.ok(wallLength(wall)>300)
+ for(const next of [{...wall,end:{x:801,y:220}},{...wall,height:0},{...wall,thickness:25},{...wall,end:wall.start},{...wall,opening:{offset:0,width:42}}])assert.throws(()=>validateWallSegments({...layout,wallSegments:[next]}))
+ assert.throws(()=>validateWallSegments({...layout,wallSegments:[wall,wall]}))
+ assert.throws(()=>validateWallSegments({...layout,wallSegments:Array.from({length:241},(_,i)=>({...wall,id:String(i)}))}))
+ assert.deepEqual(snapWallPoint({x:304,y:222},layout),wall.end)
+ const free=snapWallPoint({x:213,y:117},layout,{x:50,y:40},false);assert.deepEqual(free,{x:213,y:117})
+ const aligned=snapWallPoint({x:213,y:117},layout,{x:50,y:40},true);assert.equal(aligned.x-50,aligned.y-40)
+ assert.deepEqual(snapWallPoint({x:-5,y:800},layout),{x:0,y:500})
+})
+
+test('moving a shared wall joint preserves neighboring connections without changing unrelated walls',()=>{
+ const first={id:'a',start:{x:10,y:10},end:{x:100,y:50},height:26,thickness:6,finish:'solid'}
+ const next={...first,id:'b',start:first.end,end:{x:180,y:150}}
+ const other={...first,id:'c',start:{x:300,y:200},end:{x:400,y:300}}
+ const result=replaceWallSegment([first,next,other],{...first,end:{x:120,y:60}})
+ assert.deepEqual(result[0].end,result[1].start);assert.deepEqual(result[1].end,next.end);assert.equal(result[2],other)
+ assert.deepEqual(first.end,{x:100,y:50});assert.deepEqual(next.start,{x:100,y:50})
+})

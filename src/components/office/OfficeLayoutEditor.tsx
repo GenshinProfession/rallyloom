@@ -1,4 +1,4 @@
-import { X, Upload, Layers3, Box, RotateCw, Copy, Trash2, SlidersHorizontal, Plus, BetweenHorizontalStart, MousePointer2 } from 'lucide-react'
+import { X, Upload, Layers3, Box, RotateCw, Copy, Trash2, SlidersHorizontal, Plus, BetweenHorizontalStart, MousePointer2, PenLine, Undo2, Maximize, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -6,11 +6,13 @@ import type { LayoutState } from '@/lib/store/types'
 import { OfficeAssetLibrary } from './OfficeAssetLibrary'
 import type { OfficeResizeTarget } from './OfficeResizeHandle'
 import { OfficeScene, type OfficeSceneControls } from './OfficeScene'
+import {OfficeWallInspector} from './OfficeWallInspector'
+import {validateWallSegments,replaceWallSegment} from './rooms/free-walls'
 import { OfficeRoomSurfaces } from './OfficeRoomSurfaces'
 import { partitionRoom } from './rooms/partition-room'
 import { snapRoom } from './rooms/snap-room'
 import { getRoomDoorway, resolveOfficeLayout, roomTemplates, type RoomPlacement } from './rooms'
-import type { FurnitureKind, RoomFrame } from './rooms/api'
+import type { FurnitureKind, RoomFrame, WallSegment } from './rooms/api'
 import { materializeRoom, furnitureSeats, resizeRoomContents } from './rooms/template-furniture'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FURNITURE, fitFurniture, furnitureFits, furnitureSize } from './rooms/placed-furniture'
@@ -47,7 +49,10 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [confirmEmpty, setConfirmEmpty] = useState(false)
-  const [wallTool,setWallTool] = useState(false)
+  const [tool,setTool] = useState<'select'|'wall'|'split'>('select')
+  const wallTool=tool==='split'
+  const [wallSelection,setWallSelection]=useState<string>()
+  const selectedWall=draft.wallSegments?.find(wall=>wall.id===wallSelection)
   const selected = draft.rooms.find((room) => room.id === selection)
   const selectedItem = selected?.furniture?.find((item) => item.id === furnitureSelection)
   const workstationGrid = selected ? deskGrid(selected.frame) : null
@@ -56,6 +61,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
     try {
       if (draft.width < 500 || draft.height < 300 || draft.width > 4000 || draft.height > 4000)
         throw new Error('画布宽度须为 500 至 4000，高度须为 300 至 4000。')
+      validateWallSegments(draft)
       rooms = resolveOfficeLayout(draft, roomTemplates)
       for (const [index, room] of draft.rooms.entries()) {
         if (!room.name.trim()) throw new Error('请填写所有房间名称。')
@@ -82,7 +88,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   }, [layout.assignments, validation.rooms])
   const assignmentsReleased = Object.keys(layout.assignments).length - Object.keys(publishedAssignments).length
 
-  useEffect(()=>{const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')setWallTool(false)};window.addEventListener('keydown',escape);return()=>window.removeEventListener('keydown',escape)},[])
+  useEffect(()=>{const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')setTool('select')};window.addEventListener('keydown',escape);return()=>window.removeEventListener('keydown',escape)},[])
   function drawPartition(start:FloorPoint,end:FloorPoint){
     if(busy||draft.rooms.length>=80)return
     const room=roomAt(start) ?? (draft.rooms.length===0?{id:crypto.randomUUID(),name:'办公室',template:'room-shell',frame:{x:0,y:0,width:draft.width,height:draft.height},furniture:[],useTemplateFurniture:false}:undefined)
@@ -96,11 +102,26 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
     }catch(error){setMessage(error instanceof Error?error.message:'无法划分这个房间。')}
   }
 
+  function selectFreeWall(id:string){setWallSelection(id);setFurnitureSelection(undefined);setInspector('properties')}
+  function changeFreeWall(wall:WallSegment,add:boolean){
+    if(busy)return false
+    try{
+      const wallSegments=add?[...(draft.wallSegments??[]),wall]:replaceWallSegment(draft.wallSegments??[],wall)
+      const next={...draft,wallSegments}
+      validateWallSegments(next)
+      if(!next.rooms.length)next.rooms=[{id:crypto.randomUUID(),name:'开放办公区',template:'room-shell',frame:{x:0,y:0,width:next.width,height:next.height},walls:{north:'open',east:'open',south:'open',west:'open'},floorMaterial:'quartz',floor:'#eeebe3',useTemplateFurniture:false,seats:[],furniture:[]}]
+      setDraft(next);selectFreeWall(wall.id);setMessage('');return true
+    }catch(error){setMessage(error instanceof Error?error.message:'墙段无效。');return false}
+  }
+  function addFreeWall(wall:WallSegment){return changeFreeWall(wall,true)}
+  function updateFreeWall(wall:WallSegment){changeFreeWall(wall,false)}
+
   function updateRoom(id: string, update: (room: RoomPlacement) => RoomPlacement) {
     setDraft((current) => ({ ...current, rooms: current.rooms.map((room) => room.id === id ? (()=>{const next=update(room);return next.useTemplateFurniture===false?{...next,seats:furnitureSeats(next)}:next})() : room) }))
   }
 
   function selectRoom(id: string | undefined) {
+    setWallSelection(undefined)
     setSelection(id)
     if (id) setInspector('properties')
     setFurnitureSelection(undefined)
@@ -122,6 +143,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   }
 
   function selectModel(source?: OfficeDragSource) {
+    setWallSelection(undefined)
     if (source?.kind === 'furniture') {
       setInspector('properties')
       setSelection(source.roomId)
@@ -220,7 +242,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
       fit: (width, height) => ({ width: clamp(width, roomRight, 4000), height: clamp(height, roomBottom, 4000) }),
       commit: (width, height) => setDraft((current) => ({ ...current, width, height })),
     })
-    if (selected) {
+    if (selected && !selectedWall) {
       const frame = selected.frame
       const neighbors = draft.rooms.filter((room) => room.id !== selected.id)
       resizeTargets.push({
@@ -325,23 +347,27 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
       </p>}
       <div className="office-editor-grid">
           <section className="office-editor-stage">
-            <div className="office-editor-actions">
-              <label>画布宽 <input type="number" min={500} max={4000} value={draft.width} disabled={busy} onChange={(event) => setDraft({ ...draft, width: Number(event.target.value) })} /></label>
-              <label>画布高 <input type="number" min={300} max={4000} value={draft.height} disabled={busy} onChange={(event) => setDraft({ ...draft, height: Number(event.target.value) })} /></label>
-              <label>缩放 <input type="range" min={65} max={165} value={sceneZoom} onChange={(event) => setSceneZoom(Number(event.target.value))} /></label>
-              <button type="button" disabled={busy || !draft.rooms.length} onClick={() => {
-                setDraft({ ...draft, rooms: [] }); setSelection(undefined); setFurnitureSelection(undefined); setMessage('')
-              }}>清空草稿</button>
-              <button type="button" aria-pressed={!wallTool} onClick={()=>setWallTool(false)}><MousePointer2 size={14}/>选择</button>
-              <button type="button" aria-pressed={wallTool} onClick={()=>setWallTool(true)}><BetweenHorizontalStart size={14}/>划分隔墙</button>
+            <div className="office-plan-toolbar" aria-label="办公室编辑工具">
+              <div className="office-plan-tools" role="group" aria-label="绘图工具">
+                <button type="button" disabled={busy} aria-pressed={tool==='select'} onClick={()=>setTool('select')} title="选择并移动对象"><MousePointer2 size={15}/><span>选择</span></button>
+                <button type="button" disabled={busy} aria-pressed={tool==='wall'} onClick={()=>setTool('wall')} title="连续绘制任意角度墙段"><PenLine size={15}/><span>自由墙</span></button>
+                <button type="button" disabled={busy} aria-pressed={tool==='split'} onClick={()=>setTool('split')} title="将矩形房间一分为二"><BetweenHorizontalStart size={15}/><span>矩形分区</span></button>
+              </div>
+              <button className="office-plan-icon" type="button" aria-label="撤回上一段墙" disabled={busy||!draft.wallSegments?.length} onClick={()=>{setDraft(current=>({...current,wallSegments:current.wallSegments?.slice(0,-1)}));setWallSelection(undefined)}}><Undo2 size={15}/></button>
+              <details className="office-canvas-size"><summary><Maximize size={14}/><span>{draft.width} × {draft.height}</span><ChevronDown size={12}/></summary><div>
+                <label>画布宽<input aria-label="画布宽" type="number" min={500} max={4000} value={draft.width} disabled={busy} onChange={event=>setDraft({...draft,width:Number(event.target.value)})}/></label>
+                <label>画布高<input aria-label="画布高" type="number" min={300} max={4000} value={draft.height} disabled={busy} onChange={event=>setDraft({...draft,height:Number(event.target.value)})}/></label>
+              </div></details>
+              <label className="office-plan-zoom"><input aria-label="编辑器缩放" type="range" min={65} max={165} value={sceneZoom} onChange={event=>setSceneZoom(Number(event.target.value))}/><span>{sceneZoom}%</span></label>
+              <button className="office-plan-clear" type="button" disabled={busy} onClick={()=>{setDraft({...draft,rooms:[],wallSegments:[]});selectRoom(undefined);setMessage('')}}><Trash2 size={14}/><span>清空草稿</span></button>
             </div>
-            {wallTool && <p className="office-editor-seat-notice">在房间内拖出横向或纵向隔墙，自动划分两个相邻房间。空画布可直接开始划分；Esc 退出。</p>}
+            {(wallTool||tool==='wall')&&<div className="office-drawing-hint"><i/>{wallTool?'拖出横墙或竖墙，划分矩形房间':'点击起点、连续点击转角；也可拖出单段墙。Shift 对齐 45°，Enter / Esc 结束。'}{tool==='wall'&&draft.rooms.some(room=>Object.values(room.walls??{}).length<4||Object.values(room.walls??{}).some(value=>value!=='open'))&&<button type="button" disabled={busy} onClick={()=>setDraft(current=>({...current,rooms:current.rooms.map(room=>({...room,walls:{north:'open',east:'open',south:'open',west:'open'}}))}))}>开放原有隔墙</button>}</div>}
             <div className="office-editor-preview" data-office-editor-3d>
               <OfficeScene layout={draft} rooms={validation.rooms} roster={emptyRoster} slots={{}}
                 selectedRoom={selection ?? null}
                 onSelectRoom={(id) => selectRoom(id ?? undefined)}
                 focusedMember={null} meId={null} meName="" mode="daily" zoom={sceneZoom} walking={false}
-                editing={{ wallTool, partition:drawPartition, selectedFurniture:furnitureSelection, controls: sceneControls, disabled: busy, resize: resizeTargets, plan: planModel,
+                editing={{ freeWalls:{active:tool==='wall',selected:wallSelection,disabled:busy,add:addFreeWall,update:updateFreeWall,select:selectFreeWall,finish:()=>setTool('select')},wallTool, partition:drawPartition, selectedFurniture:furnitureSelection, controls: sceneControls, disabled: busy, resize: resizeTargets, plan: planModel,
                   commit: commitModel, select: selectModel,
                 }} />
             </div>
@@ -386,7 +412,8 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
                 setFurnitureSelection(undefined)
               }} className="office-delete-object"><Trash2 size={13}/>移除家具</button>
             </section>}
-            {inspector === 'properties' && !selectedItem && <section>
+            {inspector==='properties'&&selectedWall&&<OfficeWallInspector wall={selectedWall} disabled={busy} onChange={updateFreeWall} onDelete={()=>{setDraft(current=>({...current,wallSegments:current.wallSegments?.filter(wall=>wall.id!==selectedWall.id)}));setWallSelection(undefined)}}/>}
+            {inspector === 'properties' && !selectedWall && !selectedItem && <section>
               <div className="office-inspector-heading"><div><span className="office-inspector-eyebrow">空间边界</span><h2><Layers3 size={16}/>房间属性</h2></div><span>{selected?.furniture?.length??0} 件家具</span></div>
               <label>当前房间<Select value={selected?.id??''} disabled={busy||!draft.rooms.length} onValueChange={id=>selectRoom(id)}><SelectTrigger aria-label="选择房间"><SelectValue placeholder="选择房间"/></SelectTrigger><SelectContent>{draft.rooms.map(room=><SelectItem key={room.id} value={room.id}>{room.name||'未命名'}</SelectItem>)}</SelectContent></Select></label>
               {selected && <>

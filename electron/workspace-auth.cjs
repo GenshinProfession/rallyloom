@@ -214,6 +214,17 @@ function validateBootstrap(raw, binding, log) {
   if (!(Number.isFinite(layout.width) && layout.width > 0)) fail(`layout.width 应为正数（当前 ${JSON.stringify(layout.width)}）`)
   if (!(Number.isFinite(layout.height) && layout.height > 0)) fail(`layout.height 应为正数（当前 ${JSON.stringify(layout.height)}）`)
   if (!Array.isArray(layout.rooms)) fail('layout.rooms 应为房间数组')
+  if(layout.wallSegments!==undefined){
+    if(!Array.isArray(layout.wallSegments)||layout.wallSegments.length>240)fail('layout.wallSegments 最多 240 段')
+    const ids=new Set()
+    for(const wall of layout.wallSegments){
+      if(!object(wall)||!validText(wall.id)||ids.has(wall.id))fail('墙段标识无效或重复');ids.add(wall.id)
+      if(![wall.start,wall.end].every(point=>object(point)&&Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=0&&point.y>=0&&point.x<=layout.width&&point.y<=layout.height))fail('墙段端点超出画布')
+      const length=Math.hypot(wall.end.x-wall.start.x,wall.end.y-wall.start.y)
+      if(length<12||!Number.isFinite(wall.thickness)||wall.thickness<2||wall.thickness>24||!Number.isFinite(wall.height)||wall.height<8||wall.height>100||!['solid','glass'].includes(wall.finish))fail('墙段尺寸或材质无效')
+      if(wall.opening!==undefined&&(!object(wall.opening)||!Number.isFinite(wall.opening.width)||!Number.isFinite(wall.opening.offset)||wall.opening.width<12||wall.opening.offset*length-wall.opening.width/2<6||wall.opening.offset*length+wall.opening.width/2>length-6))fail('墙段门洞无效')
+    }
+  }
   for (const [index, room] of layout.rooms.entries()) {
     const issue = roomIssue(room)
     if (issue) fail(`layout.rooms[${index}] ${issue}`)

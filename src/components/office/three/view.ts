@@ -2,7 +2,8 @@ import * as THREE from 'three'
 import type { SeatPresence } from '../seat-presence'
 import type { Member } from '@/data/office'
 import { resolveOfficeLayout, roomTemplates } from '../rooms'
-import type { OfficeLayout, ResolvedRoom } from '../rooms/api'
+import type { OfficeLayout, ResolvedRoom, WallSegment } from '../rooms/api'
+import { replaceWallSegment } from '../rooms/free-walls'
 import { NEW_ROOM_SIZE, type OfficeDragSource, type OfficePlacement } from '../office-drag'
 import { createWalkGrid, type WalkPoint } from './walk-grid'
 import { buildOfficeWorld, type OfficeMode } from './world'
@@ -72,6 +73,10 @@ export function createOfficeView(
   renderer.toneMappingExposure = .96
 
   const world = buildOfficeWorld(layout, rooms, roster, meId, schedule, editable, initialView.seats)
+  const wallGhost=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:'#589888',transparent:true,opacity:.58,depthWrite:false}))
+  wallGhost.visible=false;world.scene.add(wallGhost)
+  const wallGhosts=[wallGhost]
+  let hiddenWalls:THREE.Group[]=[]
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 3150)
   const center = new THREE.Vector3(layout.width / 2, 0, layout.height / 2 - 8)
   const direction = new THREE.Vector3(0, 1100, 510).normalize()
@@ -295,7 +300,7 @@ export function createOfficeView(
     }
     for (const [roomId, screen] of world.screens) screen.draw(gmv?.roomId === roomId ? gmv : undefined)
     renderer.render(world.scene, camera)
-    if (drag) return
+    if (drag || wallGhosts.some(ghost=>ghost.visible)) return
     const screen = gmv && world.screens.get(gmv.roomId)
     const screenTop = screen && project(screen.group.localToWorld(screenTag.copy(screen.topLeft)))
     const screenBottom = screen && project(screen.group.localToWorld(screenTag.copy(screen.bottomRight)))
@@ -354,6 +359,28 @@ export function createOfficeView(
   if (initialView.walking) startWalk()
 
   return {
+    previewWall(wall?:WallSegment){
+      for(const model of hiddenWalls)model.visible=true
+      hiddenWalls=[];for(const ghost of wallGhosts)ghost.visible=false
+      if(wall){
+        const original=layout.wallSegments??[]
+        const linked=original.some(item=>item.id===wall.id)?replaceWallSegment(original,wall).filter((item,index)=>item!==original[index]):[wall]
+        linked.forEach((item,index)=>{
+          let ghost=wallGhosts[index]
+          if(!ghost){ghost=wallGhost.clone();wallGhosts.push(ghost);world.scene.add(ghost)}
+          ghost.visible=true
+          const dx=item.end.x-item.start.x,dy=item.end.y-item.start.y
+          ghost.scale.set(Math.max(.1,Math.hypot(dx,dy)),item.height,item.thickness);ghost.position.set((item.start.x+item.end.x)/2,item.height/2,(item.start.y+item.end.y)/2);ghost.rotation.y=-Math.atan2(dy,dx)
+          const model=world.wallModels.get(item.id);if(model){model.visible=false;hiddenWalls.push(model)}
+        })
+      }
+      schedule()
+    },
+    pickWall(x:number,y:number):string|undefined{
+      pointRay(x,y)
+      let object:THREE.Object3D|undefined=ray.intersectObjects([...world.wallModels.values()],true)[0]?.object
+      while(object){if(object.userData.wallId)return object.userData.wallId;object=object.parent??undefined}
+    },
     draw(next: OfficeViewState) {
       if (next.walking !== view.walking) {
         route = []

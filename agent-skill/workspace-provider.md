@@ -62,3 +62,10 @@ Bootstrap 可返回 `collaboration:{version:1,scopes:[{id,label}]}` 和提供方
 布局可选 `seatAssignments: {"member-id": 1}` 指定成员在 `assignments[member-id]` 房间内的零起始工位索引。不改变成员角色、房间频道授权或日常入座能力。提供方须校验成员已在 assignments、索引为整数且小于房间容量、同房间索引不重复；未指定索引的旧分配按 assignments 成员顺序填补剩余空位。目录裁剪时必须同时裁剪 assignments 和 seatAssignments。保存沿用 layout.edit 与布局 revision 乐观锁，换版后日常临时座位状态失效。
 
 右键工位可分配该位置、本人入座/离座，右键其他在岗成员可发起私聊；群聊入口集中在右键和交流室，办公室不提供全员大厅入口。替换已分配成员时在保存前明确显示转为未分配的提示。模板和隔墙仍使用已有 room-shell、frame、walls、door、furniture、seats 字段，不需要企业专有分区接口。
+
+
+### 独立自由墙（可选 wallSegments）
+
+布局支持 `wallSegments:[{id,start:{x,y},end:{x,y},thickness:6,height:26,finish:"solid",opening?:{offset:0.5,width:42}}]`。坐标为画布世界坐标，支持任意角度、部分长度、转角、分支与闭合；不能将其转换为无限延伸的矩形分区。最多240段、ID唯一；端点必须在画布内、长度至少12、厚度2–24、高度8–100，finish仅solid/glass。门洞宽度至少12，沿墙长的offset指定中心，两端至少各留6。提供方在保存时校验并原样回读；缺省表示没有独立墙段，兼容既有布局。
+
+墙段只是几何，不授予成员权限、不改变房间频道成员或自动创建房间权限范围。角色、范围继续由企业提供。客户端允许连续点选/拖拽、Shift对齐45度、端点吸附、节点联动、整段移动、取消和删除；Enter/Esc结束绘制。空办公室首次画墙时创建开放的家具承载区域，外围墙由画布负责；既有模板房间可在草稿一键开放边界，家具和成员分配保留。正式发布仍须layout.edit与布局revision校验。
