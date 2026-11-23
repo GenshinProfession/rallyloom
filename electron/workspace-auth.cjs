@@ -224,6 +224,8 @@ function validateBootstrap(raw, binding, log) {
   const visibleTeam = raw.permissions.includes('team.view') ? raw.team : raw.team.filter(({ id }) => id === raw.member_id)
   const visibleIds = new Set(visibleTeam.map(({ id }) => id))
   const assignments = Object.fromEntries(Object.entries(layout.assignments).filter(([id]) => visibleIds.has(id)))
+  if (layout.seatAssignments !== undefined && (!object(layout.seatAssignments) || Object.entries(layout.seatAssignments).some(([id,index]) => !Object.hasOwn(layout.assignments,id) || !Number.isInteger(index) || index<0 || index>=60))) fail('layout.seatAssignments 包含无效座位索引')
+  const seatAssignments=Object.fromEntries(Object.entries(layout.seatAssignments??{}).filter(([id])=>visibleIds.has(id)))
   if (!object(raw.dataSlots)) fail('dataSlots 应为对象（可为空 {}）')
   const origin = new URL(binding.baseUrl).origin
   const dataSlots = Object.fromEntries(Object.entries(raw.dataSlots).flatMap(([roomId, slot]) => {
@@ -246,7 +248,7 @@ function validateBootstrap(raw, binding, log) {
         roleId: member.roleId ?? member.role,
         roleName: member.roleName ?? member.role,
         memberActions: undefined,
-      })), collaboration: raw.collaboration, policy: raw.policy, layout: { ...layout, assignments }, dataSlots,
+      })), collaboration: raw.collaboration, policy: raw.policy, layout: { ...layout, assignments, seatAssignments }, dataSlots,
       datasource: { kind: 'oa-rest', baseUrl: binding.baseUrl, apiVersion: 'v1', region: '', useLoginToken: true },
     },
   }

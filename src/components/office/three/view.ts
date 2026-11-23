@@ -9,6 +9,7 @@ import { buildOfficeWorld, type OfficeMode } from './world'
 import type { GmvDisplay } from './gmv-screen'
 
 export interface OfficeViewState {
+  seatLocked?: boolean
   selectedFurniture?: string
   seats?: readonly SeatPresence[]
   selectedRoom: string | null
@@ -237,6 +238,9 @@ export function createOfficeView(
     }
   }
 
+  let cameraTarget: THREE.Vector3 | undefined
+  let cameraZoom: number | undefined
+  let cameraMoving = false
   function updateCamera() {
     const { selectedRoom, zoom, walking } = view
     const modelHeight = layout.height * direction.y + 72
@@ -254,10 +258,15 @@ export function createOfficeView(
       const myRoom = roster.get(focus.room.id)?.some((member) => member.id === meId)
       target.lerp(myRoom && world.mySeat ? world.mySeat : selection, amount)
     }
-    camera.position.copy(target).addScaledVector(direction, 1320)
-    camera.lookAt(target)
+    if(view.seatLocked && world.mySeat)target.copy(world.mySeat)
+    const desiredZoom=fit * zoom / 100
+    if(!cameraTarget || reducedMotion.matches){cameraTarget=target.clone();cameraZoom=desiredZoom}
+    cameraTarget.lerp(target,.22);cameraZoom=THREE.MathUtils.lerp(cameraZoom??desiredZoom,desiredZoom,.22)
+    cameraMoving=cameraTarget.distanceTo(target)>.03||Math.abs(cameraZoom-desiredZoom)>.0001
+    camera.position.copy(cameraTarget).addScaledVector(direction, 1320)
+    camera.lookAt(cameraTarget)
     Object.assign(camera, { left: -width / 2, right: width / 2, top: height / 2, bottom: -height / 2 })
-    camera.zoom = fit * zoom / 100
+    camera.zoom = cameraZoom
     camera.updateProjectionMatrix()
     camera.updateMatrixWorld()
   }
@@ -313,7 +322,7 @@ export function createOfficeView(
         destination,
       } : undefined,
     })
-    if (walking && walkPhase === 'moving') schedule()
+    if (cameraMoving || (walking && walkPhase === 'moving')) schedule()
   }
 
   function schedule() {
@@ -357,9 +366,9 @@ export function createOfficeView(
       view = next
       schedule()
     },
-    pickSeat(x: number, y: number) {
+    pickSeat(x: number, y: number, radius=18) {
       const nearest = world.seatTargets.map(seat => { const at = project(seat.position); return { seat, distance: at.visible ? Math.hypot(at.left - x, at.top - y) : Infinity } }).sort((a,b) => a.distance - b.distance)[0]
-      return nearest && nearest.distance < 18 ? nearest.seat : undefined
+      return nearest && nearest.distance < radius ? nearest.seat : undefined
     },
     pick(x: number, y: number): string | null {
       if (!width || !height) return null

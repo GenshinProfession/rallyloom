@@ -41,3 +41,25 @@ test('oversized or diagonally oversized furniture cannot be accepted as fitting 
  assert.equal(furnitureFits({id:'desk',kind:'desk',x:.5,y:.5,rotation:0,size:{width:150,depth:50}},room),false)
  assert.equal(furnitureFits({id:'desk',kind:'desk',x:.5,y:.5,rotation:45,size:{width:90,depth:90}},room),false)
 })
+
+const materializedModule=url(source('template-furniture.ts').replace("from './placed-furniture'",`from '${placed}'`))
+const {partitionRoom}=await import(url(source('partition-room.ts').replace("from './placed-furniture'",`from '${placed}'`).replace("from './template-furniture'",`from '${materializedModule}'`)))
+const {seatOrder}=await import(url(source('seat-order.ts')))
+test('partitions share an exact boundary and preserve furniture positions, sizes and seat directions',()=>{
+ const room={id:'r',name:'Office',template:'room-shell',frame:{x:30,y:20,width:600,height:400},useTemplateFurniture:false,furniture:[{id:'left',kind:'workstation',x:.2,y:.5,rotation:90},{id:'right',kind:'sofa',x:.8,y:.5,rotation:0}]}
+ const [left,right]=partitionRoom(room,'vertical',330,'new')
+ assert.equal(left.frame.x+left.frame.width,right.frame.x);assert.equal(left.frame.width+right.frame.width,room.frame.width)
+ assert.equal(left.furniture[0].id,'left');assert.equal(right.furniture[0].id,'right');assert.equal(left.seats[0].rotation,90)
+ assert.equal(left.furniture[0].x*left.frame.width+left.frame.x,room.furniture[0].x*room.frame.width+room.frame.x)
+ assert.equal(right.furniture[0].x*right.frame.width+right.frame.x,room.furniture[1].x*room.frame.width+room.frame.x)
+ assert.equal(left.walls.east,'solid');assert.equal(right.walls.west,'solid');assert.equal(left.door.side,'west');assert.equal(right.door.side,'west')
+ assert.equal(room.furniture.length,2)
+ assert.throws(()=>partitionRoom(room,'vertical',100,'new'))
+ assert.throws(()=>partitionRoom(room,'vertical',150,'new'),/家具/)
+ const parts=partitionRoom({...room,furniture:[]},'horizontal',220,'lower');assert.equal(parts[0].frame.y+parts[0].frame.height,parts[1].frame.y)
+})
+test('explicit seat reservation fills only vacant indexes for legacy members',()=>{
+ const result=seatOrder([{id:'old'},{id:'pinned'},{id:'last'}],3,{pinned:0})
+ assert.deepEqual(result.map(member=>member?.id),['pinned','old','last'])
+ assert.deepEqual(seatOrder([{id:'one'}],0,{one:2}),[])
+})

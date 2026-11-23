@@ -3,6 +3,7 @@ import type { SeatPresence } from '../seat-presence'
 import type { Member } from '@/data/office'
 import { WALL_THICKNESS, type OfficeLayout, type ResolvedRoom } from '../rooms/api'
 import { sharedWallRuns } from '../rooms/shared-walls'
+import { seatOrder } from '../rooms/seat-order'
 import { officeChair } from '../rooms/furniture'
 import { buildPlacedFurniture } from '../rooms/placed-furniture'
 import { createModelKit, type ModelKit } from './model'
@@ -104,6 +105,27 @@ export function buildOfficeWorld(
   const foundation = model.box(scene, center.x, -.8, center.z, width + 18, .7, height + 18, '#eeefeb')
   foundation.castShadow = false
 
+  // The office has one perimeter; room shells add the internal partitions.
+  // Omit covered runs to avoid doubling walls around rooms touching the perimeter.
+  for (const side of ['north', 'south', 'west', 'east'] as const) {
+    const horizontal = side === 'north' || side === 'south'
+    const length = horizontal ? width : height
+    const intervals = rooms.filter(room => room.template !== 'empty' && (
+      side === 'north' ? room.frame.y === 0 : side === 'south' ? room.frame.y + room.frame.height === height
+        : side === 'west' ? room.frame.x === 0 : room.frame.x + room.frame.width === width
+    )).map(room => horizontal ? [room.frame.x, room.frame.x + room.frame.width] : [room.frame.y, room.frame.y + room.frame.height])
+    let cursor = 0
+    for (const [start, end] of [...intervals, [length, length]].sort((a,b)=>a[0]-b[0])) {
+      if (start > cursor) {
+        const middle = (cursor + start) / 2, wallHeight = side === 'north' ? 34 : 16
+        solids.push(model.box(scene, horizontal ? middle : side === 'east' ? width : 0, 0,
+          horizontal ? side === 'south' ? height : 0 : middle,
+          horizontal ? start - cursor : WALL_THICKNESS, wallHeight, horizontal ? WALL_THICKNESS : start - cursor, WALL_COLOR))
+      }
+      cursor = Math.max(cursor, end)
+    }
+  }
+
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(width * 4, height * 4), new THREE.ShadowMaterial({ opacity: .12 }))
   ground.rotation.x = -Math.PI / 2
   ground.position.set(center.x, BASE_LEVEL - .2, center.z)
@@ -172,6 +194,7 @@ export function buildOfficeWorld(
     highlights.set(room.id, selection)
 
     const roomMembers = roster.get(room.id) ?? []
+    const orderedMembers = seatOrder(roomMembers,room.seats.length,layout.seatAssignments)
     roomAnchors.push({
       room,
       position: new THREE.Vector3(frame.x + 12, room.appearance.display === 'gmv' ? 55 : 28, frame.y + 5),
@@ -191,7 +214,7 @@ export function buildOfficeWorld(
       solids.push(seatModel)
       roomStatics.push(seatModel)
       const occupied = presence.find(value => value.seated && value.roomId === room.id && value.seatIndex === index)
-      const original = roomMembers[index]
+      const original = orderedMembers[index]
       const candidate = occupied ? allMembers.get(occupied.memberId) : original && !overrides.has(original.id) ? original : undefined
       const member = candidate && (candidate.presence !== 'offline' || candidate.id === meId) ? { ...candidate, roomId: room.id } : undefined
       seatTargets.push({ roomId: room.id, seatIndex: index, position: new THREE.Vector3(frame.x + x, 18, frame.y + z), occupant: member?.id ?? occupied?.memberId })

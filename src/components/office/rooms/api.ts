@@ -90,6 +90,8 @@ export interface FurniturePlacement {
 }
 
 export interface OfficeLayout {
+  /** Optional explicit seat index for members already present in assignments. */
+  seatAssignments?: Record<string, number>
   width: number
   height: number
   rooms: readonly RoomPlacement[]

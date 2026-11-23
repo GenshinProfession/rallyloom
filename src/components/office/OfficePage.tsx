@@ -1,6 +1,6 @@
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AtSign, Inbox, LocateFixed, Maximize, MessageCircle, Minus, Plus, MoreHorizontal, Pencil, Armchair, LayoutTemplate } from 'lucide-react'
+import { AtSign, Inbox, Maximize, Minus, Plus, MoreHorizontal, Pencil, LockKeyhole, UnlockKeyhole } from 'lucide-react'
 import { oa } from '@/lib/oa/clients'
 import { validateSeatPresence, type SeatPresence } from './seat-presence'
 import type { WorkspaceSearchItem } from '@/components/WorkspaceSearch'
@@ -9,12 +9,11 @@ import { SelectionHighlight } from '@/components/ui/selection-highlight'
 import type { Member } from '@/data/office'
 import type { TeamMember } from '@/lib/identity/types'
 import type { DataSlots, LayoutState } from '@/lib/store/types'
-import { GENERAL_CHANNEL_ID, roomChannelId, type ChatChannel, type ChatClient, type ChatMessage, type ChatPerson } from '@/lib/chat/types'
+import { roomChannelId, type ChatChannel, type ChatClient, type ChatMessage, type ChatPerson } from '@/lib/chat/types'
 import { OfficeQuickChat } from './OfficeQuickChat'
 import { OfficeScene } from './OfficeScene'
 import { OfficeLayoutEditor } from './OfficeLayoutEditor'
 import { OfficeSeatAssignments } from './OfficeSeatAssignments'
-import { OfficeReferencePreview } from './OfficeReferencePreview'
 import { OfficeWorkPanel, type OfficeTaskDraft, type OfficeWorkAccess } from './OfficeWorkPanel'
 import { gmvMetric, useRoomMetrics } from './room-metrics'
 import { resolveOfficeLayout, roomTemplates } from './rooms'
@@ -90,7 +89,8 @@ export function OfficePage({
   const [personal, setPersonal] = useState(false)
   const [editingOpen, setEditingOpen] = useState(false)
   const [assigningSeats, setAssigningSeats] = useState(false)
-  const [referenceOpen, setReferenceOpen] = useState(false)
+  const [seatLocked, setSeatLocked] = useState(false)
+  const [assignmentTarget,setAssignmentTarget] = useState<{roomId:string;seatIndex:number}>()
   const [tabRequest, setTabRequest] = useState<{ tab: 'work' | 'overview'; sequence: number }>()
   const workButton = useRef<HTMLButtonElement>(null)
   const request = useRef(0)
@@ -130,7 +130,6 @@ export function OfficePage({
   const mentionedRooms = useMemo(() => new Set(rooms
     .filter(({ id }) => chat?.mentions.has(roomChannelId(id)))
     .map(({ id }) => id)), [chat?.mentions, rooms])
-  const generalMention = chat?.mentions.get(GENERAL_CHANNEL_ID)
   const privateMention = [...(chat?.mentions.values() ?? [])].filter(({ channelId }) => channelId.startsWith('direct:')).at(-1)
 
   function previewRoom(roomId: string, anchor: HTMLElement) {
@@ -174,13 +173,14 @@ export function OfficePage({
   }
   const roster = useMemo(() => {
     const byRoom = new Map<string, Member[]>()
-    for (const member of members) {
+    const order=new Map(Object.keys(layout.assignments).map((id,index)=>[id,index]))
+    for (const member of [...members].sort((a,b)=>(order.get(a.id)??Infinity)-(order.get(b.id)??Infinity))) {
       const group = byRoom.get(member.roomId) ?? []
       group.push(member.id === meSeatId ? { ...member, name: meName } : member)
       byRoom.set(member.roomId, group)
     }
     return byRoom
-  }, [meSeatId, meName, members])
+  }, [meSeatId, meName, members, layout.assignments])
   const present = members.filter(member => member.presence !== 'offline' && (member.roomId || seatStates.some(seat=>seat.memberId===member.id))).length
   const myRoom = rooms.find(room=>room.id===seatStates.find(seat=>seat.memberId===meSeatId)?.roomId) ?? rooms.find((room) => roster.get(room.id)?.slice(0, room.seats.length).some(({ id }) => id === meSeatId))
   const workRoom = personal ? undefined : rooms.find(({ id }) => id === selectedRoom)
@@ -196,37 +196,20 @@ export function OfficePage({
         <WorkspaceHeader className="office-header" title="办公室" description={workspaceName}>
           <div className="office-tools">
             {editing && <button type="button" className="office-tool ui-press" onClick={() => setEditingOpen(true)}><Pencil size={14} />编辑办公室</button>}
-            {chat && (
-              <button type="button" className="office-tool ui-press" data-general-quick data-mentioned={generalMention || undefined}
-                aria-haspopup="dialog" title="单击快速聊天 · 双击进入全员大厅"
-                onClick={(event) => {
-                  if (event.detail > 1) return
-                  setQuick({ channel: { id: GENERAL_CHANNEL_ID, name: '全员大厅', info: '团队公共频道' }, anchor: event.currentTarget, request: ++request.current })
-                  setChatError('')
-                }}
-                onDoubleClick={() => chat.openChannel(GENERAL_CHANNEL_ID)}
-              >
-                {generalMention ? <AtSign size={14} /> : <MessageCircle size={14} strokeWidth={1.7} />}
-                {generalMention ? (generalMention.mention === 'all' ? '全员大厅有全体提醒' : '全员大厅有人提到你') : '全员大厅'}
-              </button>
-            )}
+            {myRoom && <button type="button" className="office-tool ui-press office-seat-lock" aria-pressed={seatLocked} onClick={()=>{setSeatLocked(value=>!value);if(!seatLocked){selectRoom(myRoom.id);setFocusedMember(meSeatId);setZoom(140)}else setZoom(100)}}>{seatLocked?<LockKeyhole size={14}/>:<UnlockKeyhole size={14}/>}我的工位</button>}
             {chat && privateMention && <button type="button" className="office-tool ui-press" data-mentioned
               onClick={(event) => openMessage(privateMention.channelId, privateMention.id, event.currentTarget)}><AtSign size={14} /> 私聊中有人提到你</button>}
             <DropdownMenu>
               <DropdownMenuTrigger asChild><button ref={workButton} type="button" className="office-tool ui-press" aria-label="更多办公室操作"><MoreHorizontal size={16} />更多</button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {workEnabled && <DropdownMenuItem data-office-inbox onSelect={() => { setPersonal(true); revealTab('work') }}><Inbox size={14} />待我处理</DropdownMenuItem>}
-                {myRoom && <DropdownMenuItem onSelect={() => selectRoom(myRoom.id)}><LocateFixed size={14} />我的工位</DropdownMenuItem>}
-                {editing && <DropdownMenuItem onSelect={() => setAssigningSeats(true)}><Armchair size={14} />分配工位</DropdownMenuItem>}
-                <DropdownMenuItem onSelect={() => setReferenceOpen(true)}><LayoutTemplate size={14} />参考户型</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </WorkspaceHeader>
         {seatError && <p role="status" className="office-seat-error">{seatError}</p>}
-        {assigningSeats && editing && <OfficeSeatAssignments layout={layout} rooms={rooms} team={editing.team}
-          onSave={editing.publish} onClose={() => setAssigningSeats(false)} />}
-        {referenceOpen && <OfficeReferencePreview onClose={() => setReferenceOpen(false)} />}
+        {assigningSeats && editing && <OfficeSeatAssignments layout={layout} rooms={rooms} team={editing.team} target={assignmentTarget}
+          onSave={editing.publish} onClose={() => {setAssigningSeats(false);setAssignmentTarget(undefined)}} />}
 
         {layoutError ? (
           <div className="office-viewport">
@@ -247,7 +230,7 @@ export function OfficePage({
           slots={slots}
           selectedRoom={selectedRoom}
           onSelectRoom={selectRoom}
-          focusedMember={focusedMember}
+          focusedMember={seatLocked?meSeatId:focusedMember}
           meId={meSeatId}
           meName={meName}
           mode={mode}
@@ -256,6 +239,8 @@ export function OfficePage({
           seats={seatStates}
           onSeat={seatingEnabled && seatReady ? changeSeat : undefined}
           seatBusy={seatBusy}
+          seatLocked={seatLocked}
+          onAssignSeat={editing ? (roomId,seatIndex)=>{setAssignmentTarget({roomId,seatIndex});setAssigningSeats(true)}:undefined}
           mentionedRooms={mentionedRooms}
           gmv={gmv}
           onOpenGmv={gmv ? () => { selectRoom(gmv.roomId); revealTab('overview') } : undefined}
@@ -311,6 +296,7 @@ export function OfficePage({
             className="office-fit ui-press"
             type="button"
             onClick={() => {
+              setSeatLocked(false)
               selectRoom(null)
               setZoom(100)
             }}
@@ -322,11 +308,11 @@ export function OfficePage({
       </main>
 
       <OverviewPanel demo={demo} rooms={rooms} roster={roster} slots={slots} selectedRoom={selectedRoom} onSelectRoom={selectRoom}
-        focusedMember={focusedMember} onOpenRoomChat={chat ? openRoom : undefined} onPreviewRoomChat={chat ? previewRoom : undefined}
+        focusedMember={focusedMember}
         tabRequest={tabRequest} metrics={selectedRoom === gmvRoom?.id ? gmvMetrics : selectedMetrics}
         workPanel={workEnabled && work ? <OfficeWorkPanel access={work} room={workRoom} people={members} meSeatId={meSeatId}
           mentions={chat?.mentions} draft={taskDraft} onDraft={setTaskDraft} onMessage={openMessage}
-          onChat={chat && workRoom ? (event) => previewRoom(workRoom.id, event.currentTarget) : undefined} /> : undefined}
+ /> : undefined}
       />
     </>
   )

@@ -1,3 +1,4 @@
+import { seatOrder } from './rooms/seat-order'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -7,18 +8,20 @@ import type { ResolvedRoom } from './rooms/api'
 
 const MEMBER_DRAG = 'application/x-rallyloom-member'
 
-export function OfficeSeatAssignments({ layout, rooms, team, onSave, onClose }: {
+export function OfficeSeatAssignments({ layout, rooms, team, onSave, onClose, target }: {
+  target?: {roomId:string;seatIndex:number}
   layout: LayoutState
   rooms: readonly ResolvedRoom[]
   team: readonly TeamMember[]
   onSave: (next: LayoutState) => Promise<void>
   onClose: () => void
 }) {
+  const [selectedMember,setSelectedMember]=useState<string>()
   const [assignments, setAssignments] = useState(layout.assignments)
   const [query, setQuery] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [target, setTarget] = useState<string>()
+  const [dragTarget, setTarget] = useState<string>()
   const eligible = team.filter((member) => member.officeAssignable ?? Object.hasOwn(layout.assignments, member.id))
   const visible = eligible.filter((member) => member.displayName.toLowerCase().includes(query.trim().toLowerCase()))
   const seats = rooms.filter((room) => room.seats.length)
@@ -49,6 +52,25 @@ export function OfficeSeatAssignments({ layout, rooms, team, onSave, onClose }: 
     finally { setBusy(false) }
   }
 
+  if(target){
+    const room=rooms.find(row=>row.id===target.roomId)
+    const occupant=room?seatOrder(Object.keys(assignments).filter(id=>assignments[id]===room.id).flatMap(id=>{const member=team.find(value=>value.id===id);return member?[member]:[]}),room.seats.length,layout.seatAssignments)[target.seatIndex]:undefined
+    return <Dialog open onOpenChange={open=>{if(!open&&!busy)onClose()}}><DialogContent className="office-seat-picker"><DialogHeader><DialogTitle>分配工位</DialogTitle><DialogDescription>{room?.name} · 工位 {target.seatIndex+1}{occupant?` · 当前：${occupant.displayName}`:' · 当前空闲'}</DialogDescription></DialogHeader>
+      <input type="search" aria-label="搜索待分配成员" placeholder="搜索成员" value={query} onChange={event=>setQuery(event.target.value)}/>
+      <div className="office-seat-picker-list">{visible.map(member=><button type="button" key={member.id} aria-pressed={selectedMember===member.id} onClick={()=>setSelectedMember(member.id)}><span className="office-seat-picker-avatar">{member.displayName.slice(0,1)}</span><span><strong>{member.displayName}</strong><small>{member.attrs['公司']??''}</small></span><span>{selectedMember===member.id?'已选择':member.id===occupant?.id?'当前工位':''}</span></button>)}{!visible.length&&<p>没有可分配的成员。</p>}</div>
+      {occupant&&selectedMember&&occupant.id!==selectedMember&&<p className="office-seat-picker-note">保存后，{occupant.displayName} 将转为未分配。</p>}
+      {error&&<p role="alert" className="text-destructive">{error}</p>}
+      <DialogFooter><Button variant="outline" disabled={busy} onClick={onClose}>取消</Button><Button disabled={busy||!selectedMember||selectedMember===occupant?.id} onClick={async()=>{
+        if(!selectedMember)return
+        setBusy(true);setError('')
+        const assignments={...layout.assignments},seatAssignments={...layout.seatAssignments}
+        if(occupant){delete assignments[occupant.id];delete seatAssignments[occupant.id]}
+        assignments[selectedMember]=target.roomId;seatAssignments[selectedMember]=target.seatIndex
+        try{await onSave({...layout,assignments,seatAssignments});onClose()}catch(cause){setError(cause instanceof Error?cause.message:'保存失败')}finally{setBusy(false)}
+      }}>{busy?'正在保存…':'确认分配'}</Button></DialogFooter>
+    </DialogContent></Dialog>
+  }
+
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose() }}>
     <DialogContent className="max-h-[85vh] w-[calc(100vw-32px)] max-w-[690px] overflow-y-auto rounded-xl">
       <DialogHeader>
@@ -57,7 +79,7 @@ export function OfficeSeatAssignments({ layout, rooms, team, onSave, onClose }: 
       </DialogHeader>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="office-seat-targets">
-        {[{ id: '', name: '未分配' }, ...seats].map((room) => <div key={room.id} data-target={target === room.id}
+        {[{ id: '', name: '未分配' }, ...seats].map((room) => <div key={room.id} data-target={dragTarget === room.id}
           onDragOver={(event) => {
             if (busy || !event.dataTransfer.types.includes(MEMBER_DRAG)) return
             event.preventDefault()

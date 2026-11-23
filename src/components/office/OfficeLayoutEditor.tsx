@@ -1,4 +1,4 @@
-import { X, Upload, Layers3, Box, RotateCw, Copy, Trash2, SlidersHorizontal, Plus } from 'lucide-react'
+import { X, Upload, Layers3, Box, RotateCw, Copy, Trash2, SlidersHorizontal, Plus, BetweenHorizontalStart, MousePointer2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -7,7 +7,7 @@ import { OfficeAssetLibrary } from './OfficeAssetLibrary'
 import type { OfficeResizeTarget } from './OfficeResizeHandle'
 import { OfficeScene, type OfficeSceneControls } from './OfficeScene'
 import { OfficeRoomSurfaces } from './OfficeRoomSurfaces'
-import { referenceOffice } from './reference-layout'
+import { partitionRoom } from './rooms/partition-room'
 import { snapRoom } from './rooms/snap-room'
 import { getRoomDoorway, resolveOfficeLayout, roomTemplates, type RoomPlacement } from './rooms'
 import type { FurnitureKind, RoomFrame } from './rooms/api'
@@ -47,7 +47,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [confirmEmpty, setConfirmEmpty] = useState(false)
-  const [confirmReference, setConfirmReference] = useState(false)
+  const [wallTool,setWallTool] = useState(false)
   const selected = draft.rooms.find((room) => room.id === selection)
   const selectedItem = selected?.furniture?.find((item) => item.id === furnitureSelection)
   const workstationGrid = selected ? deskGrid(selected.frame) : null
@@ -81,6 +81,20 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
     }))
   }, [layout.assignments, validation.rooms])
   const assignmentsReleased = Object.keys(layout.assignments).length - Object.keys(publishedAssignments).length
+
+  useEffect(()=>{const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')setWallTool(false)};window.addEventListener('keydown',escape);return()=>window.removeEventListener('keydown',escape)},[])
+  function drawPartition(start:FloorPoint,end:FloorPoint){
+    if(busy||draft.rooms.length>=80)return
+    const room=roomAt(start) ?? (draft.rooms.length===0?{id:crypto.randomUUID(),name:'办公室',template:'room-shell',frame:{x:0,y:0,width:draft.width,height:draft.height},furniture:[],useTemplateFurniture:false}:undefined)
+    if(!room){setMessage('请从一个房间内部开始划分隔墙。');return}
+    const axis=Math.abs(end.x-start.x)>Math.abs(end.y-start.y)?'horizontal':'vertical'
+    try {
+      const appearance=validation.rooms.find(candidate=>candidate.id===room.id)
+      const parts=partitionRoom({...room,floor:room.floor??appearance?.floor,accent:room.accent??appearance?.accent},axis,axis==='vertical'?start.x:start.y,crypto.randomUUID())
+      setDraft(current=>({...current,rooms:current.rooms.length?current.rooms.flatMap(candidate=>candidate.id===room.id?parts:[candidate]):parts}))
+      selectRoom(parts[1].id);setMessage('')
+    }catch(error){setMessage(error instanceof Error?error.message:'无法划分这个房间。')}
+  }
 
   function updateRoom(id: string, update: (room: RoomPlacement) => RoomPlacement) {
     setDraft((current) => ({ ...current, rooms: current.rooms.map((room) => room.id === id ? (()=>{const next=update(room);return next.useTemplateFurniture===false?{...next,seats:furnitureSeats(next)}:next})() : room) }))
@@ -119,6 +133,9 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
     const sourceRoom = 'roomId' in source ? draft.rooms.find((room) => room.id === source.roomId) : undefined
     if (source.kind === 'room' || source.kind === 'new-room') {
       if (source.kind === 'room' && (!sourceRoom || !origin)) return null
+      const underPointer = source.kind === 'new-room' ? roomAt(point) : undefined
+      const replacement = underPointer?.template === 'room-shell' && !underPointer.furniture?.length ? underPointer : undefined
+      if(replacement) return {kind:'room',frame:replacement.frame,valid:true}
       const previous = sourceRoom?.frame
       const { width, height } = previous ?? NEW_ROOM_SIZE
       const x = previous && origin ? previous.x + point.x - origin.x : point.x - width / 2
@@ -167,7 +184,11 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
     }
     setMessage('')
     if (placement.kind === 'room') {
-      if (source.kind === 'new-room') insertRoom(source.template as keyof typeof OFFICE_TEMPLATES, placement.frame)
+      if (source.kind === 'new-room') {
+        const target=draft.rooms.find(room=>room.template==='room-shell'&&!room.furniture?.length&&Object.entries(room.frame).every(([key,value])=>placement.frame[key as keyof RoomFrame]===value))
+        if(target) applyPreset(target,source.template as keyof typeof OFFICE_TEMPLATES)
+        else insertRoom(source.template as keyof typeof OFFICE_TEMPLATES, placement.frame)
+      }
       if (source.kind === 'room') {
         updateRoom(source.roomId, (room) => ({ ...room, frame: placement.frame }))
         selectModel(source)
@@ -248,6 +269,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
 
   function addRoom(template: keyof typeof OFFICE_TEMPLATES) {
     if (busy || draft.rooms.length >= 80) return
+    if(selected?.template==='room-shell'&&!selected.furniture?.length){applyPreset(selected,template);return}
     const { width, height } = NEW_ROOM_SIZE
     for (let y = 0; y + height <= draft.height; y += 20) {
       for (let x = 0; x + width <= draft.width; x += 20) {
@@ -256,6 +278,11 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
       }
     }
     setMessage('画布没有足够的空位。请扩大画布或调整现有房间。')
+  }
+
+  function applyPreset(room:RoomPlacement,template:keyof typeof OFFICE_TEMPLATES){
+    updateRoom(room.id,previous=>materializeRoom({...previous,template,useTemplateFurniture:undefined,seats:undefined,furniture:[]},roomTemplates.get(template)!))
+    selectRoom(room.id);setMessage('')
   }
 
   function removeRoom(id: string) {
@@ -277,7 +304,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
     }
     setBusy(true)
     setMessage('')
-    try { await onPublish({ ...draft, assignments: publishedAssignments }); onClose() }
+    try { await onPublish({ ...draft, assignments: publishedAssignments, seatAssignments:Object.fromEntries(Object.entries(draft.seatAssignments??{}).filter(([id,index])=>publishedAssignments[id] && index<(draft.rooms.find(room=>room.id===publishedAssignments[id])?.seats?.length??0))) }); onClose() }
     catch (error) { setMessage(error instanceof Error ? error.message : '发布失败，请重试。') }
     finally { setBusy(false) }
   }
@@ -305,23 +332,16 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
               <button type="button" disabled={busy || !draft.rooms.length} onClick={() => {
                 setDraft({ ...draft, rooms: [] }); setSelection(undefined); setFurnitureSelection(undefined); setMessage('')
               }}>清空草稿</button>
-              <button type="button" disabled={busy} onClick={() => {
-                if (draft.rooms.length && !confirmReference) { setConfirmReference(true); return }
-                const reference = referenceOffice()
-                setDraft({ ...reference,rooms:reference.rooms.map(room=>materializeRoom(room,roomTemplates.get(room.template)!)), revision: draft.revision })
-                selectRoom('ref-open')
-                setConfirmReference(false)
-                setMessage('')
-              }}>{confirmReference ? '确认替换为参考户型' : '参考户型'}</button>
-              {confirmReference && <button type="button" onClick={() => setConfirmReference(false)}>取消替换</button>}
+              <button type="button" aria-pressed={!wallTool} onClick={()=>setWallTool(false)}><MousePointer2 size={14}/>选择</button>
+              <button type="button" aria-pressed={wallTool} onClick={()=>setWallTool(true)}><BetweenHorizontalStart size={14}/>划分隔墙</button>
             </div>
-            {confirmReference && <p className="office-editor-seat-notice">此操作会替换当前草稿的房间和家具，发布后生效。</p>}
+            {wallTool && <p className="office-editor-seat-notice">在房间内拖出横向或纵向隔墙，自动划分两个相邻房间。空画布可直接开始划分；Esc 退出。</p>}
             <div className="office-editor-preview" data-office-editor-3d>
               <OfficeScene layout={draft} rooms={validation.rooms} roster={emptyRoster} slots={{}}
                 selectedRoom={selection ?? null}
                 onSelectRoom={(id) => selectRoom(id ?? undefined)}
                 focusedMember={null} meId={null} meName="" mode="daily" zoom={sceneZoom} walking={false}
-                editing={{ selectedFurniture:furnitureSelection, controls: sceneControls, disabled: busy, resize: resizeTargets, plan: planModel,
+                editing={{ wallTool, partition:drawPartition, selectedFurniture:furnitureSelection, controls: sceneControls, disabled: busy, resize: resizeTargets, plan: planModel,
                   commit: commitModel, select: selectModel,
                 }} />
             </div>

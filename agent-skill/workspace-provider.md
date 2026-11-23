@@ -25,7 +25,7 @@
 
 房间可用 `seats` 覆盖模板工位。每项为 `{"x":0.3,"y":0.6,"facing":"north"}`，坐标为房间内 0–1，朝向可省略或使用 `north`、`south`。省略数组时使用模板默认值，空数组表示零工位，最多 60 项。办公桌模板按这些工位生成桌和椅，提供方应拒绝超过显式工位容量的分配。
 
-`template: "empty"` 表示没有墙、模板家具和默认工位的空区域，可以摆放自定义家具。可选的 `floorMaterial` 接受 `wood`、`tile`、`concrete`、`quartz`（暖白石英）或 `terrazzo`（浅灰水磨石），可与可选的 `floor` 颜色一起保存，省略材质时使用模板默认值。
+`template: "empty"` 仅为兼容旧布局保留（无墙、无模板家具、零默认工位），不再作为素材入口。新布局用 `room-shell` 空白有墙房间；客户端默认渲染画布外围墙并将拖出的隔墙保存为边界相邻的矩形房间，共享墙只渲染一次。可选的 `floorMaterial` 接受 `wood`、`tile`、`concrete`、`quartz`（暖白石英）或 `terrazzo`（浅灰水磨石），可与可选的 `floor` 颜色一起保存，省略材质时使用模板默认值。
 
 可选的 `door` 设定出入口。例如 `{"side":"east","offset":0.35,"width":42}` 表示右墙从上到下 35% 处、宽 42 的门洞。`side` 支持 `north`、`east`、`south`、`west`；`offset` 为沿墙长度的 0–1 坐标；门洞两端各至少保留 6 个场景单位。省略时使用模板默认门洞。
 
@@ -55,3 +55,10 @@ Bootstrap 可返回 `collaboration:{version:1,scopes:[{id,label}]}` 和提供方
 ### 独立家具与空白房间
 
 `room-shell` 是只有墙和出入口的空白房间，与无墙的 `empty` 区分。模板是初始布局预设：客户端可将旧模板转换为 `useTemplateFurniture:false` 和逐件家具，保留家具的独立ID、尺寸及位置。`furniture[].kind` 包含 `desk,shelf,plant,sofa,coffee,lamp,workstation,chair,meeting-table,round-table,coffee-table,counter,cabinet,display-shelf,clothes-rack,rug,partition,screen,studio-light,camera,carton,printer,trolley,microwave,sink,cup,notebook,monitor`。可选 `size:{width,depth,height?}` 范围1–800；`color` 为六位十六进制；`elevation` 为0–200。提供方须原样保存与回读。`seats[].rotation` 可选0至小于360，表示可旋转座椅的朝向，与家具同步。移动/删除工位会更新 seats，仍须通过已分配人数校验。调整房间边界不缩放家具，不因模版名限制家具类型。
+
+
+### 精确工位分配
+
+布局可选 `seatAssignments: {"member-id": 1}` 指定成员在 `assignments[member-id]` 房间内的零起始工位索引。不改变成员角色、房间频道授权或日常入座能力。提供方须校验成员已在 assignments、索引为整数且小于房间容量、同房间索引不重复；未指定索引的旧分配按 assignments 成员顺序填补剩余空位。目录裁剪时必须同时裁剪 assignments 和 seatAssignments。保存沿用 layout.edit 与布局 revision 乐观锁，换版后日常临时座位状态失效。
+
+右键工位可分配该位置、本人入座/离座，右键其他在岗成员可发起私聊；群聊入口集中在右键和交流室，办公室不提供全员大厅入口。替换已分配成员时在保存前明确显示转为未分配的提示。模板和隔墙仍使用已有 room-shell、frame、walls、door、furniture、seats 字段，不需要企业专有分区接口。

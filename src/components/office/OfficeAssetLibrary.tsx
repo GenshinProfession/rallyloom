@@ -6,7 +6,7 @@ import type { FurnitureKind } from './rooms/api'
 import { OFFICE_TEMPLATES } from './office-assets'
 import { createAssetPreviewRenderer, officePreview, previewKey, type OfficeAsset } from './three/asset-previews'
 
-const roomAssets: OfficeAsset[] = Object.keys(OFFICE_TEMPLATES).map((id) => ({ kind: 'room', id }))
+const roomAssets: OfficeAsset[] = Object.keys(OFFICE_TEMPLATES).filter(id => id !== 'empty').map((id) => ({ kind: 'room', id }))
 const furnitureAssets: OfficeAsset[] = (Object.keys(FURNITURE) as FurnitureKind[]).map((id) => ({ kind: 'furniture', id }))
 
 export function OfficeAssetLibrary({ disabled, onDrag, onAdd }: {
