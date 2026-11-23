@@ -41,6 +41,7 @@ const status=await win.webContents.executeJavaScript('('+ (async()=>{
   nav('任务看板')
   await wait(()=>document.querySelector('[data-task-row]'),'tasks')
   if(document.querySelectorAll('[data-status]').length!==4)throw Error('columns')
+  await pause(400) // Wait for the page transition before measuring native pointer coordinates.
   const card=document.querySelector('[data-task-row]'),r=card.getBoundingClientRect()
   window.__drag={id:card.dataset.taskRow,x:r.left+65,y:r.top+45,left:r.left,top:r.top}
   return 'PASS document right pane, persistent navigation, fullscreen read/edit preserves draft; board ready'
@@ -60,9 +61,14 @@ const overlay=await win.webContents.executeJavaScript('(()=>{const e=document.qu
 if(!overlay || Math.abs(overlay.left-(d.left+130))>5 || Math.abs(overlay.top-(d.top+120))>5)throw Error('drag offset '+JSON.stringify({overlay,expected:{left:d.left+130,top:d.top+120}}))
 const target=await win.webContents.executeJavaScript('(()=>{const r=document.querySelectorAll("[data-status]")[2].getBoundingClientRect();return {x:r.left+80,y:r.top+65}})()')
 await mouse('mouseMoved',target.x,target.y,true)
-await new Promise(r=>setTimeout(r,120))
+for(let attempt=0;attempt<60;attempt++){
+ const ready=await win.webContents.executeJavaScript('document.querySelector("[data-status=doing] [data-drop-placeholder]")!==null')
+ if(ready)break
+ if(attempt===59)throw Error('target did not show drop feedback')
+ await new Promise(r=>setTimeout(r,50))
+}
 await mouse('mouseReleased',target.x,target.y)
-await new Promise(r=>setTimeout(r,300))
+await new Promise(r=>setTimeout(r,1000))
 const moved=await win.webContents.executeJavaScript('document.querySelector("[data-task-row=\\"'+d.id+'\\"]").closest("[data-status]").dataset.status')
 if(moved!=='doing')throw Error('move failed '+moved)
 

@@ -194,6 +194,7 @@ function validateBootstrap(raw, binding, log) {
   }
   if (!Array.isArray(raw.permissions) || !raw.permissions.every(validText)) fail('permissions 应为字符串数组（至少包含 office.view）')
   if (!raw.permissions.includes('office.view')) fail('permissions 缺少 office.view（没有进入办公室的权限）')
+  if (!object(raw.tenant) || !validText(raw.tenant.name) || raw.tenant.name.length > 200) fail('tenant.name 应为200字以内的当前区域名称')
   if (!validId(raw.member_id)) fail('member_id 缺失，或不是非空字符串')
   if (!Array.isArray(raw.team)) fail('team 应为成员数组')
   for (const [index, member] of raw.team.entries()) {
@@ -236,7 +237,7 @@ function validateBootstrap(raw, binding, log) {
     snapshot: {
       // 租户上下文：formal 模式由服务端绑定决定（workspace_id + display_name），
       // 客户端不可选择 —— 与 demo 模式的演示租户共用同一契约字段。
-      tenant: { id: binding.workspace_id, name: binding.display_name },
+      tenant: { id: binding.workspace_id, name: raw.tenant.name },
       team: visibleTeam.map((member) => ({
         ...member,
         roleId: member.roleId ?? member.role,

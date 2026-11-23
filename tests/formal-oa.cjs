@@ -7,5 +7,6 @@ for(const role of ['platform','employee']){
  const run=spawnSync(require('electron'),['--user-data-dir='+path.join(fixture,'profile'),path.join(fixture,'main.cjs')],{env,timeout:45000,windowsHide:true,stdio:'ignore'})
  const report=fs.existsSync(path.join(fixture,'result.txt'))?fs.readFileSync(path.join(fixture,'result.txt'),'utf8'):'No report'
  console.log(role+': '+report)
+ console.log('Evidence: '+path.join(fixture,'toolbar.png'))
  if(run.error||!report.startsWith('PASS')){process.exitCode=1;break}
 }

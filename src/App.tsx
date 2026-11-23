@@ -142,9 +142,9 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
   // 集团视图（可选管辖层）：平台运维轴登录后的只读跨租户控制台。
   const isGroup = demo && entry.snapshot.tenant.id === 'group'
   const groupName = isGroup ? (entry.snapshot.tenant.name) : ''
-  // 工作区名即租户名：formal 由服务端 display_name 决定；demo 由快照 tenant 决定
-  const workspaceName = entry.mode === 'formal' ? entry.binding.display_name : entry.snapshot.tenant.name
   const [snapshot, applySnapshot] = useState(entry.snapshot)
+  // The provider supplies the signed-in organizational context; binding names identify the installation only.
+  const workspaceName = snapshot.tenant.name
   const [permissions, setPermissions] = useState(entry.mode === 'formal' ? entry.permissions : [])
   const applyJoined = useCallback((updated: JoinedWorkspace) => {
     applySnapshot(updated.snapshot)

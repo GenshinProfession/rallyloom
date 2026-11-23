@@ -9,8 +9,11 @@ app.whenReady().then(async()=>{
  await wait(()=>document.querySelector('[data-nav=tasks]'),'formal task nav')
  if(document.body.textContent.includes('所有者'))throw Error('demo role name leaked into formal sidebar')
  if(!document.body.textContent.includes('平台超管') && !document.body.textContent.includes('员工'))throw Error('provider role name missing')
+ if(!document.querySelector('button[title="平台总部"]')&&!document.querySelector('button[title="研发分公司"]'))throw Error('provider region name missing');
  nav('tasks');await wait(()=>document.querySelector('[data-task-row]'),'formal tasks')
  if(!document.body.textContent.includes('企业自定义流程'))throw Error('provider board ignored')
+ const toolbar=document.querySelector('[data-task-toolbar]');const controls=[...toolbar.querySelectorAll('button')];if(controls.some(b=>Math.abs(b.getBoundingClientRect().height-(b.getAttribute('role')==='tab'?28:32))>1))throw Error('toolbar heights are inconsistent');for(const label of ['刷新','看板设置','新建任务']){const b=controls.find(b=>b.textContent===label);if(b&&!b.querySelector('svg'))throw Error('toolbar action missing icon: '+label)}
+
  document.querySelector('[data-task-row]').click();await wait(()=>document.querySelector('[role=dialog]'),'task detail')
  document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await pause(100)
  if(document.querySelector('[data-nav=team]')){nav('team');await wait(()=>document.querySelector('[data-team-directory]'),'read-only team directory');const headings=[...document.querySelectorAll('th')].map(t=>t.textContent);if(headings.includes('邮箱')||headings.includes('公司')||headings.includes('工作区角色')||headings.includes('账号角色')||headings.includes('管理'))throw Error('empty or local role columns shown');if(!headings.includes('角色'))throw Error('provider role missing');for(const label of ['设置角色','角色映射','房间工作看板','移出工作区'])if(document.body.textContent.includes(label))throw Error('directory still manages identity: '+label);
@@ -32,8 +35,10 @@ app.whenReady().then(async()=>{
   [...document.querySelectorAll('button')].find(b=>b.textContent==='模板设置').click();await wait(()=>document.querySelector('input[aria-label="模板名称"]'),'report template editor');const name=document.querySelector('input[aria-label="模板名称"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(name,'企业交接记录');name.dispatchEvent(new Event('input',{bubbles:true}));await pause(100);[...document.querySelectorAll('button')].find(b=>b.textContent==='保存模板').click();await wait(()=>!document.querySelector('[role=dialog]'),'template saved');if(!document.body.textContent.includes('企业交接记录'))throw Error('template configuration not refreshed')
  }
  nav('docs');await wait(()=>document.querySelector('[data-doc-folder="资料归档"]'),'empty folder after navigation');
+ nav('tasks');await wait(()=>document.querySelector('[data-task-toolbar]'),'final toolbar');
  return 'PASS formal provider board, task details, documents, chat and report role boundary'
  }).toString()+')()',true)
+ fs.writeFileSync(path.join(__dirname,'toolbar.png'),(await win.capturePage({x:0,y:32,width:1500,height:110})).toPNG())
  fs.writeFileSync(output,result)
 }).catch(e=>fs.writeFileSync(output,String(e))).finally(()=>app.exit())
 setTimeout(()=>{fs.writeFileSync(output,'timeout');app.exit(1)},40000).unref()

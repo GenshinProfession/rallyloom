@@ -155,8 +155,8 @@ export function DocsPage({ client }: DocsPageProps) {
         <span className="text-ui-label text-muted-foreground">
           {load === 'ready' ? `${new Set(records.map(r=>documentPath(r)[0])).size} 个知识库 · ${documents.length} 篇文档` : client.label}
         </span>
-        {client.supportsFolders && <Button variant="outline" size="sm" className="ml-auto h-7 text-ui-label" disabled={load!=='ready'} data-doc-new-folder onClick={()=>{setLibrary(location[0]??records[0]?.space??'知识库');setFolderName('');setFolderError('');setNewFolder(true)}}><FolderPlus/>新建文件夹</Button>}
-        <Button size="sm" className={`${client.supportsFolders ? '' : 'ml-auto'} h-7 text-ui-label`} disabled={load !== 'ready'}
+        {client.supportsFolders && <Button variant="toolbar" size="sm" className="ml-auto h-8 text-ui-label" disabled={load!=='ready'} data-doc-new-folder onClick={()=>{setLibrary(location[0]??records[0]?.space??'知识库');setFolderName('');setFolderError('');setNewFolder(true)}}><FolderPlus/>新建文件夹</Button>}
+        <Button variant="toolbar" size="sm" className={`${client.supportsFolders ? '' : 'ml-auto'} h-8 text-ui-label`} disabled={load !== 'ready'}
           data-doc-new="true"
           onClick={() => changeView({ kind: 'edit', doc: null, location: location.length ? location : selected ? documentPath(selected) : [] })}>
           <FilePlus2 /> 新建文档

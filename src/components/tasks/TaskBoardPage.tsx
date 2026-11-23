@@ -22,7 +22,7 @@ import {
 import { TaskDetails } from './TaskDetails'
 import { TaskBoardSettings } from './TaskBoardSettings'
 import { createPortal } from 'react-dom'
-import { Plus, SquareKanban, Table2 } from 'lucide-react'
+import { Plus, SquareKanban, Table2, RotateCw, SlidersHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -414,7 +414,7 @@ export function TaskBoardPage({ members, client, scopes, scope, onScope, canConf
 
   return (
     <main data-tasks="root" className="workspace-view bg-[#f3f3f2]">
-      <header className="workspace-header border-b border-border/70">
+      <header className="workspace-header flex-wrap gap-y-2 border-b border-border/70 py-2">
         <h1 className="shrink-0 text-ui-title font-semibold text-foreground">任务看板</h1>
         <Badge variant="secondary" className="shrink-0 text-ui-meta font-normal">
           {tasks ? `${tasks.length} 项 · ${doingCount} 进行中${overdue ? ` · ${overdue} 逾期` : ''}` : '加载中…'}
@@ -422,22 +422,22 @@ export function TaskBoardPage({ members, client, scopes, scope, onScope, canConf
         <span className="hidden truncate text-ui-meta text-muted-foreground lg:inline" title={client.label}>
           {client.label}
         </span>
-        <div className="ml-auto flex shrink-0 items-center gap-2.5">
-          {scopes && scopes.length > 1 && <Select value={scope} onValueChange={onScope}><SelectTrigger aria-label="公司任务范围" className="h-8 w-44"><SelectValue /></SelectTrigger><SelectContent>{scopes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select>}
-          <Button variant="ghost" size="sm" onClick={() => void refresh()}>刷新</Button>
-          {canConfigure && client.configure && tasks && <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>看板设置</Button>}
+        <div data-task-toolbar className="ml-auto flex flex-wrap items-center gap-2">
+          {scopes && scopes.length > 1 && <Select value={scope} onValueChange={onScope}><SelectTrigger aria-label="公司任务范围" className="h-8 w-44 rounded-md border-black/[0.06] bg-white py-0 text-ui-label shadow-[0_1px_2px_rgba(17,18,22,0.04)] hover:bg-muted/60"><SelectValue /></SelectTrigger><SelectContent>{scopes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent></Select>}
+          <Button variant="toolbar" size="sm" onClick={() => void refresh()}><RotateCw strokeWidth={1.7}/>刷新</Button>
+          {canConfigure && client.configure && tasks && <Button variant="toolbar" size="sm" onClick={() => setSettingsOpen(true)}><SlidersHorizontal strokeWidth={1.7}/>看板设置</Button>}
 
           <Tabs value={view} onValueChange={(v) => setView(v as 'board' | 'table')}>
-            <TabsList className="h-[26px] p-[2px]">
-              <TabsTrigger value="board" className="h-[22px] gap-1 px-2 text-ui-label">
+            <TabsList className="h-8 rounded-md p-[2px]">
+              <TabsTrigger value="board" className="h-7 gap-1.5 px-2.5 text-ui-label [&_svg]:size-4">
                 <SquareKanban className="size-3" strokeWidth={1.8} />看板
               </TabsTrigger>
-              <TabsTrigger value="table" className="h-[22px] gap-1 px-2 text-ui-label">
+              <TabsTrigger value="table" className="h-7 gap-1.5 px-2.5 text-ui-label [&_svg]:size-4">
                 <Table2 className="size-3" strokeWidth={1.8} />表格
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button size="sm" className="h-7 text-ui-label" disabled={tasks === null} onClick={() => setNewOpen(true)}>
+          <Button variant="toolbar" size="sm" disabled={tasks === null} onClick={() => setNewOpen(true)}>
             <Plus className="size-3.5" strokeWidth={2} />新建任务
           </Button>
         </div>
