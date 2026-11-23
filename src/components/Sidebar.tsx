@@ -1,5 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
-import { Building2, ChevronDown, ChevronRight, ClipboardList, FileText, LayoutGrid, LogOut, MessageCircle, PanelLeftClose, PanelLeftOpen, Settings, UsersRound } from 'lucide-react'
+import { Building2, ChevronDown, ChevronRight, ChartNoAxesCombined, BookOpenText, Kanban, LayoutGrid, LogOut, MessageCircle, PanelLeftClose, PanelLeftOpen, Settings, UsersRound } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { SelectionHighlight } from '@/components/ui/selection-highlight'
 import {
@@ -137,14 +137,14 @@ export function Sidebar({
           )}
           {tasksVisible && (
             <button type="button" className={nav('tasks')} title="任务看板" aria-label="任务看板" aria-current={page === 'tasks' ? 'page' : undefined} data-nav="tasks" onClick={(event) => onNavigate('tasks', event.detail > 0)}>
-              <ClipboardList className="size-[15px] shrink-0" strokeWidth={1.65} />
+              <Kanban className="size-[15px] shrink-0" strokeWidth={1.65} />
               <span className="sidebar-copy" aria-hidden={collapsed || undefined}>任务看板</span>
             </button>
           )}
-          {reportsVisible && <button type="button" className={nav('reports')} title="工作汇报" aria-label="工作汇报" data-nav="reports" onClick={(event) => onNavigate('reports', event.detail > 0)}><ClipboardList className="size-[15px] shrink-0" /><span className="sidebar-copy" aria-hidden={collapsed || undefined}>工作汇报</span></button>}
+          {reportsVisible && <button type="button" className={nav('reports')} title="工作汇报" aria-label="工作汇报" data-nav="reports" onClick={(event) => onNavigate('reports', event.detail > 0)}><ChartNoAxesCombined className="size-[15px] shrink-0" strokeWidth={1.65} /><span className="sidebar-copy" aria-hidden={collapsed || undefined}>工作汇报</span></button>}
           {docsVisible && (
             <button type="button" className={nav('docs')} title="文档中心" aria-label="文档中心" aria-current={page === 'docs' ? 'page' : undefined} data-nav="docs" onClick={(event) => onNavigate('docs', event.detail > 0)}>
-              <FileText className="size-[15px] shrink-0" strokeWidth={1.65} />
+              <BookOpenText className="size-[15px] shrink-0" strokeWidth={1.65} />
               <span className="sidebar-copy" aria-hidden={collapsed || undefined}>文档中心</span>
             </button>
           )}
@@ -186,14 +186,14 @@ export function Sidebar({
                 <span className="sidebar-copy flex min-w-0 flex-1 items-center gap-2 px-1" aria-hidden={collapsed || undefined}>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-ui-body font-semibold leading-tight text-[#293546]">{me.displayName}</span>
-                      <span className="mt-0.5 block truncate text-ui-meta leading-tight text-[#657382]">{demo ? me.attrs['岗位'] ?? ROLE_LABEL[me.role] : me.roleName ?? me.sourceRoleName ?? me.roleId}</span>
+                      <span className="mt-0.5 block truncate text-ui-meta leading-tight text-[#657382]">{demo ? me.attrs['岗位'] ?? ROLE_LABEL[me.role] : me.sourceRoleName ?? me.roleName ?? me.roleId}</span>
                     </span>
                     <ChevronRight size={12} strokeWidth={1.65} className="shrink-0 text-[#667482]" />
                 </span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="top" className="w-44">
-              <DropdownMenuLabel className="text-ui-meta font-normal text-muted-foreground">{me.displayName} · {demo ? ROLE_LABEL[me.role] : me.roleName ?? me.sourceRoleName ?? me.roleId}</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-ui-meta font-normal text-muted-foreground">{me.displayName} · {demo ? ROLE_LABEL[me.role] : me.sourceRoleName ?? me.roleName ?? me.roleId}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="gap-2 text-ui-body" onClick={onLogout}>
                 <LogOut className="size-3.5" />

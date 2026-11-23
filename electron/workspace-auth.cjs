@@ -232,7 +232,7 @@ function validateBootstrap(raw, binding, log) {
   }))
   return {
     binding, memberId: raw.member_id, permissions: raw.permissions,
-    roleSettings: raw.permissions.includes('roles.configure') ? raw.roleSettings : undefined,
+    roleSettings: undefined,
     snapshot: {
       // 租户上下文：formal 模式由服务端绑定决定（workspace_id + display_name），
       // 客户端不可选择 —— 与 demo 模式的演示租户共用同一契约字段。
@@ -241,7 +241,7 @@ function validateBootstrap(raw, binding, log) {
         ...member,
         roleId: member.roleId ?? member.role,
         roleName: member.roleName ?? member.role,
-        memberActions: raw.permissions.includes('members.role') ? member.memberActions : undefined,
+        memberActions: undefined,
       })), collaboration: raw.collaboration, policy: raw.policy, layout: { ...layout, assignments }, dataSlots,
       datasource: { kind: 'oa-rest', baseUrl: binding.baseUrl, apiVersion: 'v1', region: '', useLoginToken: true },
     },
@@ -660,30 +660,9 @@ function registerWorkspaceAuth(getWindow, log) {
       throw error
     }
   }))
-  handle('manageMember', (memberId, action) => withFlow(async (signal) => {
-    const current = session
-    if (!current) throw new WorkspaceError('AUTH_REQUIRED', '登录已失效，请重新授权。')
-    if (!validId(memberId) || memberId === '.' || memberId === '..' || !object(action)
-      || !['role', 'remove'].includes(action.kind) || (action.kind === 'role' && action.roleId !== null && !validId(action.roleId)))
-      throw new WorkspaceError('INVALID_REQUEST', '成员操作无效。')
-    const endpoint = `/members/${encodeURIComponent(memberId)}`
-    if (action.kind === 'remove') return bootstrap(current, signal, endpoint, { method: 'DELETE' })
-    return bootstrap(current, signal, `${endpoint}/role`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: action.roleId }),
-    })
-  }))
-  handle('saveRoleSettings', (values) => withFlow(async (signal) => {
-    const current = session
-    if (!current) throw new WorkspaceError('AUTH_REQUIRED', '登录已失效，请重新授权。')
-    if (!object(values) || Object.entries(values).length > 100
-      || !Object.entries(values).every(([key, value]) => validId(key) && validId(value)))
-      throw new WorkspaceError('INVALID_REQUEST', '角色配置格式无效。')
-    return bootstrap(current, signal, '/role-settings', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values }),
-    })
-  }))
+  // Enterprise identity is authoritative. Legacy IPC cannot mutate roles or membership.
+  handle('manageMember', () => { throw new WorkspaceError('FORBIDDEN', '成员与权限请在企业系统管理。') })
+  handle('saveRoleSettings', () => { throw new WorkspaceError('FORBIDDEN', '角色由企业系统决定，不支持本地映射。') })
   handle('saveOfficeLayout', (layout) => withFlow(async (signal) => {
     const current = session
     if (!current) throw new WorkspaceError('AUTH_REQUIRED', '登录已失效，请重新授权。')

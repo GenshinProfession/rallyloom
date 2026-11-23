@@ -2,67 +2,20 @@
 
 企业工作区提供方（例如 Mira）拥有角色定义、显示名称、分配规则、数据范围、操作权限和保存策略。Rallyloom 是桌面客户端。它渲染提供方返回的数据和操作，使用已验证的工作区令牌提交请求。演示模式的示例角色只用于演示。
 
-## Bootstrap 响应
+## Bootstrap 响应与只读目录
 
-`GET /api/v1/workspace/bootstrap` 返回当前会话的快照。以下是权限相关字段的节选，布局及其他必填字段见 [接入规范](integration-spec.md) §12.3。
+`GET /api/v1/workspace/bootstrap` 返回当前会话的快照。角色只有企业提供方一个来源，没有另一个“工作区角色”。例如：
 
 ```json
-{
-  "member_id": "u-42",
-  "permissions": ["office.view", "team.view", "members.role", "roles.configure"],
-  "team": [
-    {
-      "id": "u-42",
-      "roleId": "operations-lead",
-      "roleName": "营运负责人",
-      "sourceRoleName": "营运主管",
-      "officeAssignable": true
-    },
-    {
-      "id": "u-88",
-      "roleId": "customer-advisor",
-      "roleName": "客户顾问",
-      "memberActions": {
-        "roleOptions": [{"id":"customer-advisor","label":"客户顾问"}],
-        "selectedRoleId": "customer-advisor",
-        "canResetRole": true,
-        "canRemove": false
-      }
-    }
-  ],
-  "roleSettings": {
-    "title": "企业角色设置",
-    "description": "调整本工作区的角色分配。",
-    "fields": [
-      {
-        "id": "consultant-profile",
-        "label": "顾问组",
-        "value": "customer-advisor",
-        "options": [{"id":"customer-advisor","label":"客户顾问"}]
-      }
-    ],
-    "canReset": true
-  }
-}
+{"member_id":"u-42","permissions":["office.view","team.view","tasks.use"],"team":[{"id":"u-42","roleId":"operations-lead","roleName":"营运主管","sourceRoleName":"营运主管","officeAssignable":true}]}
 ```
 
-- **成员角色**。同时返回 `roleId` 和 `roleName`。ID 由提供方定义，长度不超过 128，客户端用 `roleName` 展示，不从名称或 ID 推导能力。可选的 `sourceRoleName` 展示来源账号角色。旧接口只有 `role` 时，客户端把该字符串作为显示回退。新接口可以省略 `role`。
-- **会话能力**。`office.view` 允许打开办公室，`team.view` 允许打开目录，`layout.edit` 允许编辑办公室，`members.role` 允许展示提供方批准的成员操作，`roles.configure` 允许展示角色配置。提供方可返回其他能力标识，当前客户端只启用已实现的能力。
-- **可见范围**。`team` 必须包含本人，其他成员和 `layout.assignments` 由服务端按工作区、组织、用户和资源权限过滤。仅允许查看本人时，返回本人且不授予 `team.view`。成员可被分配到办公室时返回 `officeAssignable: true`。
-- **逐成员操作**。仅当当前用户对该行有操作权限时返回 `memberActions`。角色选项是发送给接口的 ID 和用于展示的标签，`selectedRoleId` 可省略。布尔开关省略等同关闭。成员行的能力还受顶层 `members.role` 约束。
-- **角色配置**。仅向获授权用户返回 `roleSettings` 和 `roles.configure`。表单字段由提供方定义，字段 ID 和选项 ID 在各自列表内唯一，`value` 必须对应选项之一。只读字段设 `readOnly: true`。不提供配置表单也可以在提供方自己的管理后台维护权限。设置内容及默认值均由提供方决定。
-
-## 写入契约
-
-| 操作 | 请求 |
-| --- | --- |
-| 设置目标成员角色 | `PATCH /api/v1/workspace/members/{memberId}/role`，`{"role":"提供方返回的选项 ID"}` |
-| 恢复来源角色 | 同上，`{"role":null}`，要求提供方允许 `canResetRole` |
-| 移除成员 | `DELETE /api/v1/workspace/members/{memberId}`，要求提供方允许 `canRemove` |
-| 保存角色配置 | `PATCH /api/v1/workspace/role-settings`，`{"values":{"字段 ID":"选项 ID"}}`，只提交可写字段 |
-| 恢复默认配置 | 同上，`{"values":{}}`，仅在提供方声明 `canReset` 时提供 |
-
-成功返回更新后的完整 bootstrap 快照。失败返回 `401`、`403`、`400` 或 `409` 等适用状态，以及 `{"error":"可显示的错误"}`。对于每个请求，提供方重新从访问凭据解析操作者，校验当前操作权限、目标归属、选项有效性、管理范围和变更约束。客户端的按钮、角色 ID、快照和表单值都不能作为授权依据。写入时在提供方记录操作者、对象、变更和时间。
+- 提供方定义角色名称和权限，客户端展示 `sourceRoleName`（缺少则 `roleName`），只显示一列“角色”。不得将名称映射为本地员工/老板/管理员权限，不按 `roleId` 字符串猜测能力。
+- `permissions` 是服务端授予的会话能力，客户端用于显示相应功能；服务端仍在每条请求校验身份与对象范围。目录 `team`、办公室分配和各业务列表必须由提供方先过滤。
+- 正式团队成员页是只读目录，只有标题、人数、搜索和实际有数据的列。不提供设置角色、角色映射、成员移除、工作区角色或房间工作看板配置。
+- `memberActions`、`roleSettings`、`members.role`、`roles.configure` 为已退休的旧客户端字段。新版本不展示或执行它们，桌面 `manageMember/saveRoleSettings` IPC 返回 FORBIDDEN。提供方应停止返回这些字段，避免误导旧客户端。
+- Mira 的 `/members/{id}/role`、`DELETE /members/{id}`、`/role-settings` 和旧 `/policy` 身份配置写入口一律403，包括平台管理员。修改用户、角色和数据范围应在 Mira 管理系统完成，随后客户端刷新身份；不能通过旧政策字段注入角色映射。
+- 旧 `role` 字段仅用于历史结构兼容，不是可配置的第二套角色。Mira 运行时忽略旧角色映射和本地角色覆盖，以现有账号角色计算权限。旧显式排除记录保留，不借本次 UI 调整恢复被移除账号。
 
 ## 办公室家具
 

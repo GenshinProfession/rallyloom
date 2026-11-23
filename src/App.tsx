@@ -27,7 +27,6 @@ import { rosterOf } from '@/lib/store/roster'
 import type { DatasourceConfig, WorkspaceSnapshot } from '@/lib/store/types'
 import { workspaceValue, type JoinedWorkspace } from '@/lib/store/workspace-binding'
 import { CONNECTORS } from '@/lib/identity/connector'
-import { RoomSlotSettings } from '@/components/team/RoomSlotSettings'
 import { FormalTeam } from '@/components/team/FormalTeam'
 
 type Page = 'office' | 'chat' | 'tasks' | 'docs' | 'notify' | 'team' | 'reports'
@@ -147,11 +146,9 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
   const workspaceName = entry.mode === 'formal' ? entry.binding.display_name : entry.snapshot.tenant.name
   const [snapshot, applySnapshot] = useState(entry.snapshot)
   const [permissions, setPermissions] = useState(entry.mode === 'formal' ? entry.permissions : [])
-  const [roleSettings, setRoleSettings] = useState(entry.mode === 'formal' ? entry.roleSettings : undefined)
   const applyJoined = useCallback((updated: JoinedWorkspace) => {
     applySnapshot(updated.snapshot)
     setPermissions(updated.permissions)
-    setRoleSettings(updated.roleSettings)
   }, [])
   const { team, policy, datasource, layout, dataSlots } = snapshot
   const [page, setPage] = useState<Page>(isGroup ? 'team' : 'office')
@@ -440,21 +437,7 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
                 applySnapshot(updated)
                 if (id === entry.memberId) onHome()
               })}
-            /> : <FormalTeam tools={permissions.includes('slots.attach') ? <RoomSlotSettings snapshot={snapshot} save={async (roomId, enabled) => {
-              const bridge = window.rallyloom?.workspace
-              if (!bridge) throw new Error('请使用最新版桌面应用。')
-              applyJoined(workspaceValue(await bridge.saveRoomSlot(roomId, enabled)))
-            }} /> : undefined} members={team} roleSettings={roleSettings} onManage={permissions.includes('members.role') ? async (id, action) => {
-              const bridge = window.rallyloom?.workspace
-              if (!bridge) throw new Error('成员管理需要在 Rallyloom 桌面应用中打开。')
-              const updated = workspaceValue(await bridge.manageMember(id, action))
-              applyJoined(updated)
-            } : undefined} onSaveSettings={roleSettings && permissions.includes('roles.configure') ? async (values) => {
-              const bridge = window.rallyloom?.workspace
-              if (!bridge) throw new Error('角色映射需要在 Rallyloom 桌面应用中打开。')
-              const updated = workspaceValue(await bridge.saveRoleSettings(values))
-              applyJoined(updated)
-            } : undefined} />}
+            /> : <FormalTeam members={team} />}
           </main>
         )}
       </div>
