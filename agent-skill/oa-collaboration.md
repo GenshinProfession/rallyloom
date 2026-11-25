@@ -11,7 +11,7 @@
 | `tasks.coordinate` | 工作协调、看板配置 | 服务端按当前来源角色授权；不能授予跨公司管理 |
 | `docs.use` | 文档树、右侧阅读/编辑、全屏 | 对每条文档返回 `canEdit/canDelete` 并独立校验 |
 | `notify.view` / `notify.publish` | 通知中心 / 发布 | 公告范围、发布权限、逐用户持久化已读 |
-| `reports.use` / `reports.write` | 查看汇报 / 员工填写 | 动态模板、周期、分配、作者身份、版本和提交后锁定；管理者只查看 |
+| `reports.use` / `reports.write` | 查看汇报 / 填写本人汇报 | 动态模板、周期、企业范围、作者身份、版本和提交后锁定；不能代他人填写 |
 
 Bootstrap 提供 `collaboration: {version:1, scopes:[{id,label}]}`。工作区仍是同一企业；scopes 是企业定义的组织或工作数据范围，不是客户端切换登录租户。有多个范围的用户切换任务/汇报时发送 `X-Rallyloom-Scope: <scope.id>`；`company` 指企业公共工作。租户用户不能用这个头切入其他公司。提供方不支持协作接口时，必须不授予上述能力，不得回退 Demo 数据。
 

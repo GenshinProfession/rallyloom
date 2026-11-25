@@ -8,7 +8,7 @@ app.whenReady().then(async()=>{
  const nav=(page)=>document.querySelector('[data-nav='+page+']').click()
  await wait(()=>document.querySelector('[data-nav=tasks]'),'formal task nav')
  if(document.body.textContent.includes('所有者'))throw Error('demo role name leaked into formal sidebar')
- if(!document.body.textContent.includes('平台超管') && !document.body.textContent.includes('员工'))throw Error('provider role name missing')
+ if(!document.body.textContent.includes('平台超管') && !document.body.textContent.includes('员工') && !document.body.textContent.includes('租户管理员'))throw Error('provider role name missing')
  if(!document.querySelector('button[title="平台总部"]')&&!document.querySelector('button[title="研发分公司"]'))throw Error('provider region name missing');
  nav('tasks');await wait(()=>document.querySelector('[data-task-row]'),'formal tasks')
  if(!document.body.textContent.includes('企业自定义流程'))throw Error('provider board ignored')

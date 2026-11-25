@@ -1,5 +1,5 @@
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{spawnSync}=require('node:child_process')
-for(const role of ['platform','employee']){
+for(const role of ['platform','employee','tenant_admin']){
  const fixture=fs.mkdtempSync(path.join(os.tmpdir(),'rallyloom-formal-'))
  fs.copyFileSync(path.join(__dirname,'fixtures','formal-preload.cjs'),path.join(fixture,'preload.cjs'))
  fs.copyFileSync(path.join(__dirname,'fixtures','formal-main.cjs'),path.join(fixture,'main.cjs'))

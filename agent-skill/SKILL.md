@@ -153,4 +153,4 @@ v1.7 可选加演：推一篇 `content_format:"html"`（含标题/代码块/表�
 
 先读取 `schemas/task-board.schema.json` 与 integration-spec.md §4.6。禁止在客户端写死公司的任务列、流转或自定义字段；四列只属于演示源。提供方负责鉴权、状态流转与排序确认。未提供某模块接口时，不得授予该模块能力或回退演示数据。
 
-正式汇报适配必须优先复用企业已有的参与范围、模板和提交服务；Mira 不能通过通用 record/report 新建绕过 `operations_report_enabled`。修改周月报前读取 OA 契约中的 work-reports 章节。
+正式通用汇报必须使用提供方的 `/reports` 模板与日志契约，并尊重 `reports.write`、模板 `canWrite` 和对象范围；不要误调旧 `/work-reports` 业务接口。Mira 旧报工的 `operations_report_enabled` 只约束 ERP 日报、周月报及其待交提醒，不约束独立的 Rallyloom 通用汇报。修改旧周月报前仍须读取 OA 契约中的 work-reports 章节。
