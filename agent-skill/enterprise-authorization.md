@@ -69,7 +69,7 @@ flowchart LR
 
 发现接口只返回实例与登录所需信息。正式数据由受保护的接口提供。桌面端只向企业确认的 HTTPS 来源发送该资源的令牌，跨域重定向不能携带令牌。企业应通过可信的部署渠道提供服务地址与预期身份服务。已绑定的实例、工作区或签发者变化时，按重新绑定流程验证。多工作区部署时，可用工作区路径或可验证的会话绑定指定工作区，服务端在每次请求中确认用户有权操作对应工作区。 [OAuth 安全最佳实践](https://www.rfc-editor.org/rfc/rfc9700.html)
 
-`GET /api/v1/workspace/bootstrap` 使用 `Authorization: Bearer <access_token>`。响应顶层包含 `installation_id`、`workspace_id`、`member_id`、`tenant`、`permissions`、`team`、`policy`、`layout`、`dataSlots`。`tenant` 为 `{ "id": "<workspace_id>", "name": "<display_name>" }`——工作区就是租户（一家公司一个工作区，多租户边界见 [接入规范](integration-spec.md) §10），客户端不可选择。工作区 ID 与发现接口一致。`team` 包含 `member_id` 对应的记录，按当前账号权限裁剪后返回。`office.view` 允许进入办公室，`team.view` 额外开放只读目录。`layout` 使用当前房间模板、画布尺寸和工位编排，房间 `template` 使用客户端已注册的 ID。项目中的 [工作区数据类型](../src/lib/store/types.ts) 和 [成员类型](../src/lib/identity/types.ts) 提供字段定义。
+`GET /api/v1/workspace/bootstrap` 使用 `Authorization: Bearer <access_token>`。响应顶层包含 `installation_id`、`workspace_id`、`member_id`、`tenant`、`permissions`、`team`、`policy`、`layout`、`dataSlots`。`tenant` 为 `{ "id": "<workspace_id>", "name": "<display_name>" }`——工作区就是租户（一家公司一个工作区，多租户边界见 [接入规范](integration-spec.md) §10），客户端不可选择。工作区 ID 与发现接口一致。`team` 包含 `member_id` 对应的记录，按当前账号权限裁剪后返回。`office.view` 允许进入办公室，`team.view` 额外开放只读目录。Mira 提供方不签发租户老板的 Rallyloom 登录身份，并从团队目录与可分配成员中排除该角色；其他企业的角色仍完全由其提供方定义，Rallyloom 不内置租户角色限制。`layout` 使用当前房间模板、画布尺寸和工位编排，房间 `template` 使用客户端已注册的 ID。项目中的 [工作区数据类型](../src/lib/store/types.ts) 和 [成员类型](../src/lib/identity/types.ts) 提供字段定义。
 
 房间看板配置为 `dataSlots[roomId] = { kind: "external-api", name, url }`。`url` 指向与工作区服务同源的 HTTPS 接口，由桌面主进程持员工令牌请求。服务端每次验证访问权限，返回 `{ "rows": [{ "label": "待发货订单", "value": "128" }] }`。无看板时返回 `dataSlots: {}`。
 
