@@ -186,6 +186,9 @@ export function OfficeJukeboxDock({ config, client, onOpen }: OfficeJukeboxDockP
           </div>
           <span className="office-jukebox-time">{clock(player.position)} / {clock(duration)}</span>
         </div>
+        {!playsInline && (
+          <p className="office-jukebox-inline-hint">YouTube 曲目 · 点播放会在点歌台打开</p>
+        )}
       </div>
 
       <div className="office-jukebox-controls">

@@ -742,3 +742,11 @@
   .office-jukebox-eq i,
   .office-jukebox[data-playing] .office-jukebox-kicker i { animation: none; }
 }
+
+/* YouTube 曲目在底栏只做提示：真正的播放舞台在点歌台。 */
+.office-jukebox-inline-hint {
+  margin: -1px 0 0;
+  color: #7c8a94;
+  font-size: 9.5px;
+  letter-spacing: .01em;
+}

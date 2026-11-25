@@ -126,9 +126,10 @@ export function JukeboxPage({ config, client, demo }: JukeboxPageProps) {
       setFeed(next)
       setError('')
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '共享曲库暂时无法连接')
+      /* 企业只在 bootstrap 里下发歌单时，共享曲库接口可以不存在：用精选歌单即可，不打扰。 */
+      setError(curatedTracks(config).length ? '' : cause instanceof Error ? cause.message : '共享曲库暂时无法连接')
     }
-  }, [client])
+  }, [client, config])
 
   useEffect(() => { void refresh() }, [refresh])
   /* 交给办公室底栏：切回办公室时同一条曲子可以接着听（点歌台自己的舞台不变）。 */
