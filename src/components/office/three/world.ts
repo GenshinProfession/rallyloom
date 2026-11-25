@@ -13,7 +13,8 @@ import { buildGmvScreen } from './gmv-screen'
 import { createFloorMaterial } from './floor-material'
 import { buildFreeWall } from './free-walls'
 import {roomFloorGeometry} from './region-floor'
-import {regionCaptionPoint} from '../rooms/region-geometry'
+import {regionCaptionPoint, type CaptionAvoid} from '../rooms/region-geometry'
+import { buildDataScreen } from './data-screen'
 
 export type OfficeMode = 'daily' | 'presence' | 'tasks'
 
@@ -83,6 +84,7 @@ export function buildOfficeWorld(
   _onTexture: () => void,
   editable = false,
   presence: readonly SeatPresence[] = [],
+  screenLines: Readonly<Record<string, readonly string[]>> = {},
 ) {
   const scene = new THREE.Scene()
   const model = createModelKit()
@@ -173,6 +175,8 @@ export function buildOfficeWorld(
         const screenFrame=new THREE.Group();object.add(screenFrame);screenFrame.position.set(-100,0,-32.2)
         const size=item.size;object.scale.set((size?.width??125)/124,(size?.height??62)/62,(size?.depth??30)/35)
         screens.set(room.id,buildGmvScreen(screenFrame,model,200,140))
+      }else if (item.kind === 'data-screen') {
+        object = buildDataScreen(customFurniture, model, item, frame, screenLines[room.id] ?? [])
       }else object = buildPlacedFurniture(customFurniture, model, item, frame)
       if (editable) {
         object.userData.ownerRoomId = room.id
@@ -220,9 +224,28 @@ export function buildOfficeWorld(
       || seatAnchors.some(anchor => Math.abs(anchor.x - x) <= anchor.radius && Math.abs(anchor.z - z) <= anchor.radius)
     const roomMembers = roster.get(room.id) ?? []
     const orderedMembers = seatOrder(roomMembers,room.seats.length,layout.seatAssignments)
+    // 房间名不要压在门洞上：把本房间附近的门洞算成禁放区。
+    const doorAvoids: CaptionAvoid[] = []
+    for (const wall of layout.wallSegments ?? []) {
+      const opening = wall.opening
+      if (!opening) continue
+      const dx = wall.end.x - wall.start.x, dy = wall.end.y - wall.start.y
+      const length = Math.hypot(dx, dy)
+      if (length < 1) continue
+      const doorX = wall.start.x + dx * opening.offset
+      const doorY = wall.start.y + dy * opening.offset
+      const half = opening.width / 2
+      const horizontal = Math.abs(dy) < 0.75
+      const vertical = Math.abs(dx) < 0.75
+      if (horizontal && Math.abs(doorY - frame.y) < Math.min(46, frame.height * .26) && doorX > frame.x - 24 && doorX < frame.x + frame.width + 24) {
+        doorAvoids.push({ x: doorX - half - 26, y: doorY - 20, width: opening.width + 52, height: 66 })
+      } else if (vertical && Math.abs(doorX - frame.x) < Math.min(60, frame.width * .32) && doorY > frame.y - 24 && doorY < frame.y + frame.height + 24) {
+        doorAvoids.push({ x: doorX - 20, y: doorY - half - 26, width: 66, height: opening.width + 52 })
+      }
+    }
     roomAnchors.push({
       room,
-      position: room.boundary?(()=>{const at=regionCaptionPoint(room);return new THREE.Vector3(at.x,28,at.y)})():new THREE.Vector3(frame.x + 12, room.appearance.display === 'gmv' ? 55 : 28, frame.y + 5),
+      position: room.boundary?(()=>{const at=regionCaptionPoint(room,doorAvoids);return new THREE.Vector3(at.x,28,at.y)})():new THREE.Vector3(frame.x + 12, room.appearance.display === 'gmv' ? 55 : 28, frame.y + 5),
       present: roomMembers.filter((member) => member.presence !== 'offline').length,
     })
 

@@ -8,13 +8,17 @@ import { OverviewPanel } from '@/components/panels/OverviewPanel'
 import { SelectionHighlight } from '@/components/ui/selection-highlight'
 import type { Member } from '@/data/office'
 import type { TeamMember } from '@/lib/identity/types'
-import type { DataSlots, LayoutState } from '@/lib/store/types'
+import type { DataSlots, LayoutState, SlotRow } from '@/lib/store/types'
+import { demoSlotRows, fetchSlotRows } from '@/lib/store/client'
+import { workspaceValue } from '@/lib/store/workspace-binding'
 import { roomChannelId, type ChatChannel, type ChatClient, type ChatMessage, type ChatPerson } from '@/lib/chat/types'
 import { OfficeQuickChat } from './OfficeQuickChat'
 import { OfficeScene } from './OfficeScene'
 import { OfficeLayoutEditor } from './OfficeLayoutEditor'
 import { OfficeSeatAssignments } from './OfficeSeatAssignments'
 import { OfficeWorkPanel, type OfficeTaskDraft, type OfficeWorkAccess } from './OfficeWorkPanel'
+import { OfficeJukeboxDock } from './OfficeJukeboxDock'
+import type { JukeboxClient, JukeboxConfig } from '@/lib/jukebox/types'
 import { gmvMetric, useRoomMetrics } from './room-metrics'
 import { resolveOfficeLayout, roomTemplates } from './rooms'
 import type { OfficeMode } from './three/world'
@@ -40,6 +44,8 @@ interface OfficePageProps {
   selectedRoom: string | null
   onSelectRoom: (roomId: string | null) => void
   editing?: { team: TeamMember[]; publish: (layout: LayoutState) => Promise<void> }
+  /** 办公室底栏音乐：曲库与点歌台同源；未接入时整条播放器隐藏。 */
+  jukebox?: { config?: JukeboxConfig; client?: JukeboxClient; onOpen: () => void }
   work?: OfficeWorkAccess
   chat?: {
     client: ChatClient
@@ -53,7 +59,7 @@ interface OfficePageProps {
 
 export function OfficePage({
   workspaceName, seatingEnabled, demo, layoutState: layout, members, slots, meSeatId, meName, searchHit,
-  selectedRoom, onSelectRoom, chat, work, editing,
+  selectedRoom, onSelectRoom, chat, work, editing, jukebox,
 }: OfficePageProps) {
   const [focusedMember, setFocusedMember] = useState<string | null>(null)
   const [mode, setMode] = useState<OfficeMode>('daily')
@@ -119,6 +125,31 @@ export function OfficePage({
   const [tabRequest, setTabRequest] = useState<{ tab: 'work' | 'overview'; sequence: number }>()
   const workButton = useRef<HTMLButtonElement>(null)
   const request = useRef(0)
+
+  // 数据显示屏的文字来自房间挂载的看板数据源，这里统一取一次再交给 3D 场景。
+  const [screenLines, setScreenLines] = useState<Record<string, readonly string[]>>({})
+  useEffect(() => {
+    let active = true
+    const format = (rows: readonly SlotRow[]) => rows.slice(0, 6).map((row) => `${row.label}  ${row.value}${row.delta ? `  ${row.delta}` : ''}`)
+    const load = async () => {
+      const next: Record<string, readonly string[]> = {}
+      await Promise.all(Object.entries(slots).map(async ([roomId, slot]) => {
+        if (!slot) return
+        try {
+          if (demo) next[roomId] = format(slot.kind === 'demo-feed' ? demoSlotRows(roomId) : await fetchSlotRows(slot))
+          else {
+            const bridge = window.rallyloom?.workspace
+            if (!bridge) throw new Error('缺少桌面桥')
+            next[roomId] = format(workspaceValue(await bridge.slot(roomId)))
+          }
+        } catch { next[roomId] = [] }
+      }))
+      if (active) setScreenLines(next)
+    }
+    void load()
+    const timer = window.setInterval(() => { void load() }, 60000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [demo, slots])
 
   useEffect(() => {
     if (!searchHit) return
@@ -253,6 +284,7 @@ export function OfficePage({
           rooms={rooms}
           roster={roster}
           slots={slots}
+          screenLines={screenLines}
           selectedRoom={selectedRoom}
           onSelectRoom={selectRoom}
           focusedMember={seatLocked?meSeatId:focusedMember}
@@ -277,6 +309,7 @@ export function OfficePage({
             canChatWith: (personId) => Boolean(chat.peers.get(personId) && chat.peers.get(personId) !== chat.sender.id),
           } : undefined}
         />}
+        {jukebox && <OfficeJukeboxDock config={jukebox.config} client={jukebox.client} onOpen={jukebox.onOpen} />}
         {chatError && <p className="office-chat-action-error" role="alert">{chatError}</p>}
         {chat && quick && (
           <OfficeQuickChat key={quick.request} channel={quick.channel} anchor={quick.anchor} client={chat.client} sender={chat.sender}

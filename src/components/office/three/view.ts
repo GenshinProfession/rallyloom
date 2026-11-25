@@ -53,6 +53,7 @@ export function createOfficeView(
   initialView: OfficeViewState,
   onOverlay: (overlay: OfficeOverlay) => void,
   editable = false,
+  screenLines: Readonly<Record<string, readonly string[]>> = {},
 ) {
   const canvas = document.createElement('canvas')
   canvas.setAttribute('aria-hidden', 'true')
@@ -72,7 +73,7 @@ export function createOfficeView(
   renderer.toneMapping = THREE.NeutralToneMapping
   renderer.toneMappingExposure = .96
 
-  const world = buildOfficeWorld(layout, rooms, roster, meId, schedule, editable, initialView.seats)
+  const world = buildOfficeWorld(layout, rooms, roster, meId, schedule, editable, initialView.seats, screenLines)
   const wallGhost=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:'#589888',transparent:true,opacity:.58,depthWrite:false}))
   wallGhost.visible=false;world.scene.add(wallGhost)
   const wallGhosts=[wallGhost]

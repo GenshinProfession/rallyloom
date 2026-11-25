@@ -3,7 +3,7 @@
 > 交接对象：Mira 后端 / 平台侧负责人（或对应 Agent）
 > 来源：Rallyloom v0.14.4（桌面端编排器）
 > 基准代码：Mira `github/main` 分支，提交 `9e63c54a4`
-> 结论：只需要在服务端放行 8 个家具型号字符串，其它校验逻辑与接口语义全部不变。
+> 结论：只需要在服务端放行 9 个家具型号字符串，其它校验逻辑与接口语义全部不变。
 > 可直接应用的补丁：`docs/mira-furniture-kinds.patch`（已对 `github/main@9e63c54a4` 跑过 `git apply --check`）。
 
 ---
@@ -19,11 +19,11 @@ PATCH /api/v1/workspace/layout
 400 { "error": "INVALID_REQUEST", "message": "家具位置、旋转或型号无效，工作区最多放置 320 件自定义家具" }
 ```
 
-原因是 Mira 服务端有一份独立的家具型号白名单，目前只含旧的 28 种。放行这 8 个型号后即可互通，**不需要改动 Rallyloom 版本**。
+原因是 Mira 服务端有一份独立的家具型号白名单，目前只含旧的 28 种。放行这 9 个型号后即可互通，**不需要改动 Rallyloom 版本**。
 
 ---
 
-## 2. 需要新增的 8 个型号
+## 2. 需要新增的 9 个型号
 
 单位与布局坐标一致（`unitsPerMeter` 默认 50，即 50 布局单位 = 1 米）：
 
@@ -37,6 +37,7 @@ PATCH /api/v1/workspace/layout
 | `water-cooler` | 饮水机 | 24 × 24 × 56 | 茶水间/玄关 |
 | `plant-large` | 大盆栽 | 44 × 44 × 74 | 落地大绿植 |
 | `conference-table` | 长会议桌 | 240 × 74 × 26 | 会议室长桌（客户端按桌长自动排 6 把椅子） |
+| `data-screen` | 数据显示屏 | 120 × 8 × 70 | 老板办公室大屏：只承接「位置/尺寸/旋转」，屏上文字由 Rallyloom 的数据插槽渲染；服务端不需要理解内容 |
 
 尺寸是客户端默认值；Rallyloom 在 furniture 项里可以带 `size: { width, depth, height }` 覆盖（现有规则 1–800 不变）。
 
@@ -54,7 +55,7 @@ private static final Set<String> FURNITURE_KINDS = Set.of("desk", "shelf", "plan
 
 // 改为（末尾追加 8 个）
 private static final Set<String> FURNITURE_KINDS = Set.of("desk", "shelf", "plant", "sofa", "coffee", "lamp", "workstation", "chair", "meeting-table", "round-table", "coffee-table", "counter", "cabinet", "display-shelf", "clothes-rack", "rug", "partition", "screen", "studio-light", "camera", "carton", "printer", "trolley", "microwave", "sink", "cup", "notebook", "monitor",
-        "bench", "desk-l", "bookcase", "whiteboard", "tv", "water-cooler", "plant-large", "conference-table");
+        "bench", "desk-l", "bookcase", "whiteboard", "tv", "water-cooler", "plant-large", "conference-table", "data-screen");
 ```
 
 ### 3.2 测试同步
@@ -67,7 +68,7 @@ private static final Set<String> FURNITURE_KINDS = Set.of("desk", "shelf", "plan
 for (String kind : List.of("workstation", "chair", "meeting-table", "round-table", "counter",
         "cabinet", "display-shelf", "clothes-rack", "rug", "partition", "camera", "studio-light",
         "carton", "printer", "trolley", "microwave", "sink", "cup", "notebook", "monitor",
-        "bench", "desk-l", "bookcase", "whiteboard", "tv", "water-cooler", "plant-large", "conference-table")) {
+        "bench", "desk-l", "bookcase", "whiteboard", "tv", "water-cooler", "plant-large", "conference-table", "data-screen")) {
     item.put("kind", kind);
     RallyloomWorkspaceService.validateLayout(layout);
 }
@@ -95,7 +96,7 @@ for (String kind : List.of("workstation", "chair", "meeting-table", "round-table
 
 ## 5. 验收标准（建议直接写成测试）
 
-1. 对 8 个新 kind 各构造一个最小合法 layout（room 带 boundary、frame = 包围盒、家具足迹在区域内）→ `validateLayout` 通过，PATCH 返回成功。
+1. 对 9 个新 kind 各构造一个最小合法 layout（room 带 boundary、frame = 包围盒、家具足迹在区域内）→ `validateLayout` 通过，PATCH 返回成功。
 2. 未在白名单的 kind（如 `sofa-xx`）→ 仍 400，错误可定位到家具。
 3. 新 kind 的 `size` 覆盖（如 `bench` 改为 260×56）→ 通过；`size.width = 0` → 400（现有规则）。
 4. 同一间房 61 件家具 → 400（现有规则）。
@@ -135,7 +136,8 @@ for (String kind : List.of("workstation", "chair", "meeting-table", "round-table
     "seats": [],
     "furniture": [
       { "id": "f1", "kind": "bench", "x": 0.5, "y": 0.5, "rotation": 0 },
-      { "id": "f2", "kind": "conference-table", "x": 0.5, "y": 0.8, "rotation": 0, "size": { "width": 240, "depth": 74 } }
+      { "id": "f2", "kind": "conference-table", "x": 0.5, "y": 0.8, "rotation": 0, "size": { "width": 240, "depth": 74 } },
+    { "id": "f3", "kind": "data-screen", "x": 0.7, "y": 0.1, "rotation": 0, "size": { "width": 120, "depth": 8 } }
     ]
   }],
   "assignments": {},

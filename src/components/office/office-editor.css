@@ -279,3 +279,10 @@
 .office-wall-chain-actions [data-wall-finish] { background: rgba(255, 255, 255, .14); }
 .office-wall-chain-actions [data-wall-finish]:hover { background: rgba(255, 255, 255, .24); }
 .office-wall-chain-actions [data-wall-cancel] { color: #ffb4a8; }
+
+.office-editor-shortcut-hint {
+  margin: 0 2px 6px;
+  color: #8a949b;
+  font-size: 10.5px;
+  letter-spacing: .01em;
+}

@@ -10,6 +10,7 @@ import { TeamManage } from '@/components/team/TeamManage'
 import { DocsPage } from '@/components/docs/DocsPage'
 import { NoticePage } from '@/components/notify/NoticePage'
 import { JukeboxPage } from '@/components/jukebox/JukeboxPage'
+import { OaJukeboxClient } from '@/lib/jukebox/client'
 import { OfficeNotice } from '@/components/notify/OfficeNotice'
 import { seatIdOf } from '@/data/team'
 import { can } from '@/lib/identity/rbac'
@@ -251,6 +252,7 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
   /* 任务看板客户端：演示源内存模拟；接云端后换 OaTaskClient（同一契约） */
   const [taskScope, setTaskScope] = useState(snapshot.collaboration?.scopes[0]?.id)
   const taskClient = useMemo(() => demo ? new DemoTaskClient() : new OaTaskClient(taskScope), [demo, taskScope])
+  const jukeboxClient = useMemo(() => demo ? undefined : new OaJukeboxClient(taskScope), [demo, taskScope])
   const docClient = useMemo(() => demo ? new DemoDocClient(snapshot.tenant.id, me?.displayName) : new OaDocClient(snapshot.collaboration?.documents?.folders === true),
     [demo, snapshot.tenant.id, me?.displayName, snapshot.collaboration?.documents?.folders])
   /* 通知中心客户端：演示源内存模拟；接云端后换 OaNoticeClient（同一契约） */
@@ -378,6 +380,11 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
                   layoutState={layout}
                   members={officeMembers}
                   slots={dataSlots}
+                  jukebox={canJukebox ? {
+                    config: snapshot.jukebox,
+                    client: jukeboxClient,
+                    onOpen: () => navigate('jukebox'),
+                  } : undefined}
                   meSeatId={meSeatId}
                   meName={me.displayName}
                   searchHit={officeSearchHit}
@@ -434,9 +441,8 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
         ) : activePage === 'jukebox' && canJukebox && me ? (
           <JukeboxPage
             config={snapshot.jukebox}
+            client={jukeboxClient}
             demo={demo}
-            canManage={demo && (me.role === 'owner' || me.role === 'admin')}
-            storageKey={demo ? `rallyloom:demo:jukebox:${snapshot.tenant.id}` : undefined}
           />
         ) : (
           <main className="flex min-w-0 flex-1 flex-col bg-[#f4f4f6]">

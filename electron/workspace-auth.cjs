@@ -164,7 +164,7 @@ function roomIssue(room) {
   if (room.furniture !== undefined && (!Array.isArray(room.furniture) || room.furniture.length > 60
     || !room.furniture.every((item) => object(item) && validId(item.id)
       && ['desk', 'shelf', 'plant', 'sofa', 'coffee', 'lamp', 'workstation', 'chair', 'meeting-table', 'round-table', 'coffee-table', 'counter', 'cabinet', 'display-shelf', 'clothes-rack', 'rug', 'partition', 'screen', 'studio-light', 'camera', 'carton', 'printer', 'trolley', 'microwave', 'sink', 'cup', 'notebook', 'monitor',
-        'bench', 'desk-l', 'bookcase', 'whiteboard', 'tv', 'water-cooler', 'plant-large', 'conference-table'].includes(item.kind)
+        'bench', 'desk-l', 'bookcase', 'whiteboard', 'tv', 'water-cooler', 'plant-large', 'conference-table', 'data-screen'].includes(item.kind)
       && [item.x, item.y].every((position) => Number.isFinite(position) && position >= 0 && position <= 1)
       && (item.color === undefined || /^#[0-9a-fA-F]{6}$/.test(item.color))
       && (item.elevation === undefined || (Number.isFinite(item.elevation) && item.elevation >= 0 && item.elevation <= 200))
@@ -763,6 +763,29 @@ function registerWorkspaceAuth(getWindow, log) {
     const url=`${current.binding.baseUrl}${API}${endpoint}`
     const headers={Accept:'application/json',Authorization:`Bearer ${access}`}
     if(tenant!==undefined)headers['X-Rallyloom-Scope']=tenant
+    if(endpoint==='/oa/jukebox/tracks'){
+      if(method!=='POST'||!body||!(body.bytes instanceof Uint8Array)||typeof body.fileName!=='string')throw new WorkspaceError('INVALID_REQUEST','歌曲文件请求无效。')
+      const form=new FormData()
+      form.set('title',typeof body.title==='string'?body.title:'')
+      form.set('file',new Blob([Buffer.from(body.bytes)],{type:'video/mp4'}),body.fileName)
+      let response
+      try{response=await fetch(url,{method:'POST',headers,body:form,redirect:'error',signal:AbortSignal.timeout(120_000)})}
+      catch(error){if(error.name==='TimeoutError')throw new WorkspaceError('NETWORK','歌曲上传超时，请重试。');throw new WorkspaceError('NETWORK','歌曲上传失败，请检查网络后重试。')}
+      if(!response.ok){let message='歌曲上传失败，请重试。';try{const data=await response.json();if(typeof data.error==='string')message=data.error.slice(0,200)}catch{/* response is not JSON */}throw new WorkspaceError(response.status===400?'INVALID_REQUEST':'SERVER',message)}
+      const value=await response.json()
+      if(session!==current)throw new WorkspaceError('CANCELLED','登录状态已切换。')
+      return value
+    }
+    if(endpoint.startsWith('/oa/jukebox/media/')){
+      if(method!=='GET')throw new WorkspaceError('INVALID_REQUEST','歌曲媒体请求无效。')
+      let response
+      try{response=await fetch(url,{headers,redirect:'error',signal:AbortSignal.timeout(120_000)})}
+      catch(error){if(error.name==='TimeoutError')throw new WorkspaceError('NETWORK','歌曲加载超时，请重试。');throw new WorkspaceError('NETWORK','歌曲加载失败，请检查网络后重试。')}
+      if(!response.ok)throw new WorkspaceError(response.status===401?'AUTH_REQUIRED':'FORBIDDEN','歌曲不存在或当前身份无权播放。')
+      const bytes=Buffer.from(await response.arrayBuffer())
+      if(session!==current)throw new WorkspaceError('CANCELLED','登录状态已切换。')
+      return {base64:bytes.toString('base64'),contentType:response.headers.get('content-type')||'video/mp4'}
+    }
     if(body!==undefined)headers['Content-Type']='application/json'
     if(endpoint.startsWith('/oa/chat/attachments/')){
       if(method!=='GET')throw new WorkspaceError('INVALID_REQUEST','附件请求无效。')

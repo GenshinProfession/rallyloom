@@ -222,3 +222,81 @@ input {
 .office-editor > .workspace-page-header button { font-size:var(--ui-size-label); }
 
 .office-header .office-tool svg { width:16px; height:16px; }
+
+/* ── Rallyloom 品牌画布（v0.17）──────────────────────────────────────
+   页面底色不再是一片平灰：暖白纸面 + 三处极淡的品牌色晕染（钢蓝 / 青绿 / 沙金）
+   + 26px 的细网格。网格只做 5% 透明度的「图纸感」，不干扰卡片内容。 */
+:root {
+  --rl-ink: #22303c;
+  --rl-steel: #3f72b5;
+  --rl-teal: #2f8f86;
+  --rl-sand: #c9a76a;
+  --rl-canvas: #f5f5f1;
+}
+
+.rl-canvas,
+.workspace-view {
+  background-color: var(--rl-canvas);
+  background-image:
+    radial-gradient(1100px 540px at 6% -14%, rgba(63, 114, 181, .17), transparent 62%),
+    radial-gradient(880px 500px at 104% -6%, rgba(47, 143, 134, .12), transparent 64%),
+    radial-gradient(900px 620px at 52% 118%, rgba(201, 167, 106, .15), transparent 66%),
+    linear-gradient(rgba(34, 48, 60, .05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 48, 60, .05) 1px, transparent 1px);
+  background-size: auto, auto, auto, 26px 26px, 26px 26px;
+  background-position: center, center, center, 0 0, 0 0;
+}
+
+/* 页头：白底 + 一条极细的品牌渐变收边，替代纯灰分割线 */
+.workspace-page-header {
+  border-bottom-color: transparent;
+  box-shadow: 0 1px 0 rgba(63, 114, 181, .14), 0 1px 2px rgba(17, 18, 22, .03);
+}
+
+/* 文档中心空态：从一行灰字变成一张品牌引导卡 */
+.doc-list-empty {
+  max-width: 460px;
+  margin: 26px auto;
+  padding: 34px 30px 30px;
+  border: 1px dashed rgba(63, 114, 181, .3);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(248, 250, 251, .74));
+  box-shadow: 0 24px 48px -40px rgba(34, 48, 60, .55);
+  color: #6f7d89;
+  font-size: 12px;
+  line-height: 1.8;
+  text-align: center;
+}
+
+.doc-list-empty::before {
+  content: '';
+  display: block;
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 14px;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, .95), transparent 58%),
+    linear-gradient(150deg, rgba(63, 114, 181, .26), rgba(47, 143, 134, .22));
+  box-shadow: inset 0 0 0 1px rgba(63, 114, 181, .18), 0 10px 20px -14px rgba(34, 48, 60, .6);
+}
+
+/* 交流室空态：给图标与文字加一层柔和的品牌光晕 */
+.chat-empty {
+  color: #64788b;
+}
+
+.chat-empty > svg {
+  padding: 10px;
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  background: linear-gradient(150deg, rgba(63, 114, 181, .14), rgba(47, 143, 134, .12));
+  color: #4a6f92;
+  box-shadow: inset 0 0 0 1px rgba(63, 114, 181, .14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-canvas,
+  .workspace-view { background-attachment: scroll; }
+}

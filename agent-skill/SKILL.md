@@ -11,6 +11,7 @@ description: 为企业接入 Rallyloom 开源 OA。用于设计企业部署、�
 
 - **企业首次部署、授权与绑定、基础数据库接入或定制**：读 [企业接入与授权方案](enterprise-authorization.md)，明确部署与数据归属、三类授权、服务验证和 Demo 隔离。先确认企业有哪些接口与身份服务，再决定适配器接哪层。只有正式申请的模块和操作才进入授权范围。
 - **正式 OA 的任务、文档、交流室、通知、工作汇报接入或排错**：先读 [OA 协作契约](oa-collaboration.md)，逐项实现读写和服务端对象权限，再接前端入口；不同角色分别验收。群成员由 `/chat/channels/{id}/members` 独立返回，不得拿可见目录或提及候选名单推断。日常入座通过提供方声明的 `collaboration.seating` 和本人座位接口，不能改写长期分配或账号权限。
+- **点歌台、共享曲库或 MP4 上传接入**：读 `integration-spec.md` §13、`schemas/jukebox-feed.schema.json` 与可选精选歌曲 Schema；实现带 `jukebox.use` 的共享曲库接口、租户范围媒体存储和每日统一随机选歌，不要求用户提供媒体直链。
 - **给已部署的 OA 对接源系统**：按下文实现数据映射、推送或账号漫游。企业侧适配器持有获准的服务端凭据，Rallyloom 按数据契约承接。
 
 ## 0. 先读什么（按顺序）
@@ -19,7 +20,7 @@ description: 为企业接入 Rallyloom 开源 OA。用于设计企业部署、�
 2. `integration-spec.md` —— 现有事件和身份契约（三种接入模式、数据格式、幂等、错误码和角色边界）
 3. `schemas/*.json` —— 机器可读契约（JSON Schema 2020-12；按本次模块读取相应文件）
 4. `reference/adapter-demo.mjs` —— 推送适配器的参考实现（零依赖 Node 18+）
-5. `reference/verify-provider.mjs` —— 提供方接入体检脚本：`<域名>` 查 discovery + 授权页 Referrer-Policy + 真实表单 POST 的 Origin（v1.6）；`--bootstrap <json>` 离线校验 bootstrap 响应体的每个字段（v1.8，v1.9 起连带校验可选 `jukebox`）
+5. `reference/verify-provider.mjs` —— 提供方接入体检脚本：`<域名>` 查 discovery + 授权页 Referrer-Policy + 真实表单 POST 的 Origin（v1.6）；`--bootstrap <json>` 离线校验 bootstrap 响应体的每个字段（v1.8，v2.0 起校验可选精选歌曲）
 
 人类同事也适用本 skill：把整个目录给他即可，不需要额外上下文。
 
@@ -69,7 +70,7 @@ doc.upsert   payload：{ source_id, external_doc_id, title,           ← v1.3 �
     space?, folder_path?: string[], format(markdown|link), content?/url?, owner_name?, updated_at?, attrs?,
     content_format?(markdown|html，v1.7), attachments?: [{id?,name,size?,mime?,url}] }   ← v1.7 富文本+附件
 doc.remove   payload：{ source_id, external_doc_id }                 ← 文档下架
-bootstrap.jukebox（可选字段，无事件）：{ playlists: [ { id, name, tracks: [ { title, url(HTTPS MP4), artist?, poster?, duration?, attrs? } ] } ] }  ← v1.9 点歌台
+点歌台运行时契约（v2.0）：GET /api/v1/workspace/oa/jukebox；POST /jukebox/tracks（multipart MP4）；GET /jukebox/media/{id}；DELETE /jukebox/tracks/{id}。服务端校验 jukebox.use、租户边界与每日稳定随机歌曲。bootstrap.jukebox.playlists 仅作为可选精选歌曲。
 ```
 
 响应契约：200 成功 / 409 幂等命中（视为成功）/ 400 修后重发 / 401 换令牌 / **422 版本不兼容（保留事件+告警，绝不静默丢弃）** / 5xx 指数退避重试 3 次后转对账兜底。
@@ -80,9 +81,7 @@ v1.1–v1.3 的「业务数据承接」：动态流走 `activity.push`、任务�
 看板/大盘不需要适配器——只要一个返回 `{rows:[{label,value,delta?}]}` 的 HTTPS JSON 端点，
 由 Rallyloom 超管在「挂载外部数据看板」里填 URL 即可。边界详见 integration-spec.md §9。
 
-点歌台（v1.9）：Rallyloom 不存任何音视频文件，只做播放器与排队。企业把 MP4 放在自己的 HTTPS 对象存储上，
-在 bootstrap 响应里加可选 `jukebox` 字段（歌单数组 + 每首歌的 `title`/`url` 等）即可；媒体不进 Rallyloom，
-事件 Schema 零改动，`verify-provider.mjs --bootstrap` 会连带校验这段。详见 integration-spec.md §13。
+点歌台（v2.0）：这是跨企业通用的共享曲库，工作区成员可拖放 MP4、播放同事分享的歌曲，服务端按工作区每天稳定随机选歌。接入需实现 integration-spec.md §13 的授权 API 与文件存储；bootstrap.jukebox.playlists 可选提供精选歌曲，事件 Schema 不变。详见 integration-spec.md §13 与两个 jukebox Schema。
 
 多租户（v1.4）：一家公司一个工作区，**一源一司**——你的承接令牌绑定了唯一一家公司，
 报文里没有租户字段、也不需要发明一个（租户随令牌走，所以 Schema 零改动）。两家公司

@@ -21,6 +21,7 @@ interface OfficeSceneProps extends OfficeViewState {
   rooms: readonly ResolvedRoom[]
   roster: ReadonlyMap<string, Member[]>
   slots: DataSlots
+  screenLines?: Readonly<Record<string, readonly string[]>>
   onSelectRoom: (id: string | null) => void
   focusedMember: string | null
   meId: string | null
@@ -52,7 +53,7 @@ interface OfficeSceneProps extends OfficeViewState {
 }
 
 export function OfficeScene({
-  layout, rooms, roster, slots, selectedRoom, onSelectRoom, focusedMember, meId, meName, mode, zoom, walking, mentionedRooms, gmv, onOpenGmv, chat, editing, seats, onSeat, seatBusy, seatLocked, onAssignSeat, walkTarget, onWalkArrived,
+  layout, rooms, roster, slots, screenLines, selectedRoom, onSelectRoom, focusedMember, meId, meName, mode, zoom, walking, mentionedRooms, gmv, onOpenGmv, chat, editing, seats, onSeat, seatBusy, seatLocked, onAssignSeat, walkTarget, onWalkArrived,
 }: OfficeSceneProps) {
   const viewport = useRef<HTMLDivElement>(null)
   const engine = useRef<ReturnType<typeof createOfficeView>>(null)
@@ -74,7 +75,7 @@ export function OfficeScene({
 
   useEffect(() => {
     if (!viewport.current || (!rooms.length && !canEdit)) return
-    const next = createOfficeView(viewport.current, layout, rooms, roster, meId, { ...view.current, seats, seatLocked, selectedFurniture:editing?.selectedFurniture }, setOverlay, canEdit)
+    const next = createOfficeView(viewport.current, layout, rooms, roster, meId, { ...view.current, seats, seatLocked, selectedFurniture:editing?.selectedFurniture }, setOverlay, canEdit, screenLines)
     engine.current = next
     setGraphicsUnavailable(!next)
     return () => {
@@ -82,7 +83,7 @@ export function OfficeScene({
       engine.current = null
       next?.dispose()
     }
-  }, [layout, rooms, roster, meId, canEdit, seats])
+  }, [layout, rooms, roster, meId, canEdit, seats, screenLines])
 
   useEffect(() => {
     view.current = { selectedRoom, mode, zoom, walking, mentionedRooms, gmv, seats, seatLocked, selectedFurniture:editing?.selectedFurniture }

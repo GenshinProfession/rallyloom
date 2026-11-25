@@ -4,12 +4,10 @@ import type { JukeboxConfig } from './types'
  * 演示模式的内置歌单。
  *
  * 曲目全部指向公开示例视频（MP4 / 少量 WebM），用来验证播放器与排队逻辑；
- * 真实部署时这些内容由企业提供方通过 bootstrap 的 `jukebox` 字段下发，
- * 企业把自己找到的 MP4 放进自己的对象存储（HTTPS + 支持 Range 即可）再填到歌单里。
+ * 正式工作区从提供方读取可选精选曲目，并通过 OA 点歌台上传、共享成员 MP4。
  */
 export function demoJukebox(): JukeboxConfig {
   return {
-    note: '演示歌单：曲目为公开示例视频。企业接入后由提供方下发自有 MP4 歌单（接入规范 §13）。',
     playlists: [
       {
         id: 'party',

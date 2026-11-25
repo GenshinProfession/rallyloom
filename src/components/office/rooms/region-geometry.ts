@@ -44,12 +44,13 @@ export function regionLabelPoint(room:RoomPlacement):Point{
  * 房间名优先贴房间上沿左侧居中显示（像平面图的房间标题），
  * 并避开家具占地；找不到干净的位置时回退到房间内部点。
  */
-export function regionCaptionPoint(room:RoomPlacement):Point{
+export type CaptionAvoid={x:number;y:number;width:number;height:number}
+export function regionCaptionPoint(room:RoomPlacement,avoid:readonly CaptionAvoid[]=[]):Point{
   const f=room.frame
   if(!room.boundary)return{x:f.x+12,y:f.y+5}
   const boundary=room.boundary
   const furniture=(room.furniture??[]).map(item=>({x:f.x+item.x*f.width,y:f.y+item.y*f.height}))
-  const rows=[f.y+14,f.y+26,f.y+40]
+  const rows=[f.y+14,f.y+26,f.y+40,f.y+58,f.y+74]
   const inset=20,labelWidth=150,labelHeight=34
   for(const y of rows){
     for(let x=f.x+inset;x<=f.x+f.width-labelWidth-8;x+=18){
@@ -58,7 +59,10 @@ export function regionCaptionPoint(room:RoomPlacement):Point{
       if(!boundaryContains(boundary,{x:x+labelWidth,y},false))continue
       if(!boundaryContains(boundary,{x,y:y+labelHeight},false))continue
       const clash=furniture.some(item=>item.x>x-40&&item.x<x+labelWidth+24&&item.y>y-52&&item.y<y+labelHeight+22)
-      if(!clash)return p
+      if(clash)continue
+      // 门洞上方不放房间名：标签会挡住门，也不好点进门里
+      const blocked=avoid.some(rect=>x<rect.x+rect.width+10&&x+labelWidth+10>rect.x&&y<rect.y+rect.height+10&&y+labelHeight+10>rect.y)
+      if(!blocked)return p
     }
   }
   return regionLabelPoint(room)

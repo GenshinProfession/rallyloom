@@ -1,6 +1,6 @@
 # Rallyloom OA 接入规范（Integration Spec）
 
-版本：`v1.10-rc1`（schema_version = 1；v1.1 追加 `activity.push` 与 §9 数据外部化，v1.2 追加 `task.upsert` / `task.remove` 任务承接，v1.3 追加 `notice.push/remove` 公告与 `doc.upsert/remove` 文档承接，v1.4 追加 §10 多租户，v1.5 追加 §10.1 集团与租户联邦（可选管辖层），v1.6 追加 §11 提供方自渲染登录页的 Origin 坑与 `reference/verify-provider.mjs` 体检脚本，v1.7 追加富文本文档（`content_format: html`）与文档附件 `attachments`——仅 `doc.upsert` 增可选字段；v1.8 追加 §12 接入失败排查地图与 `--bootstrap` 离线契约校验，无 Schema 变更；v1.9 追加 §13 点歌台；v1.10 为曲目增加可选播放器 `provider=youtube`，事件 Schema 零改动。均向后兼容）
+版本：`v2.0`（schema_version = 1；v1.1 追加 `activity.push` 与 §9 数据外部化，v1.2 追加 `task.upsert` / `task.remove` 任务承接，v1.3 追加公告与文档承接，v1.4 追加 §10 多租户，v1.5 追加 §10.1 集团与租户联邦，v1.6 追加登录页 Origin 排错，v1.7 追加富文本与文档附件，v1.8 追加接入排错地图，v1.9/v1.10 增加可选精选歌曲；v2.0 将 §13 定义为共享曲库运行时 API、MP4 上传和每日统一随机选歌。事件 Schema 未变化，向后兼容）
 适用对象：要把自家系统的「人 / 组 / 成员关系」接入 Rallyloom 开源 OA 的任何团队或 AI Agent。
 Rallyloom 在接入关系中是**承接方**：提供入口、规范与身份容器；**不假设源系统有任何特定的组织模型**。
 
@@ -456,90 +456,56 @@ node reference/verify-provider.mjs --bootstrap bootstrap.json
 
 ---
 
-## 13. 点歌台（v1.10：承接歌单与受支持的播放来源，媒体不进 Rallyloom）
+## 13. 点歌台（v2.0：工作区共享曲库与每日歌曲）
 
-点歌台是**播放器**，不是媒体库：Rallyloom 不接收、存储或转码音视频文件，只负责展示企业提供的歌单、排队并播放。曲目可用企业自托管 HTTPS 媒体直链，也可声明使用 YouTube 官方嵌入播放器。
+点歌台是内置的 OA 协作功能。获得 jukebox.use 能力的工作区成员都能浏览和播放共享曲库、拖入 MP4 分享歌曲；每个工作区每天由服务端随机选出一首，所有成员看到同一个结果。它不依赖 bootstrap 配置才显示，也不需要歌单说明文案。提供方若把多个组织租户合并为一个 OA 工作区，曲库和每日歌曲覆盖该工作区内所有有权成员；租户隔离由提供方的 workspace 拓扑决定。
 
-### 13.1 接入方式：bootstrap 可选字段 `jukebox`
+### 13.1 运行时 API
 
-不新增任何事件、不新增任何端点——只在你已经实现的 `GET /api/v1/workspace/bootstrap` 响应里增加一个**可选**字段 `jukebox`。客户端已有容错：字段缺失、结构不对或单条曲目无效只会被忽略，不会让工作区加载失败（点歌台是弱依赖板块）。
+所有路径均相对 /api/v1/workspace/oa，使用当前 Rallyloom 会话的 Bearer token。平台账号仅在已有工作区范围机制允许时使用 X-Rallyloom-Scope 指定操作上下文；普通成员不能选择或跨越租户。服务端必须对每个端点检查 jukebox.use，不可只依赖隐藏导航。曲库按 provider 定义的 workspace 共享，不按平台管理员当前浏览的业务数据范围分裂。
 
-```jsonc
-{
-  // ...bootstrap 的其余字段（installation_id / workspace_id / tenant / member_id / permissions / team / policy / layout / dataSlots）
-  "jukebox": {
-    "note": "公司内部点歌台：曲目均为企业自有版权素材",
-    "playlists": [
-      {
-        "id": "party",
-        "name": "团建金曲",
-        "description": "年会、团建时段",
-        "tracks": [
-          {
-            "id": "t-001",
-            "title": "开场短片",
-            "artist": "品牌部",
-            "url": "https://media.your-company.com/jukebox/opening.mp4",
-            "poster": "https://media.your-company.com/jukebox/opening.jpg",
-            "duration": 52,
-            "attrs": { "场景": "暖场", "类型": "短片" }
-          },
-          {
-            "id": "t-002",
-            "title": "官方 YouTube 曲目示例",
-            "artist": "提供方填写",
-            "provider": "youtube",
-            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+| 方法与路径 | 用途 |
+| --- | --- |
+| GET /jukebox | 返回当前工作区曲目、日期和统一的每日歌曲 |
+| POST /jukebox/tracks | multipart 上传 MP4，字段 file 必填、title 可选 |
+| GET /jukebox/media/{mediaId} | 授权读取已上传的 MP4，响应 video/mp4 |
+| DELETE /jukebox/tracks/{mediaId} | 上传者删除自己的歌曲；平台管理员可管理当前范围内的歌曲 |
 
-机器可读定义：[`schemas/jukebox.schema.json`](schemas/jukebox.schema.json)。离线校验：`node reference/verify-provider.mjs --bootstrap bootstrap.json` 会连带检查 `jukebox`。
+POST 接受 .mp4，文件内容必须是 MP4 容器（ftyp 标记），最大 20 MiB。标题为空时从文件名生成，最多 120 字；提供方可按自身存储能力额外设更低限制。歌曲元数据和媒体必须绑定到认证身份所在的 workspace，来源租户可作为审计字段保存，但不能信任客户端传入的上传者或租户标识。一个 workspace 可以有意合并多个租户；若提供方使用独立 workspace，则歌曲也必须分别隔离。
 
-### 13.2 字段要求
+GET /jukebox 的响应形状由 schemas/jukebox-feed.schema.json 定义。每条曲目包含稳定 id 和 title；上传曲目另含 mediaId、provider=mira-file、origin=member、uploaderName、createdAt 与 canDelete。每日歌曲由 dailyTrackId 标识，可同时返回 dailyTrack 对象。
+
+dailyTrackId 对同一工作区和北京时间自然日保持稳定；只有曲库为空或当日歌曲已删除时才重新抽取。用户播放队列属于本人会话，曲库与每日歌曲属于整个工作区。曲目新增后客户端会定时刷新，其他成员无需重新绑定。
+
+### 13.2 可选精选曲目
+
+提供方仍可在 bootstrap 返回可选 jukebox.playlists 作为工作区精选歌曲；成员上传的共享曲目由运行时 API 提供。这些精选歌曲与成员 MP4 一起进入同一个随机池。现有静态字段由 schemas/jukebox.schema.json 校验，note 不用于成员端说明。verify-provider.mjs --bootstrap 可离线检查精选曲目字段。
+
+精选歌曲字段：
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `playlists` | 是 | 1–40 个歌单 |
-| `playlists[].id` | 是 | 稳定标识，`[A-Za-z0-9_-]{1,64}`；用于前端选中态，改名不影响 |
-| `playlists[].name` | 是 | ≤40 字 |
-| `playlists[].description` | 否 | ≤160 字 |
-| `playlists[].tracks` | 是 | 1–300 首 |
-| `tracks[].title` | 是 | 曲目名 ≤120 字 |
-| `tracks[].provider` | 否 | 缺省表示企业媒体直链；目前可选 `youtube` |
-| `tracks[].url` | 是 | 缺省 provider 时为企业 HTTPS 媒体地址；`provider=youtube` 时填写 YouTube 官方分享链接 |
-| `tracks[].poster` | 否 | HTTPS 封面图 |
-| `tracks[].artist` / `duration` | 否 | 展示用；`duration` 单位秒 |
-| `tracks[].id` | 否 | 缺省由客户端按 `track-<歌单>-<序号>` 生成 |
-| `tracks[].attrs` | 否 | 字符串键值对，作为曲目上的小标签展示（如 场景/类型） |
+| playlists | 是 | 1–40 个可选精选歌单 |
+| playlists[].id / name / tracks | 是 | 稳定 ID、歌单名和曲目数组 |
+| tracks[].title / url | 是 | 标题和 HTTPS 媒体地址 |
+| tracks[].provider | 否 | 可用 youtube；播放走官方嵌入播放器 |
+| tracks[].artist / poster / duration | 否 | 展示元数据 |
 
-### 13.3 媒体托管要求（企业侧）
+### 13.3 客户端行为
 
-1. 企业媒体直链必须为 HTTPS；YouTube 曲目必须是 YouTube 官方域名下的 HTTPS 分享链接，只由官方嵌入播放器加载。
-2. **支持 Range 请求**（`Accept-Ranges: bytes`）：拖动进度条更顺滑；不支持的服务器也能播，只是 seek 会退化成重新下载。
-3. **编码**：MP4 / H.264 + AAC 兼容性最好；WebM 也可，但 Electron 内置 Chromium 对 H.265 支持不保证。
-4. **签名 URL 可用**，但每次 bootstrap 下发的 URL 必须仍在有效期内（客户端不刷新歌单）。
-5. **不要**把媒体地址放进 `attrs` 或事件里——点歌台只认 `tracks[].url`。
+- 成员可拖拽 MP4 到曲库，也可点击选择文件；提交成功后同工作区成员刷新时可见。
+- 点击曲目播放；用户可另建本机队列。每日歌曲由服务端抽取，成员从每日歌曲卡片播放。
+- jukebox.use 成员能力决定页面及每个 API 的访问；默认成员角色应由提供方授权所有可参与的工作区成员。
+- 文件只能由上传者删除；提供方可自行提供更细的审核/删除策略，但不能跨租户读取媒体。
 
-### 13.4 客户端行为（已内置，无需适配器）
+### 13.4 不要这样做
 
-- 左栏歌单 + 曲目列表，点「点歌」把曲目加入**本机播放队列**（同名同地址去重）；
-- 企业直链和 YouTube 曲目都支持加入本机队列；直链播放器支持上一首 / 暂停 / 下一首 / 音量 / 全屏，播完自动下一首；YouTube 由官方 IFrame Player API 控制播放并衔接队列；
-- 队列是本机状态，不落库、不跨设备同步；刷新页面即清空；
-- 没有 `jukebox` 或歌单为空时，页面显示契约说明空态，不影响其他板块。
+- ❌ 把成员提交的 MP4 当作一次性浏览器文件；上传成功后必须进入工作区共享曲库。
+- ❌ 把客户端提交的 uploaderName、tenantId 或播放日期当作可信来源；身份、租户与每日抽歌日期由服务端确定。
+- ❌ 仅靠前端导航隐藏来实现权限；媒体读取和删除也必须经过授权及租户范围校验。
+- ❌ 把完整媒体内容放进 bootstrap 或曲库 JSON；元数据和文件读取使用分离的运行时 API。
+- ❌ 把不拥有或未经许可的受版权限制音视频放入公司曲库。
 
-### 13.5 不要这样做
+### 13.5 给 AI Agent 的一句话
 
-- ❌ 让 Rallyloom 接收/存储 MP4 或做转码（不是它的职责，也不在契约内）；
-- ❌ 把 YouTube 页面当作可直接播放的媒体 URL；YouTube 条目必须声明 `provider: "youtube"` 并使用官方分享链接；
-- ❌ 用 `activity.push` 或 `notice.push` 传媒体地址（只在 `jukebox.tracks[].url`）；
-- ❌ 依赖歌单实时更新做直播推流（契约是静态歌单，每次 bootstrap 刷新）；
-- ❌ 把受版权限制的第三方音视频挂上来（企业自行承担版权与访问控制）。
-
-### 13.6 给 AI Agent 的一句话
-
-> 点歌台零事件、零新端点：在 bootstrap 响应里加可选 `jukebox`；曲目可使用企业 HTTPS 媒体直链，或 `provider: "youtube"` + YouTube 分享链接。运行 `verify-provider.mjs --bootstrap` 校验；媒体由原提供方托管，Rallyloom 只做播放器与队列。
+> 点歌台是工作区内置共享曲库：让拥有 jukebox.use 的成员上传 MP4、播放同事分享的歌曲，并由服务端按公司范围和北京时间每天稳定随机选歌；按本节 API、两个 Schema 和租户授权约束实现，不要要求成员找媒体直链或填写说明。

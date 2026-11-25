@@ -15,7 +15,7 @@ import {deleteWall,insertWall,moveWallRun,replaceWall} from './rooms/weld-walls'
 import { OfficeRoomSurfaces } from './OfficeRoomSurfaces'
 import { snapRoom } from './rooms/snap-room'
 import { getRoomDoorway, resolveOfficeLayout, roomTemplates, type RoomPlacement } from './rooms'
-import type { FurnitureKind, RoomFrame, WallSegment } from './rooms/api'
+import type { FurnitureKind, FurniturePlacement, RoomFrame, WallSegment } from './rooms/api'
 import { materializeRoom, furnitureSeats, resizeRoomContents } from './rooms/template-furniture'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FURNITURE, fitFurniture, furnitureSize } from './rooms/placed-furniture'
@@ -139,16 +139,30 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
 
   const undoRef=useRef<() => void>(() => {})
   const redoRef=useRef<() => void>(() => {})
+  const copyRef=useRef<() => void>(() => {})
+  const cutRef=useRef<() => void>(() => {})
+  const pasteRef=useRef<(duplicate?: boolean) => void>(() => {})
+  const deleteRef=useRef<() => void>(() => {})
+  const clipboard=useRef<{kind:'furniture';item:FurniturePlacement;roomId:string}|{kind:'room';room:RoomPlacement}|null>(null)
   useEffect(()=>{const keys=(event:KeyboardEvent)=>{
     if(event.key==='Escape')setTool('select')
     if(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement)return
+    if(event.key==='Delete'){event.preventDefault();deleteRef.current();return}
     if(!(event.metaKey||event.ctrlKey))return
     const key=event.key.toLowerCase()
     if(key==='z'&&!event.shiftKey){event.preventDefault();undoRef.current()}
     else if((key==='z'&&event.shiftKey)||key==='y'){event.preventDefault();redoRef.current()}
+    else if(key==='c'){event.preventDefault();copyRef.current()}
+    else if(key==='x'){event.preventDefault();cutRef.current()}
+    else if(key==='v'){event.preventDefault();pasteRef.current()}
+    else if(key==='d'){event.preventDefault();pasteRef.current(true)}
   };window.addEventListener('keydown',keys);return()=>window.removeEventListener('keydown',keys)},[])
   undoRef.current=undoEdit
   redoRef.current=redoEdit
+  copyRef.current=copySelection
+  cutRef.current=cutSelection
+  pasteRef.current=pasteClipboard
+  deleteRef.current=deleteSelection
   function selectFreeWall(id:string){setWallSelection(id);setFurnitureSelection(undefined);setInspector('properties')}
 
   /**
@@ -358,6 +372,116 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
     if (placement) commitModel(source, placement)
   }
 
+  function deleteSelection() {
+    if (furnitureSelection && selection) { removeFurnitureItem(selection, furnitureSelection); return }
+    if (selection && !selected?.boundary) { removeRoom(selection); return }
+    if (selection && selected?.boundary) notify('边界房间由墙体自动识别，删除请先拆除围合它的墙体', 'error')
+  }
+
+  function removeFurnitureItem(roomId: string, itemId: string) {
+    updateRoom(roomId, (room) => ({ ...room, furniture: (room.furniture ?? []).filter((item) => item.id !== itemId) }))
+    setFurnitureSelection(undefined)
+  }
+
+  /** Ctrl+C：选中家具复制家具，选中房间复制整间（带家具与座位）。 */
+  function copySelection() {
+    const current = draftRef.current
+    if (furnitureSelection && selection) {
+      const room = current.rooms.find((candidate) => candidate.id === selection)
+      const item = room?.furniture?.find((candidate) => candidate.id === furnitureSelection)
+      if (room && item) {
+        clipboard.current = { kind: 'furniture', item: structuredClone(item), roomId: room.id }
+        notify(`已复制家具「${FURNITURE[item.kind].label}」，Ctrl+V 粘贴`)
+        return
+      }
+    }
+    if (selection) {
+      const room = current.rooms.find((candidate) => candidate.id === selection)
+      if (!room) return
+      if (room.boundary) { notify('边界房间由墙体自动识别，不能整间复制；可以单独复制里面的家具', 'error'); return }
+      clipboard.current = { kind: 'room', room: structuredClone(room) }
+      notify(`已复制房间「${room.name}」，Ctrl+V 粘贴`)
+      return
+    }
+    notify('先选中一个房间或家具，再按 Ctrl+C 复制', 'error')
+  }
+
+  /** Ctrl+X：复制后立即删除原对象。 */
+  function cutSelection() {
+    copySelection()
+    const data = clipboard.current
+    if (!data) return
+    if (data.kind === 'furniture' && selection) {
+      removeFurnitureItem(selection, data.item.id)
+      notify(`已剪切家具「${FURNITURE[data.item.kind].label}」`)
+    } else if (data.kind === 'room') {
+      removeRoom(data.room.id)
+      notify(`已剪切房间「${data.room.name}」`)
+    }
+  }
+
+  /** Ctrl+V 粘贴（Ctrl+D 复制一份并直接粘贴）。 */
+  function pasteClipboard(duplicate = false) {
+    const data = clipboard.current
+    if (!data) { notify('剪贴板是空的：先选中房间或家具按 Ctrl+C', 'error'); return }
+    if (duplicate) {
+      // Ctrl+D 直接复制当前选中的对象，不依赖剪贴板
+      if (furnitureSelection && selection) {
+        const room = draftRef.current.rooms.find((candidate) => candidate.id === selection)
+        const item = room?.furniture?.find((candidate) => candidate.id === furnitureSelection)
+        if (room && item) clipboard.current = { kind: 'furniture', item: structuredClone(item), roomId: room.id }
+      } else if (selection) {
+        const room = draftRef.current.rooms.find((candidate) => candidate.id === selection)
+        if (room && !room.boundary) clipboard.current = { kind: 'room', room: structuredClone(room) }
+      }
+    }
+    const payload = clipboard.current
+    if (!payload) { notify('当前对象不支持复制一份', 'error'); return }
+    const current = draftRef.current
+    if (payload.kind === 'furniture') {
+      const targetId = selection ?? payload.roomId
+      const room = current.rooms.find((candidate) => candidate.id === targetId)
+      if (!room) { notify('先选中要粘贴到的房间，再按 Ctrl+V', 'error'); return }
+      const stepX = 30 / Math.max(1, room.frame.width)
+      const stepY = 30 / Math.max(1, room.frame.height)
+      const copy = fitFurniture({ ...structuredClone(payload.item), id: `f-${crypto.randomUUID().slice(0, 8)}`, x: clamp(payload.item.x + stepX, .02, .98), y: clamp(payload.item.y + stepY, .02, .98) }, room.frame)
+      record(current)
+      setDraft({ ...current, rooms: current.rooms.map((candidate) => {
+        if (candidate.id !== room.id) return candidate
+        const next = { ...candidate, furniture: [...(candidate.furniture ?? []), copy] }
+        return { ...next, seats: furnitureSeats(next) }
+      }) })
+      setFurnitureSelection(copy.id)
+      notify(`已粘贴「${FURNITURE[copy.kind].label}」`)
+      return
+    }
+    const source = payload.room
+    const width = source.frame.width, height = source.frame.height
+    let x = clamp(source.frame.x + 40, 0, Math.max(0, current.width - width))
+    let y = clamp(source.frame.y + 40, 0, Math.max(0, current.height - height))
+    for (let attempt = 0; attempt < 16; attempt += 1) {
+      if (!current.rooms.some((room) => intersects(room.frame, { x, y, width, height }))) break
+      x = clamp(x + 30, 0, Math.max(0, current.width - width))
+      y = clamp(y + 30, 0, Math.max(0, current.height - height))
+    }
+    const id = `room-${crypto.randomUUID().slice(0, 8)}`
+    const room: RoomPlacement = {
+      ...structuredClone(source),
+      id,
+      name: `${source.name} 副本`,
+      frame: { x, y, width, height },
+      furniture: (source.furniture ?? []).map((item, index) => ({ ...item, id: `f-${crypto.randomUUID().slice(0, 8)}-${index}` })),
+      seats: source.useTemplateFurniture === false ? [] : structuredClone(source.seats),
+    }
+    if (room.useTemplateFurniture === false) room.seats = furnitureSeats(room)
+    record(current)
+    setDraft({ ...current, rooms: [...current.rooms, room] })
+    setSelection(id)
+    setFurnitureSelection(undefined)
+    setInspector('properties')
+    notify(`已粘贴房间「${room.name}」`)
+  }
+
   function insertRoom(template: keyof typeof OFFICE_TEMPLATES, frame: RoomFrame) {
     const id = crypto.randomUUID()
     const current=draftRef.current
@@ -422,6 +546,9 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
           </Button>
         </div>
       </WorkspaceHeader>
+      <p className="office-editor-shortcut-hint" aria-hidden="true">
+        Ctrl+Z 撤回 · Ctrl+Shift+Z 重做 · Ctrl+C 复制 · Ctrl+X 剪切 · Ctrl+V 粘贴 · Ctrl+D 复制一份 · Delete 删除
+      </p>
       {(message || validation.error) && <p className={`office-editor-note${(validation.error || messageTone === 'error') ? ' is-error' : ''}`} role={validation.error || messageTone === 'error' ? 'alert' : undefined}>{message || validation.error}</p>}
       {!validation.error && assignmentsReleased > 0 && <p className="office-editor-seat-notice">
         发布后，原工位不足的 {assignmentsReleased} 位成员会转为未分配，可在办公室的「分配工位」重新安排。

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rallyloom workspace shared jukebox feed",
+  "$comment": "Authenticated GET /api/v1/workspace/oa/jukebox response. All tracks are scoped to one workspace; dailyTrackId is stable for its Asia/Shanghai calendar date.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["day", "dailyTrackId", "tracks"],
+  "properties": {
+    "day": { "type": "string", "format": "date" },
+    "dailyTrackId": { "type": ["string", "null"], "maxLength": 180 },
+    "dailyTrack": { "$ref": "#/$defs/track" },
+    "tracks": {
+      "type": "array",
+      "maxItems": 12500,
+      "items": { "$ref": "#/$defs/track" }
+    }
+  },
+  "$defs": {
+    "track": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "origin", "canDelete"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "artist": { "type": "string", "maxLength": 80 },
+        "provider": { "type": "string", "enum": ["youtube", "mira-file"] },
+        "url": { "type": "string", "format": "uri", "pattern": "^https://", "maxLength": 2048 },
+        "mediaId": { "type": "string", "format": "uuid" },
+        "origin": { "type": "string", "enum": ["curated", "member"] },
+        "uploaderName": { "type": "string", "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "canDelete": { "type": "boolean" },
+        "byteSize": { "type": "integer", "minimum": 1, "maximum": 20971520 },
+        "poster": { "type": "string", "format": "uri", "pattern": "^https://", "maxLength": 2048 },
+        "duration": { "type": "number", "minimum": 0, "maximum": 86400 }
+      },
+      "anyOf": [
+        { "required": ["url"] },
+        { "required": ["mediaId"] }
+      ]
+    }
+  }
+}

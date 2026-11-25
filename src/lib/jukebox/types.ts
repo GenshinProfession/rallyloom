@@ -1,10 +1,7 @@
 /**
  * 点歌台（Jukebox）数据契约。
  *
- * 架构约定：Rallyloom 不存放任何媒体文件，只负责「播放与排队」。
- * 歌单由企业工作区（提供方）在本机 bootstrap 的 `jukebox` 字段下发，
- * 曲目可指向企业自托管 HTTPS 媒体，或使用授权平台的官方嵌入播放器。
- * 演示模式内置一组示例歌单，方便在没有提供方时先体验交互。
+ * bootstrap 可选下发企业精选曲目；成员曲目由 JukeboxClient 接入工作区共享曲库 API。
  */
 
 export interface JukeboxTrack {
@@ -14,9 +11,18 @@ export interface JukeboxTrack {
   /** 演唱者 / 上传人，可省略 */
   artist?: string
   /** 缺省为企业媒体直链；目前明确支持 youtube 官方嵌入播放器。 */
-  provider?: 'youtube'
+  provider?: 'youtube' | 'mira-file'
   /** 直链媒体 URL，或 provider=youtube 时的 YouTube 分享地址。 */
-  url: string
+  url?: string
+  /** Mira 共享曲库中受授权保护的上传文件 ID。 */
+  mediaId?: string
+  /** 提交人显示名；仅服务端返回。 */
+  uploaderName?: string
+  /** 上传时间；仅服务端返回。 */
+  createdAt?: string
+  /** track 的来源类型：curated 或 member。 */
+  origin?: 'curated' | 'member'
+  canDelete?: boolean
   /** 封面图（可选） */
   poster?: string
   /** 时长（秒），仅用于列表展示，播放以实际媒体为准 */
@@ -36,8 +42,20 @@ export interface JukeboxPlaylist {
 
 export interface JukeboxConfig {
   playlists: readonly JukeboxPlaylist[]
-  /** 提供方附带的说明，展示在歌单页脚 */
-  note?: string
+}
+
+export interface JukeboxFeed {
+  day: string
+  dailyTrackId: string | null
+  dailyTrack?: JukeboxTrack
+  tracks: JukeboxTrack[]
+}
+
+export interface JukeboxClient {
+  list(): Promise<JukeboxFeed>
+  submit(file: File, title: string): Promise<JukeboxTrack>
+  media(id: string): Promise<Blob>
+  remove(id: string): Promise<void>
 }
 
 /** 只接受可播放的绝对地址：http(s) 且带主机名。 */
@@ -82,7 +100,7 @@ function text(value: unknown): string | undefined {
  */
 export function normalizeJukebox(value: unknown): JukeboxConfig | null {
   if (!value || typeof value !== 'object') return null
-  const raw = value as { playlists?: unknown; note?: unknown }
+  const raw = value as { playlists?: unknown }
   if (!Array.isArray(raw.playlists)) return null
   const used = new Set<string>()
   const playlists: JukeboxPlaylist[] = []
@@ -127,7 +145,7 @@ export function normalizeJukebox(value: unknown): JukeboxConfig | null {
     playlists.push({ id: playlistId, name, description: text(source.description), tracks })
   }
   if (!playlists.length) return null
-  return { playlists, note: text(raw.note) }
+  return { playlists }
 }
 
 export function formatDuration(seconds: number | undefined): string {

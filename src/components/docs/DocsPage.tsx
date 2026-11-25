@@ -152,7 +152,7 @@ export function DocsPage({ client }: DocsPageProps) {
   const fullscreenControl = <Button variant="ghost" size="sm" aria-label={fullscreen ? '退出全屏' : '全屏文档'} aria-pressed={fullscreen} onClick={() => setFullscreen(!fullscreen)}>{fullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}{fullscreen ? '退出全屏' : '全屏'}</Button>
 
   return (
-    <main data-docs="root" className="flex min-w-0 flex-1 flex-col bg-[#f4f4f6]">
+    <main data-docs="root" className="rl-canvas flex min-w-0 flex-1 flex-col">
       <WorkspaceHeader title="文档中心" description={load === 'ready' ? `${new Set(records.map(r=>documentPath(r)[0])).size} 个知识库 · ${documents.length} 篇文档` : client.label}>
         {client.supportsFolders && <Button variant="toolbar" size="sm" className="ml-auto h-8 text-ui-label" disabled={load!=='ready'} data-doc-new-folder onClick={()=>{setLibrary(location[0]??records[0]?.space??'知识库');setFolderName('');setFolderError('');setNewFolder(true)}}><FolderPlus/>新建文件夹</Button>}
         <Button variant="toolbar" size="sm" className={`${client.supportsFolders ? '' : 'ml-auto'} h-8 text-ui-label`} disabled={load !== 'ready'}

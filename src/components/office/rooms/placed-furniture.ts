@@ -2,6 +2,7 @@ import { Group } from 'three'
 import type { FurnitureKind, FurniturePlacement, RoomFrame } from './api'
 import type { ModelKit } from '../three/model'
 import { monitor, shelf, table, officeChair, wallScreen, carton, workstations } from './furniture'
+import { buildDataScreen } from '../three/data-screen'
 
 export const FURNITURE = {
   desk: { label: '桌子', width: 60, depth: 36, height: 24 },
@@ -40,6 +41,7 @@ export const FURNITURE = {
   'water-cooler': { label:'饮水机',width:24,depth:24,height:56 },
   'plant-large': { label:'大绿植',width:44,depth:44,height:74 },
   'conference-table': { label:'长会议桌',width:240,depth:74,height:26 },
+  'data-screen': { label:'数据显示屏',width:200,depth:8,height:112 },
 } satisfies Record<FurnitureKind, { label: string; width: number; depth: number; height: number }>
 
 export function furnitureSize(item: FurniturePlacement) {
@@ -72,7 +74,9 @@ export function furnitureFits(item: FurniturePlacement, room: RoomFrame) {
   return Math.abs(fitted.x - item.x) < 0.000001 && Math.abs(fitted.y - item.y) < 0.000001
 }
 
-export function buildPlacedFurniture(parent: Group, model: ModelKit, item: FurniturePlacement, frame: RoomFrame) {
+export function buildPlacedFurniture(parent: Group, model: ModelKit, item: FurniturePlacement, frame: RoomFrame, screenLines: readonly string[] = []) {
+  // 数据显示屏自己管理位置与朝向，文字由看板数据源决定
+  if (item.kind === 'data-screen') return buildDataScreen(parent, model, item, frame, screenLines)
   const object = new Group()
   object.position.set(item.x * frame.width, item.elevation ?? 0, item.y * frame.height)
   object.rotation.y = -item.rotation * Math.PI / 180

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Provider jukebox (playlist and playback sources) definition",
-  "$comment": "bootstrap 响应里的可选 jukebox 字段。Rallyloom 不存放媒体文件：默认使用企业自托管 HTTPS 媒体直链；provider=youtube 时 url 为官方 YouTube 分享链接并由 YouTube 嵌入播放器加载。",
+  "title": "Optional curated songs for the Rallyloom shared jukebox",
+  "$comment": "bootstrap 中可选的精选歌曲；成员分享曲目通过工作区 OA jukebox API 管理。note 仅为旧数据兼容保留，不显示在成员点歌台。",
   "type": "object",
   "additionalProperties": false,
   "required": [

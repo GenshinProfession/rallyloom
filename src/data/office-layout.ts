@@ -65,6 +65,7 @@ export const OFFICE_LAYOUT = defineOfficeLayout({
         { id: 'command-tree', kind: 'plant-large', x: .05, y: .13, rotation: 0 },
         { id: 'command-cooler', kind: 'water-cooler', x: .95, y: .13, rotation: 0 },
         { id: 'command-board', kind: 'whiteboard', x: .50, y: .07, rotation: 0 },
+        { id: 'command-data-screen', kind: 'data-screen', x: .845, y: .10, rotation: 0 },
       ],
     },
     {

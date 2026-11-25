@@ -1,104 +1,59 @@
-# Mira 接入点歌台（Jukebox）契约说明
+# Mira 接入 Rallyloom 共享点歌台契约
 
-> 适用对象：Mira 后端 / 工作区 provider 维护者
-> 对接版本：Rallyloom v0.15.0（接入规范 v1.10 · §13 点歌台）
-> 结论先行：**不需要新端点、不需要新事件、不做媒体存储**——只在 `GET /api/v1/workspace/bootstrap` 的响应里增加一个**可选**字段 `jukebox` 即可。
+适用对象：Mira 后端与 Rallyloom 工作区 provider 维护者
+版本：Rallyloom 共享点歌台契约 v2.0
 
----
+## 产品行为
 
-## 1. 为什么要加这个字段
+点歌台是 OA 的内置共享曲库，不要求成员找媒体直链或阅读操作说明。拥有 jukebox.use 权限的成员可以浏览、播放、拖入 MP4 分享歌曲；同一工作区的人都能听到彼此分享的歌。服务端每天按北京时间从该工作区曲库随机选出一首，并让当日所有成员看到同一首歌。Mira 将所有纳入 OA 的活跃分公司合并成一个 Rallyloom 工作区，因此这些租户共享同一曲库。
 
-Rallyloom 桌面端新增了「点歌台」页面（左栏歌单、右侧播放舞台、播放队列）。按产品约定，**Rallyloom 不存放任何音视频文件**：企业可使用自托管 HTTPS 媒体，也可选择 YouTube 官方嵌入播放器；Rallyloom 只做播放器与排队。
+Mira 侧已经有可选的精选歌曲配置，它们会作为只读精选曲目加入共享池。成员自己上传的歌曲通过下方 OA API 写入 Mira，并归属到合并工作区；记录保留来源租户用于审计，离开 OA 范围或停用的租户成员歌曲不再展示。普通业务数据仍按原有租户边界隔离。
 
-因此媒体列表由提供方通过 bootstrap 下发，字段名固定为 `jukebox`。
+## 接口
 
-## 2. 需要改的唯一位置
+路径均在 /api/v1/workspace/oa 下，身份通过现有 Rallyloom Bearer token 验证。Mira 对所有接口都必须校验 jukebox.use。歌曲池与每日随机结果按合并的 mira-company 工作区共享；上传来源租户由认证 Principal 决定，平台管理员只能在允许的 OA 租户上下文中上传。不信任请求体中任何上传者或租户字段。
 
-`backend/src/main/java/com/mira/integrations/rallyloom/RallyloomWorkspaceService.java` 的 `bootstrap(Principal)` 返回体（当前组装 installation/workspace/tenant/member_id/permissions/team/policy/layout/dataSlots 的地方）增加一个可选键 `jukebox`。
+| 方法与完整路径 | 行为 |
+| --- | --- |
+| GET /api/v1/workspace/oa/jukebox | 返回合并工作区共享曲目、北京时间日期及统一每日随机歌曲 |
+| POST /api/v1/workspace/oa/jukebox/tracks | 接收 multipart/form-data；file 为 MP4 文件，title 可选 |
+| GET /api/v1/workspace/oa/jukebox/media/{mediaId} | 鉴权后返回 video/mp4 文件内容 |
+| DELETE /api/v1/workspace/oa/jukebox/tracks/{mediaId} | 上传者可删除自己的文件；平台管理员可删除当前工作区曲目 |
 
-推荐实现（与 `policy_json` / `layout_json` 同风格）：新增一张配置表或复用工作区配置 JSON 列，由平台管理员通过 Mira 后台配置歌单；未配置时返回 `null` 或直接省略该键（二者客户端都能处理）。
+### 文件约束
 
-Go/Java 侧只需保证：`jukebox` 是对象或 `null`；对象里 `playlists` 是数组。
+- 文件扩展名必须为 mp4，文件内容必须包含合法 MP4 容器的 ftyp 标记。
+- 单文件上限 20 MiB；空文件、其他媒体类型和超限文件返回 400。
+- 标题可留空，服务端从文件名生成；标题最长 120 个字符。
+- 上传者 ID、名称、来源租户和上传时间由服务端从登录身份取得。
+- 合并工作区内的普通成员都可查看共享曲目；未纳入或已停用的租户成员曲目不进入曲库。
+- 媒体文件不得通过 bootstrap 传输；bootstrap 只携带精选曲目元数据与播放来源。
 
-## 3. 响应示例
+### GET feed 响应字段
 
-```jsonc
-{
-  // ……现有字段保持不变……
-  "jukebox": {
-    "note": "Mira 年会社内点歌台：曲目均为企业自有版权素材",
-    "playlists": [
-      {
-        "id": "party",
-        "name": "年会金曲",
-        "description": "年会 / 团建时段",
-        "tracks": [
-          {
-            "id": "mira-t-001",
-            "title": "开场短片",
-            "artist": "品牌部",
-            "url": "https://media.mirapilot.com/jukebox/opening.mp4",
-            "poster": "https://media.mirapilot.com/jukebox/opening.jpg",
-            "duration": 52,
-            "attrs": { "场景": "暖场", "类型": "短片" }
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+feed 至少包含 day、dailyTrackId、tracks；当日曲目还可以通过 dailyTrack 重复返回，方便客户端直接展示。
 
-机器可读契约：`agent-skill/schemas/jukebox.schema.json`（Rallyloom 仓库内）。
+- day：北京时间的 YYYY-MM-DD。
+- dailyTrackId：当日曲目 ID；曲库为空时为 null。
+- tracks：工作区共享曲目元数据。上传曲目含 mediaId、provider=mira-file、origin=member、uploaderName、createdAt、byteSize 和 canDelete。
+- 精选曲目含 HTTPS url，可选 provider=youtube、artist、poster、duration；origin=curated。
+- canDelete 只用于界面显示；删除时服务端仍必须独立校验上传者或平台管理员身份。
 
-## 4. 字段与限制
+当天的 dailyTrackId 对同一工作区保持稳定。服务端只在首次选取、曲库为空或选中的歌曲已被删除时重新抽取。提供方若把企业租户映射为多个独立工作区，则不同工作区之间曲目和每日结果互相隔离。
 
-| 字段 | 必填 | 限制 |
-| --- | --- | --- |
-| `playlists` | 是 | 1–40 个歌单 |
-| `playlists[].id` | 是 | `[A-Za-z0-9_-]{1,64}`，稳定不变 |
-| `playlists[].name` | 是 | ≤40 字 |
-| `playlists[].description` | 否 | ≤160 字 |
-| `playlists[].tracks` | 是 | 1–300 首 |
-| `tracks[].title` | 是 | ≤120 字 |
-| `tracks[].provider` | 否 | 缺省表示自托管媒体；目前可选 `youtube` |
-| `tracks[].url` | 是 | 缺省 provider 时为企业 HTTPS 媒体直链；`provider=youtube` 时为 YouTube 官方分享链接 |
-| `tracks[].poster` | 否 | HTTPS 封面图 |
-| `tracks[].artist` | 否 | ≤80 字 |
-| `tracks[].duration` | 否 | 秒，0–86400 |
-| `tracks[].attrs` | 否 | 字符串键值对象（≤16 键），作为曲目标签展示 |
+## Mira 当前实现对应文件
 
-## 5. 媒体托管要求（Mira 侧）
+- RallyloomOaController.java：定义 feed、上传、播放文件和删除路由。
+- RallyloomOaService.java：验证能力、MP4、身份、合并工作区范围，合并精选与成员曲目并生成每日抽歌结果。
+- V370__rallyloom_shared_jukebox.sql：存放工作区上传曲目与每日抽歌记录。
+- PlatformJukeboxPage.tsx：只配置可选的精选歌曲；成员不需要在后台说明规则或输入自己的媒体直链。
 
-1. **HTTPS**：媒体直链和 YouTube 分享链接都必须使用 HTTPS。
-2. **Range 请求**：建议开启（`Accept-Ranges: bytes`），否则拖动进度条会退化为重新下载。
-3. **编码**：MP4 / H.264 + AAC 最稳；不要用 H.265（Electron 内置 Chromium 不保证支持）。
-4. **签名 URL 可以**，但要注意歌单只在登录/刷新工作区时下发，URL 有效期应覆盖一个工作时段。
-5. 媒体文件**不经过** Mira API 或 Rallyloom，直接由对象存储/CDN 提供。
+## 联调验收
 
-## 6. 自检（Mira 侧可在本地跑）
+1. 员工、老板、租户管理员等允许参与的账号都带有 jukebox.use；不具备能力的身份访问四个接口均被拒绝。
+2. 员工拖拽或选择 MP4 上传成功，feed 中显示提交者和歌曲；另一个已纳入租户的账号刷新后能看到并播放。
+3. 两个已纳入的租户互相看到曲目；未纳入或停用租户的曲目不进入池，媒体下载也受同一边界保护。
+4. 合并工作区内的账号获取相同 day 与 dailyTrackId；次日重新抽取；删除当日被选曲目后服务端安全重抽。
+5. 上传者可以删除本人曲目，其他普通成员不能删除；平台管理员可在合并工作区管理歌曲。
 
-```bash
-# 1) 抓一份 bootstrap 响应（带 token）
-curl -s -H "Authorization: Bearer <token>" https://mirapilot.com/api/v1/workspace/bootstrap > bootstrap.json
-
-# 2) 用 Rallyloom 仓库里的体检脚本离线校验（会连带检查 jukebox）
-node agent-skill/reference/verify-provider.mjs --bootstrap bootstrap.json
-```
-
-期望输出包含 `bootstrap 符合契约`，且 detail 里出现 `jukebox N 歌单`。
-
-## 7. 上线后验收
-
-- [ ] 用已纳入租户的 Mira 账号在 Rallyloom 桌面端登录「Mira 公司工作区」；
-- [ ] 左侧导航出现「点歌台」，页面顶部显示「N 个歌单 · M 首」；
-- [ ] 点某首歌的「点歌」→ 右栏播放舞台开始播放（直链可访问，或 YouTube 视频允许嵌入且网络可达）；
-- [ ] 播放 / 暂停 / 上一首 / 下一首 / 音量 / 全屏可用；
-- [ ] 未配置 `jukebox` 的租户看到契约空态页，且不影响办公室、文档等其他板块。
-
-## 8. 不需要做的事
-
-- ❌ 不需要新的 `/jukebox` 端点（歌单随 bootstrap 下发）；
-- ❌ 不需要事件推送（无 `jukebox.push` 一类的契约；歌单刷新靠重新登录/刷新工作区）；
-- ❌ 不需要把媒体文件上传给 Rallyloom，也不需要在 Mira 做转码；
-- ❌ 不需要改 `schema_version`（本字段是 bootstrap 的可选扩展，事件 Schema 零改动）。
+机器可读定义在 Rallyloom 仓库 agent-skill/schemas/jukebox-feed.schema.json。bootstrap 可选精选曲目沿用 agent-skill/schemas/jukebox.schema.json。平台与成员歌曲都需要有合法播放权。
