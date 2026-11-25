@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Provider jukebox (playlist and playback sources) definition",
+  "$comment": "bootstrap 响应里的可选 jukebox 字段。Rallyloom 不存放媒体文件：默认使用企业自托管 HTTPS 媒体直链；provider=youtube 时 url 为官方 YouTube 分享链接并由 YouTube 嵌入播放器加载。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "playlists"
+  ],
+  "properties": {
+    "note": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "playlists": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "tracks"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "tracks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 300,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title",
+                "url"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "artist": {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                "provider": {
+                  "type": "string",
+                  "enum": ["youtube"],
+                  "description": "缺省表示企业 HTTPS 媒体直链；youtube 表示官方 YouTube 嵌入播放器。"
+                },
+                "url": {
+                  "type": "string",
+                  "pattern": "^https://",
+                  "maxLength": 2048
+                },
+                "poster": {
+                  "type": "string",
+                  "pattern": "^https://",
+                  "maxLength": 2048
+                },
+                "duration": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 86400
+                },
+                "source_id": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "attrs": {
+                  "type": "object",
+                  "maxProperties": 16,
+                  "additionalProperties": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": { "provider": { "const": "youtube" } },
+                    "required": ["provider"]
+                  },
+                  "then": {
+                    "properties": {
+                      "url": {
+                        "pattern": "^https://(?:(?:www\\.|m\\.|music\\.)?youtube\\.com/(?:watch\\?v=[A-Za-z0-9_-]{11}(?:&[^\\s]*)?|(?:embed|shorts|live)/[A-Za-z0-9_-]{11}(?:\\?[^\\s]*)?)|youtu\\.be/[A-Za-z0-9_-]{11}(?:\\?[^\\s]*)?)$"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -75,7 +75,7 @@ export interface RoomPlacement {
   furniture?: readonly FurniturePlacement[]
 }
 
-export type FurnitureKind = 'desk' | 'shelf' | 'plant' | 'sofa' | 'coffee' | 'lamp' | 'workstation' | 'chair' | 'meeting-table' | 'round-table' | 'coffee-table' | 'counter' | 'cabinet' | 'display-shelf' | 'clothes-rack' | 'rug' | 'partition' | 'screen' | 'studio-light' | 'camera' | 'carton' | 'printer' | 'trolley' | 'microwave' | 'sink' | 'cup' | 'notebook' | 'monitor'
+export type FurnitureKind = 'desk' | 'shelf' | 'plant' | 'sofa' | 'coffee' | 'lamp' | 'workstation' | 'chair' | 'meeting-table' | 'round-table' | 'coffee-table' | 'counter' | 'cabinet' | 'display-shelf' | 'clothes-rack' | 'rug' | 'partition' | 'screen' | 'studio-light' | 'camera' | 'carton' | 'printer' | 'trolley' | 'microwave' | 'sink' | 'cup' | 'notebook' | 'monitor' | 'bench' | 'desk-l' | 'bookcase' | 'whiteboard' | 'tv' | 'water-cooler' | 'plant-large' | 'conference-table'
 
 export interface FurniturePlacement {
   id: string

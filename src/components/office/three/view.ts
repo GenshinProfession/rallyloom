@@ -29,7 +29,7 @@ interface Position {
 
 export interface OfficeOverlay {
   furnitureBounds?: { left:number; top:number; width:number; height:number }
-  seats: { roomId: string; seatIndex: number; occupant?: string; at: Position }[]
+  seats: { roomId: string; seatIndex: number; occupant?: string; supported: boolean; at: Position }[]
   rooms: { room: ResolvedRoom; present: number; at: Position }[]
   people: { member: Member; at: Position }[]
   gmv?: { left: number; top: number; width: number; height: number }
@@ -181,7 +181,8 @@ export function createOfficeView(
     const ownRoom = world.mySeat && roomAt(world.mySeat)
     let spawn: WalkPoint | null = null
     if (ownRoom && world.mySeat) {
-      spawn = grid.spawn({ x: world.mySeat.x, z: world.mySeat.z + 20 }, ownRoom.frame)
+      // 从角色当前坐下的位置起步，避免点椅子时先跳到工位前方再走。
+      spawn = grid.spawn({ x: world.mySeat.x, z: world.mySeat.z }, ownRoom.frame)
     }
     for (const room of rooms) {
       if (spawn) break
@@ -196,10 +197,15 @@ export function createOfficeView(
     walkPhase = spawn ? 'ready' : 'blocked'
   }
 
-  function walkTo(point: WalkPoint, room = roomAt(point)) {
+  function walkTo(point: WalkPoint, room = roomAt(point), exact = false) {
     if (!view.walking || !walker?.mesh.visible || !grid) return
     destination = room?.name ?? '走廊'
     route = grid.route(walker.mesh.position, point, room?.frame) ?? []
+    // 去椅子时补最后一段直线：导航格点离椅子有半径余量，补到座位中心才不会「到位后瞬移」。
+    if (exact && route.length) {
+      const last = route[route.length - 1]
+      if (Math.hypot(last.x - point.x, last.z - point.z) > .5) route = [...route, { x: point.x, z: point.z }]
+    }
     nextWaypoint = 0
     lastTime = 0
     walkPhase = route.length ? 'moving' : 'blocked'
@@ -446,6 +452,12 @@ export function createOfficeView(
     walkToRoom(id: string) {
       const room = rooms.find((candidate) => candidate.id === id)
       if (room) walkTo({ x: room.doorway.inside.x, z: room.doorway.inside.y }, room)
+    },
+    walkToSeat(id: string, seatIndex: number) {
+      const room = rooms.find((candidate) => candidate.id === id)
+      const seat = room?.seats?.[seatIndex]
+      if (!room || !seat) return
+      walkTo({ x: room.frame.x + seat.x * room.frame.width, z: room.frame.y + seat.y * room.frame.height }, room, true)
     },
     dispose() {
       observer.disconnect()

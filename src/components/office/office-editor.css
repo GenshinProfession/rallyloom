@@ -206,3 +206,76 @@
 @media(max-width:1300px){.office-plan-toolbar{gap:6px}.office-editor button.office-plan-clear span{display:none}.office-editor .office-plan-zoom input{width:50px}.office-editor .office-plan-tools button{padding-inline:10px}.office-canvas-size>summary{padding-inline:5px}}
 
 .office-region-area{padding-left:7px;border-left:1px solid #dce7de;color:#91a297;font-size:10px;font-variant-numeric:tabular-nums}.office-region-stats{padding:14px;background:#f1f6f2;border-radius:10px;color:#83988b}.office-region-stats>div{display:flex;align-items:center;justify-content:space-between;gap:10px}.office-region-stats span{font-size:11px}.office-region-stats strong{color:#4f7962;font-size:25px;font-weight:550;letter-spacing:-.6px;font-variant-numeric:tabular-nums}.office-region-stats small{font-size:12px;margin-left:5px;color:#91a598;font-weight:400}.office-editor .office-region-stats p{font-size:10px;color:#a0b0a4;margin-top:6px}.office-editor .office-region-note{font-size:11px;color:#9aac9f;line-height:1.7}
+
+/* ── 自由墙绘制：吸附反馈 / 尺寸 HUD / 悬空端点 ─────────────────── */
+.office-wall-overlay{position:absolute;inset:0;z-index:6;overflow:hidden;pointer-events:none}
+.office-wall-guides{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.office-wall-guides line{stroke:#2f8f79;stroke-width:1;stroke-dasharray:4 4;opacity:.6}
+.office-wall-snap{position:absolute;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:#fff;border:2px solid #2f8f79;box-shadow:0 0 0 3px #2f8f7922,0 1px 3px #0b1f1a2e}
+.office-wall-snap.is-endpoint,.office-wall-snap.is-junction{width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:2px;background:#2f8f79;border-color:#2f8f79}
+.office-wall-snap.is-close{width:17px;height:17px;margin:-8.5px 0 0 -8.5px;background:#16a34a;border-color:#fff;box-shadow:0 0 0 3px #16a34a33}
+.office-wall-snap.is-wall{border-radius:2px;border-color:#2f8f79;transform:rotate(45deg)}
+.office-wall-snap.is-axis{border-color:#d97706;box-shadow:0 0 0 3px #d9770622}
+.office-wall-snap.is-grid{width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-color:#87949e;opacity:.7}
+.office-wall-hud{position:absolute;display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:7px;background:#12211d;color:#e8f5ef;font-size:11px;line-height:1;white-space:nowrap;box-shadow:0 6px 18px #12211d33;pointer-events:none}
+.office-wall-hud strong{font-weight:600;font-variant-numeric:tabular-nums}
+.office-wall-hud span{opacity:.72;font-variant-numeric:tabular-nums}
+.office-wall-hud em{font-style:normal;padding-left:7px;border-left:1px solid #ffffff2b;opacity:.9}
+.office-wall-hud.is-closed{background:#0f7a4a}
+.office-wall-hud.is-invalid{background:#8c2f2f}
+.office-wall-open-end{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:2px dashed #d9534f;background:#d9534f1f;animation:office-open-end-pulse 1.8s ease-in-out infinite}
+.office-wall-chain-start{position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:#2f8f79;box-shadow:0 0 0 3px #2f8f7933}
+.office-free-wall-handles{position:absolute;inset:0;z-index:7;pointer-events:none}
+.office-wall-node{position:absolute;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;border:2px solid #2f8f79;background:#fff;padding:0;pointer-events:auto;cursor:grab;box-shadow:0 1px 4px #0b1f1a33}
+.office-wall-node:hover,.office-wall-node:active{background:#2f8f79}
+.office-wall-node:focus-visible{outline:2px solid #2f8f79;outline-offset:2px}
+.office-editor button.office-plan-icon[aria-pressed="true"]{background:#e2efe8;color:#2f7a5d}
+@keyframes office-open-end-pulse{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* 状态条：提示/成功用中性色，校验失败才用 destructive（区域已闭合等不再显示为报错） */
+.office-editor-note {
+  margin: 0;
+  color: var(--muted-foreground);
+}
+
+.office-editor-note.is-error {
+  color: var(--destructive);
+}
+
+/* 极轴追踪：锁定的方向射线 + 墙段方向一键校正按钮 */
+.office-wall-ray{stroke:#2f8f79;stroke-width:1.2;stroke-dasharray:7 6;opacity:.5;pointer-events:none}
+.office-wall-align{display:flex;gap:6px}
+.office-editor .office-wall-align button{flex:1;padding:7px 4px;border:1px solid #e5eae6;border-radius:7px;background:#fff;color:#7b8d82;font-size:11px}
+.office-editor .office-wall-align button[aria-pressed=true]{background:#eef5f0;border-color:#a9c6b6;color:#4f7461}
+.office-editor .office-wall-align button:hover{background:#f4f8f5}
+
+/* 连线中的浮动操作条：结束 / 取消这组 */
+.office-wall-chain-actions {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid rgba(17, 18, 22, .9);
+  border-radius: 999px;
+  background: rgba(17, 18, 22, .88);
+  box-shadow: 0 8px 22px rgba(17, 18, 22, .18);
+  z-index: 6;
+}
+.office-wall-chain-actions button {
+  padding: 6px 13px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #f4f6f8;
+  font-size: 11.5px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background .14s ease;
+}
+.office-wall-chain-actions button:hover { background: rgba(255, 255, 255, .16); }
+.office-wall-chain-actions [data-wall-finish] { background: rgba(255, 255, 255, .14); }
+.office-wall-chain-actions [data-wall-finish]:hover { background: rgba(255, 255, 255, .24); }
+.office-wall-chain-actions [data-wall-cancel] { color: #ffb4a8; }

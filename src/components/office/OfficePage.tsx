@@ -58,7 +58,8 @@ export function OfficePage({
   const [focusedMember, setFocusedMember] = useState<string | null>(null)
   const [mode, setMode] = useState<OfficeMode>('daily')
   const [zoom, setZoom] = useState(100)
-  const walking = false
+  const [walkTarget, setWalkTarget] = useState<{ roomId: string; seatIndex: number } | null>(null)
+  const walking = walkTarget !== null
   const [seatStates, setSeatStates] = useState<SeatPresence[]>([])
   const [seatBusy, setSeatBusy] = useState(false)
   const [seatReady, setSeatReady] = useState(false)
@@ -74,14 +75,38 @@ export function OfficePage({
     void refresh();const timer=setInterval(()=>void refresh(),5000)
     return()=>{active=false;clearInterval(timer)}
   },[demo,seatingEnabled,layout.revision])
-  async function changeSeat(roomId:string,seatIndex:number,seated:boolean){
-    if(!meSeatId||seatPending.current||!seatReady)return
+  async function changeSeat(roomId:string,seatIndex:number,seated:boolean):Promise<boolean>{
+    if(!meSeatId||seatPending.current||!seatReady)return false
     seatPending.current=true;seatEpoch.current++;setSeatBusy(true);setSeatError('')
     try {
       const rows=demo?[...seatStates.filter(row=>row.memberId!==meSeatId),{memberId:meSeatId,roomId,seatIndex,seated}]:validateSeatPresence(await oa('PUT','/office/seats/self',{roomId,seatIndex,seated,layoutRevision:layout.revision??0}))
       setSeatStates(rows)
-    }catch(e){setSeatError(e instanceof Error?e.message:'这个座位暂时无法使用，请刷新后重试。')}
+      return true
+    }catch(e){setSeatError(e instanceof Error?e.message:'这个座位暂时无法使用，请刷新后重试。');return false}
     finally{seatPending.current=false;setSeatBusy(false)}
+  }
+  /** 入座不再瞬移：先让角色走到工位，到达后再提交入座。 */
+  function requestSeat(roomId: string, seatIndex: number, seated: boolean) {
+    if (!seated || !meSeatId) { void changeSeat(roomId, seatIndex, false); return }
+    setWalkTarget((current) => current && current.roomId === roomId && current.seatIndex === seatIndex ? null : { roomId, seatIndex })
+  }
+  /** 到达工位后先等入座提交完成，再收掉走路状态；否则走路的人会被收起、旧座位上的静止形象先出现，看起来就是「瞬移」。 */
+  const arrivingSeat = useRef(false)
+  async function arriveAtSeat() {
+    const target = walkTarget
+    if (!target || arrivingSeat.current) return
+    arrivingSeat.current = true
+    try {
+      if (meSeatId) {
+        await Promise.race([
+          changeSeat(target.roomId, target.seatIndex, true),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 6000)),
+        ])
+      }
+    } finally {
+      arrivingSeat.current = false
+      setWalkTarget((current) => (current && current.roomId === target.roomId && current.seatIndex === target.seatIndex ? null : current))
+    }
   }
   const [quick, setQuick] = useState<{ channel: ChatChannel; anchor: HTMLElement; request: number; targetId?: string } | null>(null)
   const [chatError, setChatError] = useState('')
@@ -237,7 +262,9 @@ export function OfficePage({
           zoom={zoom}
           walking={walking}
           seats={seatStates}
-          onSeat={seatingEnabled && seatReady ? changeSeat : undefined}
+          onSeat={seatingEnabled && seatReady ? requestSeat : undefined}
+          walkTarget={walkTarget}
+          onWalkArrived={seatingEnabled ? arriveAtSeat : undefined}
           seatBusy={seatBusy}
           seatLocked={seatLocked}
           onAssignSeat={editing ? (roomId,seatIndex)=>{setAssignmentTarget({roomId,seatIndex});setAssigningSeats(true)}:undefined}

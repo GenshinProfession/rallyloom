@@ -14,7 +14,6 @@ import {
   ArrowLeft, Check, ChevronRight, FileText, FolderInput, ImagePlus, Loader2, Paperclip, Save,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { DocDraft, DocRecord } from '@/lib/docs/types'
@@ -333,14 +332,16 @@ export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirt
           ))}
           {doc && <><ChevronRight className="size-3" aria-hidden /><span className="truncate text-foreground/70">{doc.title}</span></>}
         </nav>
-        <span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          {dirty ? <span className="doc-unsaved">未保存</span> : doc ? <><Check className="size-3 text-emerald-600" /> 已保存</> : '新文档'}
-        </span>
-        <Button type="button" size="sm" variant="outline" className="h-7" onClick={cancel} disabled={saving}>取消</Button>
-        <Button type="button" size="sm" className="h-7" onClick={() => void save()} disabled={saving} data-doc-save="true">
-          {saving ? <Loader2 className="animate-spin" /> : <Save />} 保存
-        </Button>
-        {toolbarActions}
+        <div className="doc-head-actions">
+          <span className="doc-head-status">
+            {dirty ? <span className="doc-unsaved">未保存</span> : doc ? <><Check className="size-3 text-emerald-600" /> 已保存</> : '新文档'}
+          </span>
+          <Button type="button" size="sm" variant="outline" className="h-7" onClick={cancel} disabled={saving}>取消</Button>
+          <Button type="button" size="sm" className="h-7" onClick={() => void save()} disabled={saving} data-doc-save="true">
+            {saving ? <Loader2 className="animate-spin" /> : <Save />} 保存
+          </Button>
+          {toolbarActions}
+        </div>
       </header>
 
       <div className="doc-page-body">
@@ -349,18 +350,17 @@ export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirt
           <div className="doc-editor-meta">
             <label className="doc-meta-field">
               <span>知识库</span>
-              <Input list="doc-space-options" value={space} onChange={(event) => { setSpace(event.target.value); setDirty(true) }} className="h-7 w-[132px]" aria-label="知识库" />
+              <Input list="doc-space-options" value={space} onChange={(event) => { setSpace(event.target.value); setDirty(true) }} className="h-7 w-[96px]" aria-label="知识库" />
             </label>
             <datalist id="doc-space-options">{spaces.map((name) => <option key={name} value={name} />)}</datalist>
             <label className="doc-meta-field">
               <span>文件夹</span>
               <span className="doc-meta-folder">
                 <FolderInput className="size-3.5 text-muted-foreground" aria-hidden />
-                <Input value={folder} onChange={(event) => { setFolder(event.target.value); setDirty(true) }} placeholder="例如：人事制度 / 员工手册" className="h-7 w-[220px] py-0" aria-label="文件夹路径" />
+                <Input value={folder} onChange={(event) => { setFolder(event.target.value); setDirty(true) }} placeholder="例如：人事制度 / 员工手册" className="h-7 w-[158px] py-0" aria-label="文件夹路径" />
               </span>
             </label>
-            <span className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
-              <Badge variant="secondary" className="h-[18px] px-1.5 text-[10px]">富文本</Badge>
+            <span className="doc-meta-stats">
               <span className="tabular">{stats.words} 字</span>
               <span aria-hidden>·</span>
               <span className="tabular">约 {stats.readMinutes} 分钟</span>

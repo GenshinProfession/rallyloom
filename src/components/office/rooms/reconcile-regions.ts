@@ -32,7 +32,7 @@ export function reconcileRegions(layout:LayoutState,createId=()=>crypto.randomUU
     const matched=matching.get(index),point=interiorPoint(boundary),source=matched??old.find(room=>roomContains(room,point))
     let name=matched?.name
     if(!name||['开放办公区','办公室','空白房间'].includes(name)){while(names.has('区域 '+nextName))nextName++;name='区域 '+nextName++;names.add(name)}
-    return {...source,id:matched?.id??createId(),name,template:'room-shell',frame:boundaryFrame(boundary),boundary,door:undefined,
+    return {...source,id:matched?.id??createId(),name,template:matched?.template??'room-shell',frame:boundaryFrame(boundary),boundary,door:undefined,
       walls:{north:'open',east:'open',south:'open',west:'open'},useTemplateFurniture:false,
       floorMaterial:source?.floorMaterial??'quartz',floor:source?.floor??'#eeebe3',furniture:[],seats:[]}
   })

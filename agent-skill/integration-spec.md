@@ -1,6 +1,6 @@
 # Rallyloom OA 接入规范（Integration Spec）
 
-版本：`v1.8-rc1`（schema_version = 1；v1.1 追加 `activity.push` 与 §9 数据外部化，v1.2 追加 `task.upsert` / `task.remove` 任务承接，v1.3 追加 `notice.push/remove` 公告与 `doc.upsert/remove` 文档承接，v1.4 追加 §10 多租户，v1.5 追加 §10.1 集团与租户联邦（可选管辖层），v1.6 追加 §11 提供方自渲染登录页的 Origin 坑与 `reference/verify-provider.mjs` 体检脚本，v1.7 追加富文本文档（`content_format: html`）与文档附件 `attachments`——仅 `doc.upsert` 增可选字段；v1.8 追加 §12 接入失败排查地图与 `--bootstrap` 离线契约校验，无 Schema 变更。均向后兼容）
+版本：`v1.10-rc1`（schema_version = 1；v1.1 追加 `activity.push` 与 §9 数据外部化，v1.2 追加 `task.upsert` / `task.remove` 任务承接，v1.3 追加 `notice.push/remove` 公告与 `doc.upsert/remove` 文档承接，v1.4 追加 §10 多租户，v1.5 追加 §10.1 集团与租户联邦（可选管辖层），v1.6 追加 §11 提供方自渲染登录页的 Origin 坑与 `reference/verify-provider.mjs` 体检脚本，v1.7 追加富文本文档（`content_format: html`）与文档附件 `attachments`——仅 `doc.upsert` 增可选字段；v1.8 追加 §12 接入失败排查地图与 `--bootstrap` 离线契约校验，无 Schema 变更；v1.9 追加 §13 点歌台；v1.10 为曲目增加可选播放器 `provider=youtube`，事件 Schema 零改动。均向后兼容）
 适用对象：要把自家系统的「人 / 组 / 成员关系」接入 Rallyloom 开源 OA 的任何团队或 AI Agent。
 Rallyloom 在接入关系中是**承接方**：提供入口、规范与身份容器；**不假设源系统有任何特定的组织模型**。
 
@@ -453,3 +453,93 @@ node reference/verify-provider.mjs --bootstrap bootstrap.json
 ### 12.5 给 AI Agent 的一句话
 
 > 接入失败时，先按 §12 的表把错误码映射到「阶段 + 字段」，再用三条自检命令复现；`invalid_grant` 优先怀疑授权码有效期的时间计算（§12.2 第 6 条），`INVALID_RESPONSE` 一律用 `--bootstrap` 离线校验出具体字段，不要凭感觉改。
+
+---
+
+## 13. 点歌台（v1.10：承接歌单与受支持的播放来源，媒体不进 Rallyloom）
+
+点歌台是**播放器**，不是媒体库：Rallyloom 不接收、存储或转码音视频文件，只负责展示企业提供的歌单、排队并播放。曲目可用企业自托管 HTTPS 媒体直链，也可声明使用 YouTube 官方嵌入播放器。
+
+### 13.1 接入方式：bootstrap 可选字段 `jukebox`
+
+不新增任何事件、不新增任何端点——只在你已经实现的 `GET /api/v1/workspace/bootstrap` 响应里增加一个**可选**字段 `jukebox`。客户端已有容错：字段缺失、结构不对或单条曲目无效只会被忽略，不会让工作区加载失败（点歌台是弱依赖板块）。
+
+```jsonc
+{
+  // ...bootstrap 的其余字段（installation_id / workspace_id / tenant / member_id / permissions / team / policy / layout / dataSlots）
+  "jukebox": {
+    "note": "公司内部点歌台：曲目均为企业自有版权素材",
+    "playlists": [
+      {
+        "id": "party",
+        "name": "团建金曲",
+        "description": "年会、团建时段",
+        "tracks": [
+          {
+            "id": "t-001",
+            "title": "开场短片",
+            "artist": "品牌部",
+            "url": "https://media.your-company.com/jukebox/opening.mp4",
+            "poster": "https://media.your-company.com/jukebox/opening.jpg",
+            "duration": 52,
+            "attrs": { "场景": "暖场", "类型": "短片" }
+          },
+          {
+            "id": "t-002",
+            "title": "官方 YouTube 曲目示例",
+            "artist": "提供方填写",
+            "provider": "youtube",
+            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+机器可读定义：[`schemas/jukebox.schema.json`](schemas/jukebox.schema.json)。离线校验：`node reference/verify-provider.mjs --bootstrap bootstrap.json` 会连带检查 `jukebox`。
+
+### 13.2 字段要求
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `playlists` | 是 | 1–40 个歌单 |
+| `playlists[].id` | 是 | 稳定标识，`[A-Za-z0-9_-]{1,64}`；用于前端选中态，改名不影响 |
+| `playlists[].name` | 是 | ≤40 字 |
+| `playlists[].description` | 否 | ≤160 字 |
+| `playlists[].tracks` | 是 | 1–300 首 |
+| `tracks[].title` | 是 | 曲目名 ≤120 字 |
+| `tracks[].provider` | 否 | 缺省表示企业媒体直链；目前可选 `youtube` |
+| `tracks[].url` | 是 | 缺省 provider 时为企业 HTTPS 媒体地址；`provider=youtube` 时填写 YouTube 官方分享链接 |
+| `tracks[].poster` | 否 | HTTPS 封面图 |
+| `tracks[].artist` / `duration` | 否 | 展示用；`duration` 单位秒 |
+| `tracks[].id` | 否 | 缺省由客户端按 `track-<歌单>-<序号>` 生成 |
+| `tracks[].attrs` | 否 | 字符串键值对，作为曲目上的小标签展示（如 场景/类型） |
+
+### 13.3 媒体托管要求（企业侧）
+
+1. 企业媒体直链必须为 HTTPS；YouTube 曲目必须是 YouTube 官方域名下的 HTTPS 分享链接，只由官方嵌入播放器加载。
+2. **支持 Range 请求**（`Accept-Ranges: bytes`）：拖动进度条更顺滑；不支持的服务器也能播，只是 seek 会退化成重新下载。
+3. **编码**：MP4 / H.264 + AAC 兼容性最好；WebM 也可，但 Electron 内置 Chromium 对 H.265 支持不保证。
+4. **签名 URL 可用**，但每次 bootstrap 下发的 URL 必须仍在有效期内（客户端不刷新歌单）。
+5. **不要**把媒体地址放进 `attrs` 或事件里——点歌台只认 `tracks[].url`。
+
+### 13.4 客户端行为（已内置，无需适配器）
+
+- 左栏歌单 + 曲目列表，点「点歌」把曲目加入**本机播放队列**（同名同地址去重）；
+- 企业直链和 YouTube 曲目都支持加入本机队列；直链播放器支持上一首 / 暂停 / 下一首 / 音量 / 全屏，播完自动下一首；YouTube 由官方 IFrame Player API 控制播放并衔接队列；
+- 队列是本机状态，不落库、不跨设备同步；刷新页面即清空；
+- 没有 `jukebox` 或歌单为空时，页面显示契约说明空态，不影响其他板块。
+
+### 13.5 不要这样做
+
+- ❌ 让 Rallyloom 接收/存储 MP4 或做转码（不是它的职责，也不在契约内）；
+- ❌ 把 YouTube 页面当作可直接播放的媒体 URL；YouTube 条目必须声明 `provider: "youtube"` 并使用官方分享链接；
+- ❌ 用 `activity.push` 或 `notice.push` 传媒体地址（只在 `jukebox.tracks[].url`）；
+- ❌ 依赖歌单实时更新做直播推流（契约是静态歌单，每次 bootstrap 刷新）；
+- ❌ 把受版权限制的第三方音视频挂上来（企业自行承担版权与访问控制）。
+
+### 13.6 给 AI Agent 的一句话
+
+> 点歌台零事件、零新端点：在 bootstrap 响应里加可选 `jukebox`；曲目可使用企业 HTTPS 媒体直链，或 `provider: "youtube"` + YouTube 分享链接。运行 `verify-provider.mjs --bootstrap` 校验；媒体由原提供方托管，Rallyloom 只做播放器与队列。

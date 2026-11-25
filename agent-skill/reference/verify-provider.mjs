@@ -54,6 +54,35 @@ if (!BOOTSTRAP_FILE && (!origin || !/^https:\/\//.test(origin))) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
+
+function youtubeVideoId(value) {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || (url.port && url.port !== '443') || url.username || url.password) return null;
+    const host = url.hostname.toLowerCase();
+    const parts = url.pathname.split('/').filter(Boolean);
+    let id = '';
+    if (host === 'youtu.be') id = parts[0] ?? '';
+    else if (['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'].includes(host)) {
+      if (url.pathname === '/watch') id = url.searchParams.get('v') ?? '';
+      else if (['embed', 'shorts', 'live'].includes(parts[0] ?? '')) id = parts[1] ?? '';
+    }
+    return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function isHttpsUrlWithoutCredentials(value) {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
 const record = (level, name, detail) => {
   results.push({ level, name, detail });
   const mark = level === 'pass' ? 'PASS' : level === 'warn' ? 'WARN' : 'FAIL';
@@ -299,11 +328,49 @@ async function checkBootstrapFile(file) {
     }
   }
 
+  // 可选字段 jukebox（v1.10 点歌台）：验证直链和 YouTube 官方分享地址，媒体仍由原平台托管。
+  if (raw.jukebox !== undefined && raw.jukebox !== null) {
+    const jukebox = raw.jukebox;
+    need(isObject(jukebox), 'jukebox：可选对象 { playlists, note? }（接入规范 §13）');
+    if (isObject(jukebox)) {
+      need(jukebox.note === undefined || (text(jukebox.note) && jukebox.note.length <= 240), 'jukebox.note：可选说明文本（≤240 字）');
+      need(Array.isArray(jukebox.playlists) && jukebox.playlists.length >= 1 && jukebox.playlists.length <= 40,
+        'jukebox.playlists：1–40 个歌单');
+      if (Array.isArray(jukebox.playlists)) {
+        jukebox.playlists.slice(0, 40).forEach((playlist, pi) => {
+          const at = `jukebox.playlists[${pi}]`;
+          need(isObject(playlist), `${at}：歌单对象`);
+          if (!isObject(playlist)) return;
+          need(text(playlist.id), `${at}.id：非空字符串（≤64，只含字母数字、-、_）`);
+          need(text(playlist.name), `${at}.name：歌单名称（≤40 字）`);
+          need(Array.isArray(playlist.tracks) && playlist.tracks.length >= 1 && playlist.tracks.length <= 300,
+            `${at}.tracks：1–300 首曲目`);
+          if (!Array.isArray(playlist.tracks)) return;
+          playlist.tracks.slice(0, 300).forEach((track, ti) => {
+            const tat = `${at}.tracks[${ti}]`;
+            need(isObject(track), `${tat}：曲目对象`);
+            if (!isObject(track)) return;
+            need(text(track.title), `${tat}.title：曲目名称（≤120 字）`);
+            const youtube = track.provider === 'youtube';
+            need(track.provider === undefined || youtube, `${tat}.provider：当前只支持 youtube`);
+            need(youtube ? Boolean(youtubeVideoId(track.url)) : isHttpsUrlWithoutCredentials(track.url),
+              youtube ? `${tat}.url：有效的 YouTube 官方 HTTPS 分享地址` : `${tat}.url：不含账号密码的 HTTPS 媒体地址`);
+            need(track.poster === undefined || (typeof track.poster === 'string' && /^https:\/\//i.test(track.poster)),
+              `${tat}.poster：可选 HTTPS 封面地址`);
+            need(track.duration === undefined || (Number.isFinite(track.duration) && track.duration >= 0 && track.duration <= 86400),
+              `${tat}.duration：可选时长（秒）`);
+            need(track.attrs === undefined || isObject(track.attrs), `${tat}.attrs：可选字符串键值对象`);
+          });
+        });
+      }
+    }
+  }
+
   if (issues.length) {
     record('fail', 'bootstrap 不符合契约', `${issues.length} 处问题：`);
     for (const issue of issues) console.log(`       ✗ ${issue}`);
   } else {
-    record('pass', 'bootstrap 符合契约', `team ${raw.team.length} 人 · rooms ${raw.layout.rooms.length} 间 · member_id ${raw.member_id}`);
+    record('pass', 'bootstrap 符合契约', `team ${raw.team.length} 人 · rooms ${raw.layout.rooms.length} 间 · member_id ${raw.member_id}` + (Array.isArray(raw.jukebox?.playlists) ? ` · jukebox ${raw.jukebox.playlists.length} 歌单` : ''));
   }
 }
 

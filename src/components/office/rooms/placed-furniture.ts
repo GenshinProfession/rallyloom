@@ -32,6 +32,14 @@ export const FURNITURE = {
   cup: { label:'咖啡杯',width:8,depth:8,height:7 },
   notebook: { label:'笔记本 / 文件',width:18,depth:13,height:2 },
   monitor: { label:'显示器',width:30,depth:14,height:28 },
+  bench: { label:'长工位桌',width:200,depth:56,height:40 },
+  'desk-l': { label:'L 型办公桌',width:96,depth:76,height:25 },
+  bookcase: { label:'书柜',width:96,depth:26,height:88 },
+  whiteboard: { label:'白板',width:120,depth:6,height:72 },
+  tv: { label:'电视 / 显示屏',width:96,depth:6,height:56 },
+  'water-cooler': { label:'饮水机',width:24,depth:24,height:56 },
+  'plant-large': { label:'大绿植',width:44,depth:44,height:74 },
+  'conference-table': { label:'长会议桌',width:240,depth:74,height:26 },
 } satisfies Record<FurnitureKind, { label: string; width: number; depth: number; height: number }>
 
 export function furnitureSize(item: FurniturePlacement) {
@@ -106,6 +114,85 @@ export function buildPlacedFurniture(parent: Group, model: ModelKit, item: Furni
     case 'trolley':
       model.softBox(object,0,5,0,width,3,depth,'#92a8af');model.box(object,0,7,-depth/2+2,width,25,3,'#8da3aa');
       for(const x of [-13,13])for(const z of [-14,14])model.round(object,x,0,z,5,5,'#50616a');carton(object,model,0,8,0,24);break
+    case 'bench': {
+      // 长工位桌：一整条共用工位，桌面下走线槽，三到四组显示器 + 座椅
+      const bays = Math.max(2, Math.round(width / 62))
+      const bayWidth = (width - 8) / bays
+      model.box(object,0,0,0,width-6,1.2,depth-14,'#7f8b8d')
+      for(let i=0;i<=bays;i++)model.box(object,-width/2+4+i*bayWidth,1,0,2.6,24,depth-16,'#a3adb0')
+      model.softBox(object,0,25.5,0,width,2.2,depth-8,item.color??'#efe9dd')
+      model.softBox(object,0,23.6,0,width-4,1,depth-14,'#c9c1b2')
+      model.softBox(object,0,14.5,depth/2-4.5,width-6,15,1.6,'#ded6c7')
+      model.softBox(object,0,27,0,width-10,1.4,6,'#b9bfbe')
+      for(let i=0;i<bays;i++){
+        const x=-width/2+bayWidth*(i+.5)
+        monitor(object,model,x,-depth*.14,27,bayWidth>66?24:20)
+        model.softBox(object,x,26.2,-depth*.02,bayWidth*.34,.8,9,'#d7d2c6')
+        model.orb(object,x+bayWidth*.16,26.4,-depth*.02,2.2,.9,3.2,'#dfe3e2')
+        const chair=new Group();chair.position.set(x,0,depth/2+16);chair.rotation.y=Math.PI;object.add(chair);officeChair(chair,model)
+        model.round(object,x,27.6,-depth*.36,3.2,.2,'#967a63')
+      }
+      break
+    }
+    case 'desk-l': {
+      model.softBox(object,0,height,0,width,2.1,depth*.42,item.color??'#efe9dd')
+      model.softBox(object,-width*.26,height,0,width*.46,2.1,depth,item.color??'#efe9dd')
+      for(const x of [-width*.42,width*.4])for(const z of [-depth*.16,depth*.16])model.box(object,x,0,z,2.8,height-1,2.8,'#a3adb0')
+      model.box(object,-width*.26,0,-depth*.36,2.8,height-1,2.8,'#a3adb0')
+      monitor(object,model,width*.12,-depth*.14,height+2,24)
+      model.softBox(object,-width*.3,height+2,.04,width*.32,.8,10,'#d7d2c6')
+      break
+    }
+    case 'bookcase': {
+      for(const x of [-width/2+2,width/2-2])model.box(object,x,0,0,3.4,height,20,'#9aa39f')
+      for(const y of [2,height*.34,height*.62,height-4])model.box(object,0,y,0,width,2.6,21,'#c9bea9')
+      const palette=['#a3b7c4','#c3a98d','#a9b79a','#c4a3a3','#d6cdb4']
+      for(let row=0;row<3;row++){const y=[4,height*.34+3,height*.62+3][row]
+        for(let i=0;i<10;i++){const w=4+((row*7+i*3)%4);model.box(object,(i-4.5)*width/10+2,y,w-1.5,3.2,13+((i+row)%3)*3,15,palette[(i+row)%palette.length])}}
+      break
+    }
+    case 'whiteboard': {
+      model.softBox(object,0,height*.42,0,width,height*.62,2.4,'#f6f7f5')
+      model.box(object,0,height*.42,.6,width+3,1.4,1.4,'#b7c0bd')
+      model.box(object,-width/2-1,height*.42,0,1.6,height*.62,2.8,'#b7c0bd')
+      model.box(object,width/2+1,height*.42,0,1.6,height*.62,2.8,'#b7c0bd')
+      model.box(object,0,height*.8,0,width+2,2.2,2,'#b7c0bd')
+      for(const x of [-width/2+8,width/2-8])model.box(object,x,0,0,2.4,height*.36,2.4,'#a9b3b0')
+      model.box(object,-width*.28,height*.2,1.6,width*.22,.6,.8,'#7f9bb4')
+      model.box(object,-width*.14,height*.14,1.6,width*.1,.5,.8,'#c9a06f')
+      break
+    }
+    case 'tv': {
+      model.softBox(object,0,height*.48,0,width,height*.6,2.6,'#2e3a42')
+      model.box(object,0,height*.48,1.5,width-5,height*.5-3,.6,'#3f5d6f')
+      for(let i=0;i<4;i++)model.box(object,-width*.24,height*.6-i*4,2,width*.3,.7,.3,'#6f94a8')
+      model.box(object,0,height*.14,0,9,height*.24,3.4,'#3a444a')
+      model.softBox(object,0,.6,0,width*.36,1.4,14,'#5b666b')
+      break
+    }
+    case 'water-cooler': {
+      model.softBox(object,0,0,0,width,height-18,depth,item.color??'#e3e6e4')
+      model.round(object,0,height-8,0,width*.34,14,'#bcd8e4')
+      model.round(object,0,height-8,0,width*.22,14.5,'#d4e8ef')
+      model.softBox(object,0,height*.64,depth/2+.6,6,4,2,'#9aa7a5')
+      model.softBox(object,-3.4,height*.52,depth/2+1.4,2.2,3,1.6,'#6f8794')
+      model.softBox(object,3.4,height*.52,depth/2+1.4,2.2,3,1.6,'#b98a7c')
+      break
+    }
+    case 'plant-large': {
+      model.round(object,0,0,0,width*.3,14,'#cbbfae')
+      model.round(object,0,13,0,width*.26,2,'#7c6a57')
+      model.asset(object,'plant',0,12,0,width*.92,height-12,depth*.92)
+      break
+    }
+    case 'conference-table': {
+      table(object,model,0,0,width,depth,item.color??'#f2ecdd',height-2)
+      for(const x of [-width*.28,width*.28])for(const z of [-depth*.24,depth*.24])model.round(object,x,0,z,3.4,.5,'#9aa7a4')
+      for(let i=0;i<6;i++){const x=-width/2+width/6*(i+.5)
+        model.softBox(object,x,height*.5,0,14,1.2,10,'#dfe5e3')
+        const chair=new Group();chair.position.set(x,0,(i%2===0?1:-1)*(depth/2+15));chair.rotation.y=i%2===0?Math.PI:0;object.add(chair);officeChair(chair,model)}
+      break
+    }
     default:model.asset(object,item.kind,0,0,0,width,height,depth)
   }
   const size=furnitureSize(item)

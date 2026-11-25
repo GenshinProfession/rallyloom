@@ -4,6 +4,7 @@
 
 import type { OfficeLayout } from '@/components/office/rooms/api'
 import type { ExternalIdentity, RoleId, SyncPolicy, TeamMember } from '@/lib/identity/types'
+import type { JukeboxConfig } from '@/lib/jukebox/types'
 
 /* ------------------------------- 数据源配置 ------------------------------- */
 
@@ -108,6 +109,8 @@ export interface WorkspaceSnapshot {
   datasource: DatasourceConfig
   layout: LayoutState
   dataSlots: DataSlots
+  /** 可选：点歌台歌单（Rallyloom 不存媒体，可用 HTTPS 直链或 YouTube 官方播放器；见接入规范 §13） */
+  jukebox?: JukeboxConfig
 }
 
 /** 登录同步结果：新会话成员 + 刷新后的全量快照 */

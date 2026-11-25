@@ -69,7 +69,9 @@ async function fetchJson(url, options = {}) {
   if (response.status === 401) throw new WorkspaceError('AUTH_REQUIRED', '登录已失效，请重新授权。')
   if (response.status === 409) throw new WorkspaceError('CONFLICT', '内容已由其他人更新，请刷新后重试。')
   if (response.status === 400) {
-    const data = await response.json().catch(() => null)
+    const rawText = await response.clone().text().catch(() => '')
+    let data = null
+    try { data = JSON.parse(rawText) } catch { /* not json */ }
     if (typeof data?.error === 'string' && data.error.length <= 200)
       throw new WorkspaceError('INVALID_REQUEST', data.error)
   }
@@ -161,7 +163,8 @@ function roomIssue(room) {
       && (seat.facing === undefined || ['north', 'south'].includes(seat.facing))))) return 'seats 包含无效工位'
   if (room.furniture !== undefined && (!Array.isArray(room.furniture) || room.furniture.length > 60
     || !room.furniture.every((item) => object(item) && validId(item.id)
-      && ['desk', 'shelf', 'plant', 'sofa', 'coffee', 'lamp', 'workstation', 'chair', 'meeting-table', 'round-table', 'coffee-table', 'counter', 'cabinet', 'display-shelf', 'clothes-rack', 'rug', 'partition', 'screen', 'studio-light', 'camera', 'carton', 'printer', 'trolley', 'microwave', 'sink', 'cup', 'notebook', 'monitor'].includes(item.kind)
+      && ['desk', 'shelf', 'plant', 'sofa', 'coffee', 'lamp', 'workstation', 'chair', 'meeting-table', 'round-table', 'coffee-table', 'counter', 'cabinet', 'display-shelf', 'clothes-rack', 'rug', 'partition', 'screen', 'studio-light', 'camera', 'carton', 'printer', 'trolley', 'microwave', 'sink', 'cup', 'notebook', 'monitor',
+        'bench', 'desk-l', 'bookcase', 'whiteboard', 'tv', 'water-cooler', 'plant-large', 'conference-table'].includes(item.kind)
       && [item.x, item.y].every((position) => Number.isFinite(position) && position >= 0 && position <= 1)
       && (item.color === undefined || /^#[0-9a-fA-F]{6}$/.test(item.color))
       && (item.elevation === undefined || (Number.isFinite(item.elevation) && item.elevation >= 0 && item.elevation <= 200))
@@ -187,6 +190,7 @@ function bootstrapShape(raw) {
     `layout=${layout ? `w=${layout.width} h=${layout.height} rooms=${rooms ? rooms.length : typeof layout.rooms} room[0]=${first(rooms)} assignments=${object(layout.assignments) ? 'object' : typeof layout.assignments}` : typeof raw.layout}`,
     `policy=${object(raw.policy) ? 'object' : typeof raw.policy}`,
     `dataSlots=${object(raw.dataSlots) ? `object(${Object.keys(raw.dataSlots).length})` : typeof raw.dataSlots}`,
+      `jukebox=${object(raw.jukebox) ? `playlists(${Array.isArray(raw.jukebox.playlists) ? raw.jukebox.playlists.length : 'invalid'})` : typeof raw.jukebox}`,
   ].join(' ')
 }
 
@@ -253,6 +257,7 @@ function validateBootstrap(raw, binding, log) {
       return url.origin === origin ? [[roomId, { kind: slot.kind, name: slot.name, url: url.href, refreshSec }]] : []
     } catch { return [] }
   }))
+  const jukebox = sanitizeJukebox(raw.jukebox)
   return {
     binding, memberId: raw.member_id, permissions: raw.permissions,
     roleSettings: undefined,
@@ -267,8 +272,53 @@ function validateBootstrap(raw, binding, log) {
         memberActions: undefined,
       })), collaboration: raw.collaboration, policy: raw.policy, layout: { ...layout, assignments, seatAssignments }, dataSlots,
       datasource: { kind: 'oa-rest', baseUrl: binding.baseUrl, apiVersion: 'v1', region: '', useLoginToken: true },
+      jukebox,
     },
   }
+}
+
+/**
+ * 可选的点歌台歌单：媒体文件永远不进 Rallyloom，只接收桌面端可直接播放的 HTTPS 地址。
+ * 结构不合法时整体丢弃（点歌台是弱依赖板块，不应因此让工作区加载失败）。
+ */
+function sanitizeJukebox(value) {
+  if (!object(value) || !Array.isArray(value.playlists)) return undefined
+  const media = (input) => {
+    if (!validText(input)) return undefined
+    try { return httpsUrl(input).href } catch { return undefined }
+  }
+  const playlists = []
+  for (const [playlistIndex, entry] of value.playlists.slice(0, 40).entries()) {
+    if (!object(entry) || !validText(entry.name) || !Array.isArray(entry.tracks)) continue
+    const tracks = []
+    for (const [trackIndex, item] of entry.tracks.slice(0, 300).entries()) {
+      if (!object(item) || !validText(item.title)) continue
+      const url = media(item.url)
+      if (!url) continue
+      const attrs = object(item.attrs)
+        ? Object.fromEntries(Object.entries(item.attrs).flatMap(([key, text]) => (typeof text === 'string' && text.trim() ? [[key, text.trim()]] : [])))
+        : undefined
+      tracks.push({
+        id: validText(item.id) ? item.id : `track-${playlistIndex + 1}-${trackIndex + 1}`,
+        title: item.title.trim(),
+        artist: validText(item.artist) ? item.artist.trim() : undefined,
+        url,
+        poster: media(item.poster),
+        duration: Number.isFinite(item.duration) ? Math.max(0, item.duration) : undefined,
+        sourceId: validText(item.sourceId) ? item.sourceId : undefined,
+        attrs: attrs && Object.keys(attrs).length ? attrs : undefined,
+      })
+    }
+    if (!tracks.length) continue
+    playlists.push({
+      id: validText(entry.id) ? entry.id : `playlist-${playlistIndex + 1}`,
+      name: entry.name.trim(),
+      description: validText(entry.description) ? entry.description.trim() : undefined,
+      tracks,
+    })
+  }
+  if (!playlists.length) return undefined
+  return { playlists, note: validText(value.note) ? value.note.trim() : undefined }
 }
 
 function keysOf(text) {

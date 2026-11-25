@@ -26,6 +26,8 @@ interface OfficeSceneProps extends OfficeViewState {
   meId: string | null
   meName: string
   onSeat?: (roomId: string, seatIndex: number, seated: boolean) => void
+  walkTarget?: { roomId: string; seatIndex: number } | null
+  onWalkArrived?: () => void
   seatBusy?: boolean
   seatLocked?: boolean
   onAssignSeat?: (roomId: string, seatIndex: number) => void
@@ -33,8 +35,6 @@ interface OfficeSceneProps extends OfficeViewState {
   editing?: {
     freeWalls?:FreeWallEditing
     selectedFurniture?: string
-    wallTool?: boolean
-    partition?: (start: FloorPoint, end: FloorPoint) => void
     controls: Ref<OfficeSceneControls>
     disabled: boolean
     plan: (source: OfficeDragSource, at: FloorPoint, origin: FloorPoint | null) => OfficePlacement | null
@@ -52,7 +52,7 @@ interface OfficeSceneProps extends OfficeViewState {
 }
 
 export function OfficeScene({
-  layout, rooms, roster, slots, selectedRoom, onSelectRoom, focusedMember, meId, meName, mode, zoom, walking, mentionedRooms, gmv, onOpenGmv, chat, editing, seats, onSeat, seatBusy, seatLocked, onAssignSeat,
+  layout, rooms, roster, slots, selectedRoom, onSelectRoom, focusedMember, meId, meName, mode, zoom, walking, mentionedRooms, gmv, onOpenGmv, chat, editing, seats, onSeat, seatBusy, seatLocked, onAssignSeat, walkTarget, onWalkArrived,
 }: OfficeSceneProps) {
   const viewport = useRef<HTMLDivElement>(null)
   const engine = useRef<ReturnType<typeof createOfficeView>>(null)
@@ -62,8 +62,15 @@ export function OfficeScene({
   const stopDrag = useRef<() => void>(() => {})
   const dragged = useRef(false)
   const canEdit = Boolean(editing)
-  const wallGuide=useRef<SVGSVGElement>(null)
-  const [context, setContext] = useState<{ x:number; y:number; roomId:string; seatIndex?:number; occupant?:string }>()
+  const [context, setContext] = useState<{ x:number; y:number; roomId:string; seatIndex?:number; occupant?:string; seatSupported?:boolean }>()
+  const [notice, setNotice] = useState('')
+  const noticeTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => { if (noticeTimer.current) window.clearTimeout(noticeTimer.current) }, [])
+  function announce(text: string) {
+    setNotice(text)
+    if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
+    noticeTimer.current = window.setTimeout(() => setNotice(''), 3000)
+  }
 
   useEffect(() => {
     if (!viewport.current || (!rooms.length && !canEdit)) return
@@ -82,7 +89,6 @@ export function OfficeScene({
     engine.current?.draw(view.current)
   }, [selectedRoom, mode, zoom, walking, mentionedRooms, gmv, seats, seatLocked, editing?.selectedFurniture])
 
-  useEffect(()=>{if(!editing?.wallTool)stopDrag.current()},[editing?.wallTool])
   useEffect(()=>{const cancel=(event:KeyboardEvent)=>{if(event.key==='Escape')stopDrag.current()};window.addEventListener('keydown',cancel);return()=>window.removeEventListener('keydown',cancel)},[])
 
   const walk = walking ? overlay?.walk : undefined
@@ -90,6 +96,17 @@ export function OfficeScene({
     : walk?.phase === 'arrived' ? `已到达${walk.destination}`
       : walk?.phase === 'blocked' ? (walk.at ? '无法到达该位置，试试别处' : '楼层内暂无可站立的位置')
         : '点击房间或地面移动'
+
+  // Walking to a seat: route the avatar to the chair, then sit down on arrival.
+  useEffect(() => {
+    if (!walking || !walkTarget) return
+    engine.current?.walkToSeat(walkTarget.roomId, walkTarget.seatIndex)
+  }, [walking, walkTarget])
+
+  useEffect(() => {
+    if (!walking || !walkTarget || walk?.phase !== 'arrived') return
+    onWalkArrived?.()
+  }, [walk?.phase, onWalkArrived, walkTarget, walking])
 
   function toggle(roomId: string | null) {
     onSelectRoom(selectedRoom === roomId ? null : roomId)
@@ -162,39 +179,17 @@ export function OfficeScene({
       data-walking={walking || undefined}
       ref={viewport}
       data-seat-locked={seatLocked || undefined}
-      data-wall-tool={editing?.wallTool || editing?.freeWalls?.active || undefined}
+      data-wall-tool={editing?.freeWalls?.active || undefined}
       onContextMenu={!editing ? event => {
         if (!(event.target instanceof HTMLCanvasElement)) return
         const at = point(event.clientX,event.clientY), seat = engine.current?.pickSeat(...at, 36)
         const roomId = seat?.roomId ?? engine.current?.pick(...at)
         if (!roomId) return
         event.preventDefault()
-        setContext({ x:event.clientX,y:event.clientY,roomId,seatIndex:seat?.seatIndex,occupant:seat?.occupant })
+        setContext({ x:event.clientX,y:event.clientY,roomId,seatIndex:seat?.seatIndex,occupant:seat?.occupant,seatSupported:seat?.supported })
       } : undefined}
       onPointerDown={editing ? (event) => {
         if (!(event.target instanceof HTMLCanvasElement)) return
-        if (editing.wallTool) {
-          if (event.button !== 0 || editing.disabled) return
-          stopDrag.current()
-          const pointerId=event.pointerId
-          const start = engine.current?.floorPoint(...point(event.clientX,event.clientY))
-          if (!start) return
-          event.preventDefault(); dragged.current=true
-          const boundary=rooms.find(room=>start.x>=room.frame.x&&start.x<=room.frame.x+room.frame.width&&start.y>=room.frame.y&&start.y<=room.frame.y+room.frame.height)?.frame??{x:0,y:0,width:layout.width,height:layout.height}
-          const move = (e:PointerEvent) => {
-            if(e.pointerId!==pointerId)return
-            const end=engine.current?.floorPoint(...point(e.clientX,e.clientY));if(!end)return
-            const horizontal=Math.abs(end.x-start.x)>Math.abs(end.y-start.y)
-            const a=engine.current?.screenPoint(horizontal?boundary.x:start.x,horizontal?start.y:boundary.y)
-            const b=engine.current?.screenPoint(horizontal?boundary.x+boundary.width:start.x,horizontal?start.y:boundary.y+boundary.height)
-            const guide=wallGuide.current,line=guide?.querySelector('line')
-            if(a&&b&&guide&&line){guide.style.display='block';for(const [name,value] of Object.entries({x1:a.left,y1:a.top,x2:b.left,y2:b.top}))line.setAttribute(name,String(value))}
-          }
-          const stop = () => { window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',finish);window.removeEventListener('pointercancel',stop);window.removeEventListener('blur',stop);if(wallGuide.current)wallGuide.current.style.display='none';stopDrag.current=()=>{};setTimeout(()=>{dragged.current=false},0) }
-          const finish = (e:PointerEvent) => { if(e.pointerId!==pointerId)return;const end=engine.current?.floorPoint(...point(e.clientX,e.clientY));stop();if(end && Math.hypot(e.clientX-event.clientX,e.clientY-event.clientY)>12)editing.partition?.(start,end) }
-          stopDrag.current=stop;window.addEventListener('pointermove',move);window.addEventListener('pointerup',finish);window.addEventListener('pointercancel',stop);window.addEventListener('blur',stop)
-          return
-        }
         dragged.current = false
         const source = engine.current?.pickEditable(...point(event.clientX, event.clientY))
         if (source) startDrag(event, source)
@@ -204,10 +199,11 @@ export function OfficeScene({
         const at = point(event.clientX, event.clientY)
         if (editing) {
           if (!editing.disabled && !dragged.current) editing.select(engine.current?.pickEditable(...at))
-        } else if (walking) engine.current?.walkAt(...at)
+        } else if (walking) { if (!walkTarget) engine.current?.walkAt(...at) }
         else {
           const seat = onSeat && !seatBusy ? engine.current?.pickSeat(...at) : undefined
-          if (seat && (!seat.occupant || seat.occupant === meId)) onSeat?.(seat.roomId, seat.seatIndex, seat.occupant !== meId)
+          if (seat && !seat.supported) announce('这个位置还没有摆放椅子，先到「编辑办公室」里放一把椅子再入座')
+          else if (seat && (!seat.occupant || seat.occupant === meId)) onSeat?.(seat.roomId, seat.seatIndex, seat.occupant !== meId)
           else toggle(engine.current?.pick(...at) ?? null)
         }
       }}
@@ -250,7 +246,7 @@ export function OfficeScene({
                     if (event.detail > 1) return
                     if (editing) {
                       if (!editing.disabled && !dragged.current) editing.select({ kind: 'room', roomId: room.id })
-                    } else if (walking) engine.current?.walkToRoom(room.id)
+                    } else if (walking) { if (!walkTarget) engine.current?.walkToRoom(room.id) }
                     else toggle(room.id)
                   }}
                 >
@@ -263,11 +259,6 @@ export function OfficeScene({
             )
           })}
           {editing?.selectedFurniture && overlay?.furnitureBounds && <div data-selected-furniture={editing.selectedFurniture} className="office-furniture-outline" style={overlay.furnitureBounds}><i/><i/><i/><i/></div>}
-          {onSeat && !editing && overlay?.seats.filter(seat => seat.at.visible && !seat.occupant && seat.roomId === selectedRoom).map(seat => <button
-            type="button" key={seat.roomId + ':' + seat.seatIndex} className="office-seat-action" data-seat-target={seat.roomId+':'+seat.seatIndex}
-            disabled={seatBusy} aria-label={`空座位 ${seat.seatIndex + 1}，入座`} title="点击入座" style={{ left: seat.at.left, top: seat.at.top }}
-            onContextMenu={event=>{event.preventDefault();setContext({x:event.clientX,y:event.clientY,roomId:seat.roomId,seatIndex:seat.seatIndex})}}
-            onClick={() => onSeat(seat.roomId, seat.seatIndex, true)}>＋</button>)}
           {overlay?.people.filter(({ at }) => at.visible).map(({ member, at }) => {
             const preview = member.id !== meId && chat?.canChatWith(member.id) ? chat?.previewPerson : undefined
             const ownSeat = member.id === meId && onSeat ? overlay.seats.find(seat => seat.occupant === meId) : undefined
@@ -316,7 +307,6 @@ export function OfficeScene({
           )}
         </div>
       )}
-      <svg ref={wallGuide} className="office-partition-guide" style={{display:'none'}} aria-hidden="true"><line/></svg>
       {editing?.freeWalls&&<OfficeFreeWalls stage={viewport} engine={engine} layout={layout} editing={editing.freeWalls} overlay={overlay}/>}
       <DropdownMenu open={!!context} onOpenChange={open=>{if(!open)setContext(undefined)}} modal={false}>
         <DropdownMenuTrigger asChild><button aria-hidden="true" tabIndex={-1} className="office-context-anchor" style={{left:context?.x??0,top:context?.y??0}} /></DropdownMenuTrigger>
@@ -324,10 +314,12 @@ export function OfficeScene({
           <div className="office-context-heading">{rooms.find(room=>room.id===context?.roomId)?.name}{context?.seatIndex!==undefined ? ` · 工位 ${context.seatIndex+1}` : ''}</div>
           {context?.occupant && context.occupant!==meId && chat?.canChatWith(context.occupant) && <DropdownMenuItem onSelect={()=>{const anchor=viewport.current;if(anchor)chat.previewPerson(context.occupant!,anchor)}}><MessageCircle/>发起私聊</DropdownMenuItem>}
           {chat && context && <DropdownMenuItem onSelect={()=>chat.openRoom(context.roomId)}><MessageCircle/>进入房间群聊</DropdownMenuItem>}
-          {context?.seatIndex!==undefined && onSeat && (!context.occupant||context.occupant===meId) && <DropdownMenuItem disabled={seatBusy} onSelect={()=>onSeat(context.roomId,context.seatIndex!,context.occupant!==meId)}>{context.occupant===meId?<LogOut/>:<Armchair/>}{context.occupant===meId?'离开座位':'在此入座'}</DropdownMenuItem>}
+          {context?.seatIndex!==undefined && context.seatSupported===false && <DropdownMenuItem disabled><Armchair/>此工位还没有椅子</DropdownMenuItem>}
+          {context?.seatIndex!==undefined && context.seatSupported!==false && onSeat && (!context.occupant||context.occupant===meId) && <DropdownMenuItem disabled={seatBusy} onSelect={()=>onSeat(context.roomId,context.seatIndex!,context.occupant!==meId)}>{context.occupant===meId?<LogOut/>:<Armchair/>}{context.occupant===meId?'离开座位':'在此入座'}</DropdownMenuItem>}
           {context?.seatIndex!==undefined && onAssignSeat && <DropdownMenuItem onSelect={()=>onAssignSeat(context.roomId,context.seatIndex!)}><UserPlus/>分配此工位</DropdownMenuItem>}
         </DropdownMenuContent>
       </DropdownMenu>
+      {notice && !walking && <div className="office-seat-notice" role="status" data-seat-notice>{notice}</div>}
       {walking && !graphicsUnavailable && (
         <div className="office-walk-status" role="status" data-walk-room={walk?.at ? walk.room?.id ?? 'corridor' : undefined}>
           {walk?.at && walk.phase !== 'arrived' && <strong>{walk.room?.name ?? '走廊'}</strong>}

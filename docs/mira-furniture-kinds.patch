@@ -1,0 +1,22 @@
+--- a/backend/src/main/java/com/mira/integrations/rallyloom/RallyloomWorkspaceService.java
++++ b/backend/src/main/java/com/mira/integrations/rallyloom/RallyloomWorkspaceService.java
+@@ -49,7 +49,7 @@
+     public static final String DEFAULT_ROLE = "member";
+     private static final Set<String> ROOM_TEMPLATES = Set.of("desk-grid", "studio", "fulfillment", "support-pods", "command", "showroom", "meeting", "reception", "pantry", "empty", "room-shell");
+     private static final Set<String> FLOOR_MATERIALS = Set.of("wood", "tile", "concrete", "quartz", "terrazzo");
+-    private static final Set<String> FURNITURE_KINDS = Set.of("desk", "shelf", "plant", "sofa", "coffee", "lamp", "workstation", "chair", "meeting-table", "round-table", "coffee-table", "counter", "cabinet", "display-shelf", "clothes-rack", "rug", "partition", "screen", "studio-light", "camera", "carton", "printer", "trolley", "microwave", "sink", "cup", "notebook", "monitor");
++    private static final Set<String> FURNITURE_KINDS = Set.of("desk", "shelf", "plant", "sofa", "coffee", "lamp", "workstation", "chair", "meeting-table", "round-table", "coffee-table", "counter", "cabinet", "display-shelf", "clothes-rack", "rug", "partition", "screen", "studio-light", "camera", "carton", "printer", "trolley", "microwave", "sink", "cup", "notebook", "monitor", "bench", "desk-l", "bookcase", "whiteboard", "tv", "water-cooler", "plant-large", "conference-table");
+     private static final List<String> OFFICE_PERMISSIONS = List.of("office.view", "chat.use", "tasks.use", "docs.use", "notify.view", "reports.use", "reports.write");
+     private static final List<String> BOSS_PERMISSIONS = List.of("office.view", "team.view", "chat.use", "tasks.use", "docs.use", "notify.view", "notify.publish", "reports.use", "tasks.coordinate");
+     private static final List<String> ADMIN_PERMISSIONS = List.of("office.view", "team.view", "chat.use", "tasks.use", "docs.use", "notify.view", "notify.publish", "reports.use", "tasks.coordinate");
+--- a/backend/src/test/java/com/mira/integrations/rallyloom/RallyloomWorkspaceJsonTest.java
++++ b/backend/src/test/java/com/mira/integrations/rallyloom/RallyloomWorkspaceJsonTest.java
+@@ -250,7 +250,7 @@
+         var layout=mapper.readTree("{\"width\":800,\"height\":500,\"assignments\":{},\"rooms\":[{\"id\":\"shell\",\"name\":\"空白房间\",\"template\":\"room-shell\",\"useTemplateFurniture\":false,\"frame\":{\"x\":0,\"y\":0,\"width\":500,\"height\":350},\"furniture\":[{\"id\":\"screen-a\",\"kind\":\"screen\",\"x\":0.5,\"y\":0.5,\"rotation\":90,\"size\":{\"width\":110,\"depth\":12,\"height\":64},\"color\":\"#abcDEF\",\"elevation\":40}]}]}");
+         RallyloomWorkspaceService.validateLayout(layout);
+         var item=(tools.jackson.databind.node.ObjectNode)layout.path("rooms").get(0).path("furniture").get(0);
+-        for(String kind:List.of("workstation","chair","meeting-table","round-table","counter","cabinet","display-shelf","clothes-rack","rug","partition","camera","studio-light","carton","printer","trolley","microwave","sink","cup","notebook","monitor")){item.put("kind",kind);RallyloomWorkspaceService.validateLayout(layout);}
++        for(String kind:List.of("workstation","chair","meeting-table","round-table","counter","cabinet","display-shelf","clothes-rack","rug","partition","camera","studio-light","carton","printer","trolley","microwave","sink","cup","notebook","monitor", "bench", "desk-l", "bookcase", "whiteboard", "tv", "water-cooler", "plant-large", "conference-table")){item.put("kind",kind);RallyloomWorkspaceService.validateLayout(layout);}
+         item.put("color","url(bad)");assertThrows(IllegalArgumentException.class,()->RallyloomWorkspaceService.validateLayout(layout));item.put("color","#abcDEF");
+         item.put("elevation",201);assertThrows(IllegalArgumentException.class,()->RallyloomWorkspaceService.validateLayout(layout));item.put("elevation",0);
+         ((tools.jackson.databind.node.ObjectNode)item.path("size")).put("height",0);assertThrows(IllegalArgumentException.class,()->RallyloomWorkspaceService.validateLayout(layout));

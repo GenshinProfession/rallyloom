@@ -1,6 +1,6 @@
 正式工作区协作接口、能力、对象范围与验收先读 [OA 协作契约](oa-collaboration.md)。目录事件推送是另一条可选链路，不能替代正式 OA API。
 
-# Rallyloom 接入 Skill 包（agent-skill/）· v1.8
+# Rallyloom 接入 Skill 包（agent-skill/）· v1.9
 
 企业可以用这个包规划自托管接入、工作区授权与多租户划分，也可以交给开发者或 AI Agent 为已有 OA 部署编写源系统适配器。
 首次接入、基础数据库访问和定制流程见 [企业接入与授权方案](enterprise-authorization.md)（设计草案）。
@@ -9,7 +9,7 @@ v1.1 新增 `activity.push`（动态承接）与 §9 数据外部化边界；v1.
 `doc.upsert` / `doc.remove`（文档中心承接——对方数据库里的文档记录格式即 payload 字段集）；
 v1.4 新增 §10 多租户（一家公司一个工作区、一源一司、租户随令牌绑定——**全部事件 Schema 零改动**）。
 v1.5 新增 §10.1 集团与租户联邦（可选管辖层：合并租户 = 归属同一管辖体系的配置，数据仍硬隔离；不属集团的公司零感知——依旧零改动）。
-v1.6 新增 §11 提供方自渲染登录页的 Referrer-Policy/Origin 坑与 `reference/verify-provider.mjs` 体检脚本（`Referrer-Policy: no-referrer` 会让表单 POST 的 Origin 变成 null，被网关 403 `Invalid CORS request`）；v1.7 为 `doc.upsert` 增加可选 `content_format: html` 与 `attachments`（富文本文档与正文内任意类型附件，查看器/编辑器内置——其余事件 Schema 零改动）；v1.8 新增 §12 **接入失败排查地图**（错误码 → 阶段 → 字段 → 修复）与 `verify-provider.mjs --bootstrap` 离线契约校验（无 Schema 变更）。
+v1.6 新增 §11 提供方自渲染登录页的 Referrer-Policy/Origin 坑与 `reference/verify-provider.mjs` 体检脚本（`Referrer-Policy: no-referrer` 会让表单 POST 的 Origin 变成 null，被网关 403 `Invalid CORS request`）；v1.7 为 `doc.upsert` 增加可选 `content_format: html` 与 `attachments`（富文本文档与正文内任意类型附件，查看器/编辑器内置——其余事件 Schema 零改动）；v1.8 新增 §12 **接入失败排查地图**（错误码 → 阶段 → 字段 → 修复）与 `verify-provider.mjs --bootstrap` 离线契约校验（无 Schema 变更）；v1.9 新增 §13 **点歌台**（bootstrap 可选 `jukebox` 字段：企业自己在 HTTPS 对象存储托管 MP4，Rallyloom 只做播放器与队列）与 `schemas/jukebox.schema.json`（事件 Schema 依旧零改动）。
 
 ## 目录内容
 
@@ -30,6 +30,7 @@ v1.6 新增 §11 提供方自渲染登录页的 Referrer-Policy/Origin 坑与 `r
 | `schemas/notice-remove.schema.json` | 公告撤回载荷（v1.3） |
 | `schemas/doc-upsert.schema.json` | 文档中心承接载荷（v1.3 起；v1.7 增 `content_format` 与 `attachments`，即对方的文档存储记录格式） |
 | `schemas/doc-remove.schema.json` | 文档下架载荷（v1.3） |
+| `schemas/jukebox.schema.json` | 点歌台歌单（bootstrap 可选 `jukebox` 字段，v1.9；媒体由企业托管） |
 | `reference/adapter-demo.mjs` | 可运行参考适配器（零依赖 Node 18+） |
 | `reference/verify-provider.mjs` | 提供方接入体检脚本：`<域名>` 查 discovery / Referrer-Policy / 真实 POST 的 Origin（v1.6）；`--bootstrap <json>` 离线逐字段校验 bootstrap 响应体（v1.8） |
 | `workspace-provider.md` | 正式工作区的企业角色名称、会话能力、成员可见范围和管理配置契约 |

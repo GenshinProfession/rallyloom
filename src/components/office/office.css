@@ -144,6 +144,24 @@
   pointer-events: none;
 }
 .office-walk-status strong { color: #305580; font-weight: 650; }
+.office-seat-notice {
+  position: absolute;
+  z-index: 2;
+  bottom: 9px;
+  left: 50%;
+  max-width: 440px;
+  transform: translateX(-50%);
+  padding: 7px 14px;
+  border: 1px solid #e7d6c4;
+  border-radius: 7px;
+  background: #fdf7ef;
+  color: #8a6338;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px #2a2f3a14;
+  pointer-events: none;
+}
 .office-person-task { max-width: 79px; overflow: hidden; text-overflow: ellipsis; }
 .office-webgl-fallback {
   position: absolute;

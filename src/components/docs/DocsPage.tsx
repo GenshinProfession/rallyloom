@@ -149,7 +149,7 @@ export function DocsPage({ client }: DocsPageProps) {
     } finally { setRemoving(false) }
   }
 
-  const fullscreenControl = <Button className="ml-auto" variant="ghost" size="sm" aria-label={fullscreen ? '退出全屏' : '全屏文档'} aria-pressed={fullscreen} onClick={() => setFullscreen(!fullscreen)}>{fullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}{fullscreen ? '退出全屏' : '全屏'}</Button>
+  const fullscreenControl = <Button variant="ghost" size="sm" aria-label={fullscreen ? '退出全屏' : '全屏文档'} aria-pressed={fullscreen} onClick={() => setFullscreen(!fullscreen)}>{fullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}{fullscreen ? '退出全屏' : '全屏'}</Button>
 
   return (
     <main data-docs="root" className="flex min-w-0 flex-1 flex-col bg-[#f4f4f6]">
@@ -189,7 +189,7 @@ export function DocsPage({ client }: DocsPageProps) {
           <header className="doc-list-head">
             <span className="doc-list-title">{location.length ? location.join(' / ') : '全部文档'}</span>{activeFolder?.canDelete !== false && activeFolder && <Button size="sm" variant="ghost" onClick={()=>{setRemoveError('');setDeleting(activeFolder)}}><Trash2 className="size-3.5"/>删除空文件夹</Button>}
             <span className="text-[11px] text-muted-foreground">{q ? `匹配 ${visibleSpaces.reduce((sum, [, docs]) => sum + docs.length, 0)} 篇` : `${documents.length} 篇`}</span>
-            {fullscreenControl}
+            <span className="ml-auto flex items-center">{fullscreenControl}</span>
           </header>
           <ScrollArea className="min-h-0 flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block">
             <div className="doc-list-body">

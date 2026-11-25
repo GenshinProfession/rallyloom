@@ -5,7 +5,7 @@ import { WALL_THICKNESS, type OfficeLayout, type ResolvedRoom } from '../rooms/a
 import { sharedWallRuns } from '../rooms/shared-walls'
 import { seatOrder } from '../rooms/seat-order'
 import { officeChair } from '../rooms/furniture'
-import { buildPlacedFurniture } from '../rooms/placed-furniture'
+import { buildPlacedFurniture, FURNITURE } from '../rooms/placed-furniture'
 import { createModelKit, type ModelKit } from './model'
 import { createWalker } from './walker'
 import { createAvatarKit, type AvatarLook } from './avatar'
@@ -13,7 +13,7 @@ import { buildGmvScreen } from './gmv-screen'
 import { createFloorMaterial } from './floor-material'
 import { buildFreeWall } from './free-walls'
 import {roomFloorGeometry} from './region-floor'
-import {regionLabelPoint} from '../rooms/region-geometry'
+import {regionCaptionPoint} from '../rooms/region-geometry'
 
 export type OfficeMode = 'daily' | 'presence' | 'tasks'
 
@@ -90,7 +90,7 @@ export function buildOfficeWorld(
   const roomAnchors: RoomAnchor[] = []
   const people: PersonAnchor[] = []
   const floors: THREE.Mesh[] = []
-  const seatTargets: { roomId: string; seatIndex: number; position: THREE.Vector3; occupant?: string }[] = []
+  const seatTargets: { roomId: string; seatIndex: number; position: THREE.Vector3; occupant?: string; supported: boolean }[] = []
   const overrides = new Map(presence.map(seat => [seat.memberId, seat]))
   const allMembers = new Map([...roster.values()].flat().map(member => [member.id, member]))
   const solids: THREE.Object3D[] = []
@@ -198,11 +198,31 @@ export function buildOfficeWorld(
     group.add(selection)
     highlights.set(room.id, selection)
 
+    // 可坐工位：模板房间自建座椅；自定义房间按椅子/工位/长桌的实际摆放推算，避免出现「没有椅子也能坐」的悬空座位。
+    const seatAnchors: { x: number; z: number; radius: number }[] = []
+    if (room.useTemplateFurniture === false) {
+      for (const item of room.furniture ?? []) {
+        const base = FURNITURE[item.kind]
+        const size = { width: item.size?.width ?? base.width, depth: item.size?.depth ?? base.depth }
+        const cx = item.x * frame.width
+        const cz = item.y * frame.height
+        if (item.kind === 'chair') seatAnchors.push({ x: cx, z: cz, radius: 16 })
+        else if (item.kind === 'workstation') seatAnchors.push({ x: cx, z: cz, radius: 28 })
+        else if (item.kind === 'bench') {
+          const bays = Math.max(2, Math.round(size.width / 62))
+          const bayWidth = (size.width - 8) / bays
+          for (let bay = 0; bay < bays; bay += 1)
+            seatAnchors.push({ x: cx - size.width / 2 + bayWidth * (bay + .5), z: cz + size.depth / 2 + 16, radius: 16 })
+        }
+      }
+    }
+    const seatSupported = (x: number, z: number) => room.useTemplateFurniture !== false
+      || seatAnchors.some(anchor => Math.abs(anchor.x - x) <= anchor.radius && Math.abs(anchor.z - z) <= anchor.radius)
     const roomMembers = roster.get(room.id) ?? []
     const orderedMembers = seatOrder(roomMembers,room.seats.length,layout.seatAssignments)
     roomAnchors.push({
       room,
-      position: room.boundary?(()=>{const at=regionLabelPoint(room);return new THREE.Vector3(at.x,28,at.y)})():new THREE.Vector3(frame.x + 12, room.appearance.display === 'gmv' ? 55 : 28, frame.y + 5),
+      position: room.boundary?(()=>{const at=regionCaptionPoint(room);return new THREE.Vector3(at.x,28,at.y)})():new THREE.Vector3(frame.x + 12, room.appearance.display === 'gmv' ? 55 : 28, frame.y + 5),
       present: roomMembers.filter((member) => member.presence !== 'offline').length,
     })
 
@@ -222,7 +242,7 @@ export function buildOfficeWorld(
       const original = orderedMembers[index]
       const candidate = occupied ? allMembers.get(occupied.memberId) : original && !overrides.has(original.id) ? original : undefined
       const member = candidate && (candidate.presence !== 'offline' || candidate.id === meId) ? { ...candidate, roomId: room.id } : undefined
-      seatTargets.push({ roomId: room.id, seatIndex: index, position: new THREE.Vector3(frame.x + x, 18, frame.y + z), occupant: member?.id ?? occupied?.memberId })
+      seatTargets.push({ roomId: room.id, seatIndex: index, position: new THREE.Vector3(frame.x + x, 18, frame.y + z), occupant: member?.id ?? occupied?.memberId, supported: seatSupported(x, z) })
       if (member?.id === meId) {
         mySeat = new THREE.Vector3(frame.x + x, 0, frame.y + z)
         const halo = new THREE.Mesh(

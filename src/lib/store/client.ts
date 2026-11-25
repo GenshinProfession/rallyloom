@@ -8,6 +8,8 @@ import { OFFICE_LAYOUT } from '@/data/office-layout'
 import { SEED_TEAM, SEED_TEAM_B } from '@/data/team'
 import { clearLocalRole, setLocalRole, syncIdentity, SYNC_POLICY, SYNC_POLICY_B, SYNC_POLICY_GROUP } from '@/lib/identity/rbac'
 import type { ExternalIdentity, RoleId, SyncPolicy, TeamMember } from '@/lib/identity/types'
+import { demoJukebox } from '@/lib/jukebox/demo'
+import type { JukeboxConfig } from '@/lib/jukebox/types'
 import type {
   DataSlot,
   DatasourceConfig,
@@ -146,6 +148,7 @@ const DEMO_TENANTS: Record<string, {
   policy: SyncPolicy
   layout: LayoutState
   dataSlots: Record<string, DataSlot>
+  jukebox?: JukeboxConfig
 }> = {
   // 两家演示公司独立成租户；集团归属是「可选配置」—— 这两家恰好同属星澜控股。
   'tenant-a': {
@@ -154,6 +157,7 @@ const DEMO_TENANTS: Record<string, {
     policy: SYNC_POLICY,
     layout: seedLayout(),
     dataSlots: seedDataSlots(),
+    jukebox: demoJukebox(),
   },
   'tenant-b': {
     tenant: { id: 'tenant-b', name: '云岭智造', note: '演示乙公司 · 离散制造 · 策略跟随集团总部', groupId: 'lantern', groupName: '星澜控股集团' },
@@ -161,6 +165,7 @@ const DEMO_TENANTS: Record<string, {
     policy: SYNC_POLICY_B,
     layout: seedLayoutB(),
     dataSlots: seedDataSlots(),
+    jukebox: demoJukebox(),
   },
   // 集团视图（平台运维轴）：合并成员目录 + 跨租户控制台，数据仍按公司隔离。
   group: {
@@ -198,6 +203,7 @@ export class DemoWorkspaceClient implements WorkspaceClient {
   private datasource: DatasourceConfig = { kind: 'demo-local' }
   private layout: LayoutState
   private dataSlots: Record<string, DataSlot>
+  private jukebox: JukeboxConfig | undefined
 
   constructor(tenantId = 'tenant-a') {
     const seed = DEMO_TENANTS[tenantId] ?? DEMO_TENANTS['tenant-a']
@@ -207,6 +213,7 @@ export class DemoWorkspaceClient implements WorkspaceClient {
     this.policy = clone(seed.policy)
     this.layout = clone(seed.layout)
     this.dataSlots = clone(seed.dataSlots)
+    this.jukebox = seed.jukebox ? clone(seed.jukebox) : undefined
   }
 
   async bootstrap(): Promise<WorkspaceSnapshot> {
@@ -261,6 +268,7 @@ export class DemoWorkspaceClient implements WorkspaceClient {
       datasource: { ...this.datasource },
       layout: clone(this.layout),
       dataSlots: clone(this.dataSlots),
+      jukebox: this.jukebox ? clone(this.jukebox) : undefined,
     }
   }
 }

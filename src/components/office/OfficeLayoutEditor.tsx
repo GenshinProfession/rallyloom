@@ -1,4 +1,4 @@
-import { X, Upload, Layers3, Box, RotateCw, Copy, Trash2, SlidersHorizontal, Plus, BetweenHorizontalStart, MousePointer2, PenLine, Undo2, Maximize, ChevronDown } from 'lucide-react'
+import { X, Upload, Layers3, Box, RotateCw, Copy, Trash2, SlidersHorizontal, Plus, MousePointer2, PenLine, DoorOpen, Undo2, Redo2, Maximize, ChevronDown, Ruler } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -10,9 +10,9 @@ import {OfficeWallInspector} from './OfficeWallInspector'
 import {reconcileRegions} from './rooms/reconcile-regions'
 import {roomContains,boundaryArea,interiorPoint} from './rooms/region-geometry'
 import {furnitureFitsRoom} from './rooms/furniture-region'
-import {validateWallSegments,replaceWallSegment} from './rooms/free-walls'
+import {validateWallSegments} from './rooms/free-walls'
+import {deleteWall,insertWall,moveWallRun,replaceWall} from './rooms/weld-walls'
 import { OfficeRoomSurfaces } from './OfficeRoomSurfaces'
-import { partitionRoom } from './rooms/partition-room'
 import { snapRoom } from './rooms/snap-room'
 import { getRoomDoorway, resolveOfficeLayout, roomTemplates, type RoomPlacement } from './rooms'
 import type { FurnitureKind, RoomFrame, WallSegment } from './rooms/api'
@@ -51,10 +51,55 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   const sceneControls = useRef<OfficeSceneControls>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [messageTone, setMessageTone] = useState<'info' | 'error'>('info')
+  // 成功/提示与校验错误共用一行状态栏，用色调区分，避免「区域已闭合」被当成报错。
+  const notify = (text: string, tone: 'info' | 'error' = 'info') => { setMessage(text); setMessageTone(tone) }
   const [confirmEmpty, setConfirmEmpty] = useState(false)
-  const [tool,setTool] = useState<'select'|'wall'|'split'>('select')
-  const wallTool=tool==='split'
+  const [tool,setTool] = useState<'select'|'wall'|'door'>('select')
   const [wallSelection,setWallSelection]=useState<string>()
+  /** Orthogonal lock for the wall tool (the Shift key gives the same assist on the fly). */
+  const [ortho,setOrtho]=useState(false)
+  /**
+   * One undo stack for the whole draft: walls, furniture, room moves, resizes and
+   * every inspector edit record the previous snapshot, so a mis-drag can always be
+   * taken back (Ctrl+Z) and replayed (Ctrl+Shift+Z).
+   */
+  const historyRef=useRef<{past:LayoutState[];future:LayoutState[]}>({past:[],future:[]})
+  const [,setHistoryVersion]=useState(0)
+  const draftRef=useRef(draft)
+  draftRef.current=draft
+  const canUndo=historyRef.current.past.length>0
+  const canRedo=historyRef.current.future.length>0
+  function record(snapshot:LayoutState=draftRef.current){
+    const history=historyRef.current
+    history.past=[...history.past.slice(-59),structuredClone(snapshot)]
+    history.future=[]
+    setHistoryVersion(version=>version+1)
+  }
+  function restore(snapshot:LayoutState){
+    try{setDraft(reconcileRegions(snapshot));setMessage('')}
+    catch(error){notify(error instanceof Error?error.message:'无法恢复这一步。','error')}
+  }
+  function undoEdit(){
+    const history=historyRef.current
+    const previous=history.past.pop()
+    if(!previous)return
+    history.future=[...history.future.slice(-59),structuredClone(draftRef.current)]
+    setHistoryVersion(version=>version+1)
+    setWallSelection(undefined);setFurnitureSelection(undefined)
+    restore(previous)
+    setMessage('已撤回上一步编辑')
+  }
+  function redoEdit(){
+    const history=historyRef.current
+    const next=history.future.pop()
+    if(!next)return
+    history.past=[...history.past.slice(-59),structuredClone(draftRef.current)]
+    setHistoryVersion(version=>version+1)
+    setWallSelection(undefined);setFurnitureSelection(undefined)
+    restore(next)
+    setMessage('已重做上一步编辑')
+  }
   const selectedWall=draft.wallSegments?.find(wall=>wall.id===wallSelection)
   const selected = draft.rooms.find((room) => room.id === selection)
   const selectedItem = selected?.furniture?.find((item) => item.id === furnitureSelection)
@@ -92,39 +137,63 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   }, [draft.assignments, validation.rooms])
   const assignmentsReleased = Object.keys(layout.assignments).length - Object.keys(publishedAssignments).length
 
-  useEffect(()=>{const escape=(event:KeyboardEvent)=>{if(event.key==='Escape')setTool('select')};window.addEventListener('keydown',escape);return()=>window.removeEventListener('keydown',escape)},[])
-  function drawPartition(start:FloorPoint,end:FloorPoint){
-    if(busy||draft.rooms.length>=80)return
-    const room=roomAt(start) ?? (draft.rooms.length===0?{id:crypto.randomUUID(),name:'办公室',template:'room-shell',frame:{x:0,y:0,width:draft.width,height:draft.height},furniture:[],useTemplateFurniture:false}:undefined)
-    if(!room){setMessage('请从一个房间内部开始划分隔墙。');return}
-    if(room.boundary){setMessage('当前为自动识别区域，请使用自由墙继续划分。');return}
-    const axis=Math.abs(end.x-start.x)>Math.abs(end.y-start.y)?'horizontal':'vertical'
-    try {
-      const appearance=validation.rooms.find(candidate=>candidate.id===room.id)
-      const parts=partitionRoom({...room,floor:room.floor??appearance?.floor,accent:room.accent??appearance?.accent},axis,axis==='vertical'?start.x:start.y,crypto.randomUUID())
-      setDraft(current=>({...current,rooms:current.rooms.length?current.rooms.flatMap(candidate=>candidate.id===room.id?parts:[candidate]):parts}))
-      selectRoom(parts[1].id);setMessage('')
-    }catch(error){setMessage(error instanceof Error?error.message:'无法划分这个房间。')}
-  }
-
+  const undoRef=useRef<() => void>(() => {})
+  const redoRef=useRef<() => void>(() => {})
+  useEffect(()=>{const keys=(event:KeyboardEvent)=>{
+    if(event.key==='Escape')setTool('select')
+    if(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement)return
+    if(!(event.metaKey||event.ctrlKey))return
+    const key=event.key.toLowerCase()
+    if(key==='z'&&!event.shiftKey){event.preventDefault();undoRef.current()}
+    else if((key==='z'&&event.shiftKey)||key==='y'){event.preventDefault();redoRef.current()}
+  };window.addEventListener('keydown',keys);return()=>window.removeEventListener('keydown',keys)},[])
+  undoRef.current=undoEdit
+  redoRef.current=redoEdit
   function selectFreeWall(id:string){setWallSelection(id);setFurnitureSelection(undefined);setInspector('properties')}
-  function changeFreeWall(wall:WallSegment,add:boolean){
-    if(busy)return false
+
+  /**
+   * Every wall edit goes through the wall graph: a new segment splits the walls it
+   * lands on (T junctions), a moved segment keeps its neighbours welded, and two
+   * collinear segments collapse back into one. Without that, corners miss by a few
+   * pixels and the region recogniser never closes the room.
+   */
+  function commitWalls(segments:readonly WallSegment[],note=''){
     try{
-      const wallSegments=add?[...(draft.wallSegments??[]),wall]:replaceWallSegment(draft.wallSegments??[],wall)
-      const next={...draft,wallSegments}
+      const next={...draftRef.current,wallSegments:segments}
       validateWallSegments(next)
-      setDraft(reconcileRegions(next));selectFreeWall(wall.id);setMessage('');return true
-    }catch(error){setMessage(error instanceof Error?error.message:'墙段无效。');return false}
+      record()
+      setDraft(reconcileRegions(next))
+      setMessage(note)
+      return true
+    }catch(error){notify(error instanceof Error?error.message:'墙段无效。','error');return false}
   }
-  function addFreeWall(wall:WallSegment){return changeFreeWall(wall,true)}
-  function updateFreeWall(wall:WallSegment){changeFreeWall(wall,false)}
+  function addFreeWall(wall:WallSegment){
+    if(busy)return false
+    const ok=commitWalls(insertWall(draft.wallSegments??[],wall))
+    if(ok)selectFreeWall(wall.id)
+    return ok
+  }
+  /** `mode='move'` drags the whole straight run and stretches the walls hanging off it. */
+  function updateFreeWall(wall:WallSegment,mode:'move'|'reshape'='reshape'){
+    if(busy)return
+    const segment=draft.wallSegments??[]
+    const previous=segment.find(candidate=>candidate.id===wall.id)
+    const welded=mode==='move'&&previous?moveWallRun(segment,previous,wall,{width:draft.width,height:draft.height}):segment
+    if(commitWalls(replaceWall(welded,wall)))selectFreeWall(wall.id)
+  }
+  function removeFreeWall(id:string){
+    if(busy)return
+    commitWalls(deleteWall(draft.wallSegments??[],id),'已删除墙体')
+    if(wallSelection===id)setWallSelection(undefined)
+  }
 
   function changeTopology(change:(current:LayoutState)=>LayoutState){
-    try{const next=change(draft);if(next.width<500||next.width>4000||next.height<300||next.height>4000)throw Error('画布宽度应为500–4000，高度应为300–4000。');setDraft(reconcileRegions(next));setMessage('')}catch(error){setMessage(error instanceof Error?error.message:'区域识别失败，请检查墙体。')}
+    try{const next=change(draftRef.current);if(next.width<500||next.width>4000||next.height<300||next.height>4000)throw Error('画布宽度应为500–4000，高度应为300–4000。');record();setDraft(reconcileRegions(next));setMessage('')}catch(error){notify(error instanceof Error?error.message:'区域识别失败，请检查墙体。','error')}
   }
   function updateRoom(id: string, update: (room: RoomPlacement) => RoomPlacement) {
-    setDraft((current) => ({ ...current, rooms: current.rooms.map((room) => room.id === id ? (()=>{const next=update(room);return next.useTemplateFurniture===false?{...next,seats:furnitureSeats(next)}:next})() : room) }))
+    const current=draftRef.current
+    record(current)
+    setDraft({ ...current, rooms: current.rooms.map((room) => room.id === id ? (()=>{const next=update(room);return next.useTemplateFurniture===false?{...next,seats:furnitureSeats(next)}:next})() : room) })
   }
 
   function selectRoom(id: string | undefined) {
@@ -210,7 +279,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
 
   function commitModel(source: OfficeDragSource, placement: OfficePlacement) {
     if (!placement.valid) {
-      setMessage(placement.kind === 'room' ? '这里放不下房间，请拖到空闲区域。' : '请将家具放到有空间的房间内。')
+      notify(placement.kind === 'room' ? '这里放不下房间，请拖到空闲区域。' : '请将家具放到有空间的房间内。','error')
       return
     }
     setMessage('')
@@ -230,11 +299,13 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
     const sourceId = source.kind === 'furniture' ? source.roomId : undefined
     const targetId = placement.roomId
     const item = { ...placement.item, id: placement.item.id || crypto.randomUUID() }
-    setDraft((current) => ({ ...current, rooms: current.rooms.map((room) => {
+    const current=draftRef.current
+    record(current)
+    setDraft({ ...current, rooms: current.rooms.map((room) => {
       if (room.id !== sourceId && room.id !== targetId) return room
       const furniture = (room.furniture ?? []).filter(({ id }) => id !== item.id)
       const next={ ...room, furniture: room.id === targetId ? [...furniture, item] : furniture };return {...next,seats:furnitureSeats(next)}
-    }) }))
+    }) })
     selectModel({ kind: 'furniture', roomId: targetId, id: item.id })
   }
 
@@ -289,7 +360,9 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
 
   function insertRoom(template: keyof typeof OFFICE_TEMPLATES, frame: RoomFrame) {
     const id = crypto.randomUUID()
-    setDraft((current) => ({ ...current, rooms: [...current.rooms, materializeRoom({ id, frame, template, name: OFFICE_TEMPLATES[template] },roomTemplates.get(template)!)] }))
+    const current=draftRef.current
+    record(current)
+    setDraft({ ...current, rooms: [...current.rooms, materializeRoom({ id, frame, template, name: OFFICE_TEMPLATES[template] },roomTemplates.get(template)!)] })
     selectRoom(id)
     setMessage('')
     setConfirmEmpty(false)
@@ -305,7 +378,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
         if (!draft.rooms.some((room) => intersects(room.frame, frame))) { insertRoom(template, frame); return }
       }
     }
-    setMessage('画布没有足够的空位。请扩大画布或调整现有房间。')
+    notify('画布没有足够的空位。请扩大画布或调整现有房间。','error')
   }
 
   function applyPreset(room:RoomPlacement,template:keyof typeof OFFICE_TEMPLATES){
@@ -314,11 +387,13 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   }
 
   function removeRoom(id: string) {
-    const rooms = draft.rooms.filter((room) => room.id !== id).map((room) => {
+    const current=draftRef.current
+    record(current)
+    const rooms = current.rooms.filter((room) => room.id !== id).map((room) => {
       if (!room.workbench?.linkedRoomIds?.includes(id)) return room
       return { ...room, workbench: { ...room.workbench, linkedRoomIds: room.workbench.linkedRoomIds.filter((linked) => linked !== id) } }
     })
-    setDraft({ ...draft, rooms })
+    setDraft({ ...current, rooms })
     setSelection(undefined)
     setFurnitureSelection(undefined)
   }
@@ -327,7 +402,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
     if (busy || validation.error) return
     if (layout.rooms.length && !draft.rooms.length && !confirmEmpty) {
       setConfirmEmpty(true)
-      setMessage('发布空办公室会移除现有房间和成员分配，请再点一次确认。')
+      notify('发布空办公室会移除现有房间和成员分配，请再点一次确认。','error')
       return
     }
     setBusy(true)
@@ -347,34 +422,37 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
           </Button>
         </div>
       </WorkspaceHeader>
-      {(message || validation.error) && <p className="office-editor-error" role="alert">{message || validation.error}</p>}
+      {(message || validation.error) && <p className={`office-editor-note${(validation.error || messageTone === 'error') ? ' is-error' : ''}`} role={validation.error || messageTone === 'error' ? 'alert' : undefined}>{message || validation.error}</p>}
       {!validation.error && assignmentsReleased > 0 && <p className="office-editor-seat-notice">
         发布后，原工位不足的 {assignmentsReleased} 位成员会转为未分配，可在办公室的「分配工位」重新安排。
       </p>}
       <div className="office-editor-grid">
           <section className="office-editor-stage">
-            <div className="office-plan-toolbar" aria-label="办公室编辑工具">
+            <div className="office-plan-toolbar" aria-label="办公室编辑工具" data-tool={tool} data-wall-count={draft.wallSegments?.length ?? 0} data-wall-doors={draft.wallSegments?.filter(wall=>!!wall.opening).length ?? 0}>
               <div className="office-plan-tools" role="group" aria-label="绘图工具">
                 <button type="button" disabled={busy} aria-pressed={tool==='select'} onClick={()=>setTool('select')} title="选择并移动对象"><MousePointer2 size={15}/><span>选择</span></button>
                 <button type="button" disabled={busy} aria-pressed={tool==='wall'} onClick={()=>setTool('wall')} title="连续绘制任意角度墙段"><PenLine size={15}/><span>自由墙</span></button>
-                <button type="button" disabled={busy} aria-pressed={tool==='split'} onClick={()=>setTool('split')} title="将矩形房间一分为二"><BetweenHorizontalStart size={15}/><span>矩形分区</span></button>
+                <button type="button" disabled={busy} aria-pressed={tool==='door'} onClick={()=>setTool('door')} title="在独立墙段上开门洞"><DoorOpen size={15}/><span>开门</span></button>
               </div>
-              <button className="office-plan-icon" type="button" aria-label="撤回上一段墙" disabled={busy||!draft.wallSegments?.length} onClick={()=>{changeTopology(current=>({...current,wallSegments:current.wallSegments?.slice(0,-1)}));setWallSelection(undefined)}}><Undo2 size={15}/></button>
+              <button className="office-plan-icon" type="button" aria-label="撤回上一步编辑" title="撤回上一步编辑（Ctrl+Z）" disabled={busy||!canUndo} onClick={undoEdit}><Undo2 size={15}/></button>
+              <button className="office-plan-icon" type="button" aria-label="重做上一步编辑" title="重做上一步编辑（Ctrl+Shift+Z）" disabled={busy||!canRedo} onClick={redoEdit}><Redo2 size={15}/></button>
+              <button className="office-plan-icon" type="button" aria-label="正交锁定" title="正交锁定：墙段只走水平 / 垂直；按住 Shift 可临时锁定 45°" aria-pressed={ortho} disabled={busy} onClick={()=>setOrtho(value=>!value)}><Ruler size={15}/></button>
               <details className="office-canvas-size"><summary><Maximize size={14}/><span>{draft.width} × {draft.height}</span><ChevronDown size={12}/></summary><div>
                 <label>画布宽<input aria-label="画布宽" type="number" min={500} max={4000} value={draft.width} disabled={busy} onChange={event=>changeTopology(current=>({...current,width:Number(event.target.value)}))}/></label>
                 <label>画布高<input aria-label="画布高" type="number" min={300} max={4000} value={draft.height} disabled={busy} onChange={event=>changeTopology(current=>({...current,height:Number(event.target.value)}))}/></label>
-                <label>每米单位<input aria-label="每米画布单位" type="number" min={10} max={1000} value={draft.unitsPerMeter??50} onChange={event=>setDraft({...draft,unitsPerMeter:Math.max(10,Math.min(1000,Number(event.target.value)))})}/></label>
+                <label>每米单位<input aria-label="每米画布单位" type="number" min={10} max={1000} value={draft.unitsPerMeter??50} onChange={event=>{record();setDraft({...draftRef.current,unitsPerMeter:Math.max(10,Math.min(1000,Number(event.target.value)))})}}/></label>
               </div></details>
               <label className="office-plan-zoom"><input aria-label="编辑器缩放" type="range" min={65} max={165} value={sceneZoom} onChange={event=>setSceneZoom(Number(event.target.value))}/><span>{sceneZoom}%</span></label>
-              <button className="office-plan-clear" type="button" disabled={busy} onClick={()=>{setDraft({...draft,rooms:[],wallSegments:[]});selectRoom(undefined);setMessage('')}}><Trash2 size={14}/><span>清空草稿</span></button>
+              <button className="office-plan-clear" type="button" disabled={busy} onClick={()=>{record();setDraft({...draftRef.current,rooms:[],wallSegments:[]});selectRoom(undefined);setMessage('')}}><Trash2 size={14}/><span>清空草稿</span></button>
             </div>
-            {(wallTool||tool==='wall')&&<div className="office-drawing-hint"><i/>{wallTool?'拖出横墙或竖墙，划分矩形房间':'点击起点、连续点击转角；也可拖出单段墙。Shift 对齐 45°，Enter / Esc 结束。'}{tool==='wall'&&draft.rooms.some(room=>Object.values(room.walls??{}).length<4||Object.values(room.walls??{}).some(value=>value!=='open'))&&<button type="button" disabled={busy} onClick={()=>changeTopology(current=>({...current,rooms:current.rooms.map(room=>({...room,walls:{north:'open',east:'open',south:'open',west:'open'}}))}))}>开放原有隔墙</button>}</div>}
+            {tool==='door'&&<div className="office-drawing-hint"><i/>点墙体放置门洞，再点同一个门洞可取消；门洞宽度随墙段长度自动取值。外围墙请在房间属性里设置出入口；Esc 或再点「开门」退出。</div>}
+            {tool==='wall'&&<div className="office-drawing-hint"><i/>{'点击起点、连续点击转角；端点 / 墙身 / 交点自动吸附，方向靠近水平 / 垂直 / 15° 倍数时出现绿色引导射线并自动锁直。回到起点可自动闭合，Shift 锁定 45°，正交按钮锁定 90°，Backspace 撤回上一段，双击 / Enter / Esc 结束；画歪了可在右侧属性里改角度或点「水平 / 垂直」。'}{tool==='wall'&&draft.rooms.some(room=>Object.values(room.walls??{}).length<4||Object.values(room.walls??{}).some(value=>value!=='open'))&&<button type="button" disabled={busy} onClick={()=>changeTopology(current=>({...current,rooms:current.rooms.map(room=>({...room,walls:{north:'open',east:'open',south:'open',west:'open'}}))}))}>开放原有隔墙</button>}</div>}
             <div className="office-editor-preview" data-office-editor-3d>
               <OfficeScene layout={draft} rooms={validation.rooms} roster={emptyRoster} slots={{}}
                 selectedRoom={selection ?? null}
                 onSelectRoom={(id) => selectRoom(id ?? undefined)}
                 focusedMember={null} meId={null} meName="" mode="daily" zoom={sceneZoom} walking={false}
-                editing={{ freeWalls:{active:tool==='wall',selected:wallSelection,disabled:busy,add:addFreeWall,update:updateFreeWall,select:selectFreeWall,finish:()=>setTool('select')},wallTool, partition:drawPartition, selectedFurniture:furnitureSelection, controls: sceneControls, disabled: busy, resize: resizeTargets, plan: planModel,
+                editing={{ freeWalls:{active:tool==='wall',doorTool:tool==='door',selected:wallSelection,disabled:busy,ortho,grid:0,unitsPerMeter:draft.unitsPerMeter??50,add:addFreeWall,update:updateFreeWall,remove:removeFreeWall,select:selectFreeWall,restore:(walls)=>commitWalls(walls,'已取消这组连线'),finish:()=>setTool('select'),message:setMessage},selectedFurniture:furnitureSelection, controls: sceneControls, disabled: busy, resize: resizeTargets, plan: planModel,
                   commit: commitModel, select: selectModel,
                 }} />
             </div>
@@ -391,7 +469,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
               if (sceneControls.current?.didDrag()) return
               if (asset.kind === 'room') addRoom(asset.id as keyof typeof OFFICE_TEMPLATES)
               else if (selected) placeFurniture(asset.id, selected)
-              else setMessage('先选中房间，或直接把家具拖到房间里。')
+              else notify('先选中房间，或直接把家具拖到房间里。','error')
             }} />}
             {inspector === 'properties' && selected && selectedItem && <section>
               <div className="office-inspector-heading"><div><span className="office-inspector-eyebrow">家具 · 独立对象</span><h2><Box size={16}/>{FURNITURE[selectedItem.kind].label}</h2></div><span>{selected.name}</span></div>
@@ -419,7 +497,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
                 setFurnitureSelection(undefined)
               }} className="office-delete-object"><Trash2 size={13}/>移除家具</button>
             </section>}
-            {inspector==='properties'&&selectedWall&&<OfficeWallInspector wall={selectedWall} disabled={busy} onChange={updateFreeWall} onDelete={()=>{changeTopology(current=>({...current,wallSegments:current.wallSegments?.filter(wall=>wall.id!==selectedWall.id)}));setWallSelection(undefined)}}/>}
+            {inspector==='properties'&&selectedWall&&<OfficeWallInspector wall={selectedWall} disabled={busy} onChange={updateFreeWall} onDelete={()=>removeFreeWall(selectedWall.id)}/>}
             {inspector === 'properties' && !selectedWall && !selectedItem && <section>
               <div className="office-inspector-heading"><div><span className="office-inspector-eyebrow">空间边界</span><h2><Layers3 size={16}/>{selected?.boundary?'区域属性':'房间属性'}</h2></div><span>{selected?.furniture?.length??0} 件家具</span></div>
               <label>{selected?.boundary?'当前区域':'当前房间'}<Select value={selected?.id??''} disabled={busy||!draft.rooms.length} onValueChange={id=>selectRoom(id)}><SelectTrigger aria-label="选择房间"><SelectValue placeholder="选择房间"/></SelectTrigger><SelectContent>{draft.rooms.map(room=><SelectItem key={room.id} value={room.id}>{room.name||'未命名'}</SelectItem>)}</SelectContent></Select></label>

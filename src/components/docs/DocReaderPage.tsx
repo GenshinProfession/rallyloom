@@ -99,26 +99,28 @@ export function DocReaderPage({ doc, canEdit, onEdit, onDelete, onBack, toolbarA
           <ChevronRight className="size-3" aria-hidden />
           <span className="truncate text-foreground/70">{doc.title}</span>
         </nav>
-        <span className="ml-auto flex items-center gap-1.5">
-          {doc.origin === 'sync' && (
-            <Badge variant="secondary" className="h-[18px] bg-indigo-50 px-1.5 text-[10px] text-indigo-700">外部 · {doc.sourceId}</Badge>
+        <div className="doc-head-actions">
+          <span className="doc-head-status">
+            {doc.origin === 'sync' && (
+              <Badge variant="secondary" className="h-[18px] bg-indigo-50 px-1.5 text-[10px] text-indigo-700">外部 · {doc.sourceId}</Badge>
+            )}
+            {Object.entries(doc.attrs ?? {}).slice(0, 3).map(([key, value]) => (
+              <Badge key={key} variant="secondary" className="h-[18px] px-1.5 text-[10px] text-muted-foreground">{key} · {value}</Badge>
+            ))}
+          </span>
+          {canEdit && doc.origin === 'local' && (
+            <>
+              <Button type="button" size="sm" variant="outline" className="h-7" onClick={onEdit} data-doc-edit="true">
+                <PencilLine /> 编辑
+              </Button>
+              <Button type="button" size="icon" variant="ghost" className="size-7 text-muted-foreground hover:text-destructive"
+                aria-label="删除文档" title="删除文档" onClick={onDelete} data-doc-delete="true">
+                <Trash2 />
+              </Button>
+            </>
           )}
-          {Object.entries(doc.attrs ?? {}).slice(0, 3).map(([key, value]) => (
-            <Badge key={key} variant="secondary" className="h-[18px] px-1.5 text-[10px] text-muted-foreground">{key} · {value}</Badge>
-          ))}
-        </span>
-        {canEdit && doc.origin === 'local' && (
-          <div className="flex items-center gap-1">
-            <Button type="button" size="sm" variant="outline" className="h-7" onClick={onEdit} data-doc-edit="true">
-              <PencilLine /> 编辑
-            </Button>
-            <Button type="button" size="icon" variant="ghost" className="size-7 text-muted-foreground hover:text-destructive"
-              aria-label="删除文档" title="删除文档" onClick={onDelete} data-doc-delete="true">
-              <Trash2 />
-            </Button>
-          </div>
-        )}
-        {toolbarActions}
+          {toolbarActions}
+        </div>
       </header>
 
       <div className="doc-page-body doc-reader-body">

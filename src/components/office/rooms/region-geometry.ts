@@ -40,6 +40,29 @@ export function regionLabelPoint(room:RoomPlacement):Point{
   for(const y of ys)for(const x of xs){const p={x,y};if(boundaryContains(boundary,p,false)&&boundaryContains(boundary,{x:x+95,y},false)&&!occupied.some(item=>item.x>=x-25&&item.x<=x+135&&Math.abs(item.y-y)<60))return p}
   return anchor
 }
+/**
+ * 房间名优先贴房间上沿左侧居中显示（像平面图的房间标题），
+ * 并避开家具占地；找不到干净的位置时回退到房间内部点。
+ */
+export function regionCaptionPoint(room:RoomPlacement):Point{
+  const f=room.frame
+  if(!room.boundary)return{x:f.x+12,y:f.y+5}
+  const boundary=room.boundary
+  const furniture=(room.furniture??[]).map(item=>({x:f.x+item.x*f.width,y:f.y+item.y*f.height}))
+  const rows=[f.y+14,f.y+26,f.y+40]
+  const inset=20,labelWidth=150,labelHeight=34
+  for(const y of rows){
+    for(let x=f.x+inset;x<=f.x+f.width-labelWidth-8;x+=18){
+      const p={x,y}
+      if(!boundaryContains(boundary,p,false))continue
+      if(!boundaryContains(boundary,{x:x+labelWidth,y},false))continue
+      if(!boundaryContains(boundary,{x,y:y+labelHeight},false))continue
+      const clash=furniture.some(item=>item.x>x-40&&item.x<x+labelWidth+24&&item.y>y-52&&item.y<y+labelHeight+22)
+      if(!clash)return p
+    }
+  }
+  return regionLabelPoint(room)
+}
 export function boundarySignature(boundary:RoomBoundary){
   const key=(ring:readonly Point[])=>{const values=ring.map(p=>`${p.x.toFixed(4)},${p.y.toFixed(4)}`);const candidates=[values,[...values].reverse()].map(list=>{let start=0;for(let i=1;i<list.length;i++)if(list[i]<list[start])start=i;return [...list.slice(start),...list.slice(0,start)].join(';')});return candidates.sort()[0]}
   return key(boundary.outer)+'|'+(boundary.holes??[]).map(key).sort().join('|')

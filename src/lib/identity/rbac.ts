@@ -21,6 +21,7 @@ export const PERMISSIONS: { id: string; name: string; group: string; roles: Role
   { id: 'tasks.use', name: '使用任务看板', group: '工作区', roles: ['owner', 'admin', 'member'] },
   { id: 'notify.view', name: '查看通知中心', group: '工作区', roles: ['owner', 'admin', 'member'] },
   { id: 'docs.use', name: '使用文档中心', group: '工作区', roles: ['owner', 'admin', 'member'] },
+  { id: 'jukebox.use', name: '使用点歌台', group: '工作区', roles: ['owner', 'admin', 'member'] },
   { id: 'layout.edit', name: '编排办公室（房间与工位）', group: '工作区', roles: ['owner', 'admin'] },
   { id: 'slots.attach', name: '挂载外部数据看板', group: '工作区', roles: ['owner', 'admin'] },
   { id: 'team.view', name: '查看团队', group: '团队管理', roles: ['owner', 'admin', 'member'] },

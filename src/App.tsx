@@ -9,6 +9,7 @@ import { TaskBoardPage } from '@/components/tasks/TaskBoardPage'
 import { TeamManage } from '@/components/team/TeamManage'
 import { DocsPage } from '@/components/docs/DocsPage'
 import { NoticePage } from '@/components/notify/NoticePage'
+import { JukeboxPage } from '@/components/jukebox/JukeboxPage'
 import { OfficeNotice } from '@/components/notify/OfficeNotice'
 import { seatIdOf } from '@/data/team'
 import { can } from '@/lib/identity/rbac'
@@ -29,7 +30,7 @@ import { workspaceValue, type JoinedWorkspace } from '@/lib/store/workspace-bind
 import { CONNECTORS } from '@/lib/identity/connector'
 import { FormalTeam } from '@/components/team/FormalTeam'
 
-type Page = 'office' | 'chat' | 'tasks' | 'docs' | 'notify' | 'team' | 'reports'
+type Page = 'office' | 'chat' | 'tasks' | 'docs' | 'notify' | 'team' | 'reports' | 'jukebox'
 
 const OfficePage = lazy(() => import('@/components/office/OfficePage').then(({ OfficePage }) => ({ default: OfficePage })))
 
@@ -171,12 +172,14 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
   const canTasks = !isGroup && !!me && (demo ? can(me.role, 'tasks.use') : permissions.includes('tasks.use'))
   const canDocs = !isGroup && !!me && (demo ? can(me.role, 'docs.use') : permissions.includes('docs.use'))
   const canNotify = !isGroup && !!me && (demo ? can(me.role, 'notify.view') : permissions.includes('notify.view'))
+  const canJukebox = !isGroup && !!me && (demo ? can(me.role, 'jukebox.use') : permissions.includes('jukebox.use'))
   const activePage: Page =
     page === 'reports' && !canReports ? 'office' : page === 'team' && !canTeam ? 'office'
       : page === 'chat' && !canChat ? 'office'
         : page === 'tasks' && !canTasks ? 'office'
           : page === 'docs' && !canDocs ? 'office'
             : page === 'notify' && !canNotify ? 'office'
+              : page === 'jukebox' && !canJukebox ? 'office'
               : page
   const officeMembers = useMemo(() => rosterOf(layout, team, demo, demo || snapshot.collaboration?.seating?.version === 1), [layout, team, demo, snapshot.collaboration?.seating?.version])
   const meSeatId = me && (demo ? me.role !== 'guest' : me.officeAssignable !== false)
@@ -334,6 +337,7 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
         tasksVisible={canTasks}
         docsVisible={canDocs}
         reportsVisible={canReports}
+        jukeboxVisible={canJukebox}
         notifyVisible={canNotify}
         notificationCount={noticeUnread}
         searchItems={searchItems}
@@ -379,12 +383,16 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
                   searchHit={officeSearchHit}
                   selectedRoom={selectedOfficeRoom}
                   onSelectRoom={setOfficeRoomId}
-                  editing={!demo && permissions.includes('layout.edit') ? { team, publish: async (draft) => {
-                    const bridge = window.rallyloom?.workspace
-                    if (!bridge) throw new Error('请在 Rallyloom 桌面应用中编排办公室。')
-                    const updated = workspaceValue(await bridge.saveOfficeLayout(draft))
-                    applyJoined(updated)
-                  } } : undefined}
+                  editing={demo
+                    ? can(me.role, 'layout.edit')
+                      ? { team, publish: async (draft) => { applySnapshot(await entry.client.saveLayout(draft)) } }
+                      : undefined
+                    : permissions.includes('layout.edit') ? { team, publish: async (draft) => {
+                      const bridge = window.rallyloom?.workspace
+                      if (!bridge) throw new Error('请在 Rallyloom 桌面应用中编排办公室。')
+                      const updated = workspaceValue(await bridge.saveOfficeLayout(draft))
+                      applyJoined(updated)
+                    } } : undefined}
                   work={{ actorId: me.id, actorName: me.displayName, canCoordinate: demo ? me.role === 'admin' || me.role === 'owner' : permissions.includes('tasks.coordinate'),
                     tasks: canTasks ? taskClient ?? undefined : undefined, docs: canDocs ? docClient ?? undefined : undefined,
                     notices: canNotify ? noticeClient ?? undefined : undefined }}
@@ -423,6 +431,13 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
           <DocsPage client={docClient} />
         ) : activePage === 'notify' && noticeClient ? (
           <NoticePage canPublish={!demo && permissions.includes('notify.publish')} client={noticeClient} />
+        ) : activePage === 'jukebox' && canJukebox && me ? (
+          <JukeboxPage
+            config={snapshot.jukebox}
+            demo={demo}
+            canManage={demo && (me.role === 'owner' || me.role === 'admin')}
+            storageKey={demo ? `rallyloom:demo:jukebox:${snapshot.tenant.id}` : undefined}
+          />
         ) : (
           <main className="flex min-w-0 flex-1 flex-col bg-[#f4f4f6]">
             {isGroup ? <GroupConsole directory={team} groupName={groupName} onEnterWorkspace={onEnterWorkspace} /> : entry.mode === 'demo' ? <TeamManage

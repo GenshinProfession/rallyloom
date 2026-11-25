@@ -19,7 +19,7 @@ description: 为企业接入 Rallyloom 开源 OA。用于设计企业部署、�
 2. `integration-spec.md` —— 现有事件和身份契约（三种接入模式、数据格式、幂等、错误码和角色边界）
 3. `schemas/*.json` —— 机器可读契约（JSON Schema 2020-12；按本次模块读取相应文件）
 4. `reference/adapter-demo.mjs` —— 推送适配器的参考实现（零依赖 Node 18+）
-5. `reference/verify-provider.mjs` —— 提供方接入体检脚本：`<域名>` 查 discovery + 授权页 Referrer-Policy + 真实表单 POST 的 Origin（v1.6）；`--bootstrap <json>` 离线校验 bootstrap 响应体的每个字段（v1.8）
+5. `reference/verify-provider.mjs` —— 提供方接入体检脚本：`<域名>` 查 discovery + 授权页 Referrer-Policy + 真实表单 POST 的 Origin（v1.6）；`--bootstrap <json>` 离线校验 bootstrap 响应体的每个字段（v1.8，v1.9 起连带校验可选 `jukebox`）
 
 人类同事也适用本 skill：把整个目录给他即可，不需要额外上下文。
 
@@ -69,6 +69,7 @@ doc.upsert   payload：{ source_id, external_doc_id, title,           ← v1.3 �
     space?, folder_path?: string[], format(markdown|link), content?/url?, owner_name?, updated_at?, attrs?,
     content_format?(markdown|html，v1.7), attachments?: [{id?,name,size?,mime?,url}] }   ← v1.7 富文本+附件
 doc.remove   payload：{ source_id, external_doc_id }                 ← 文档下架
+bootstrap.jukebox（可选字段，无事件）：{ playlists: [ { id, name, tracks: [ { title, url(HTTPS MP4), artist?, poster?, duration?, attrs? } ] } ] }  ← v1.9 点歌台
 ```
 
 响应契约：200 成功 / 409 幂等命中（视为成功）/ 400 修后重发 / 401 换令牌 / **422 版本不兼容（保留事件+告警，绝不静默丢弃）** / 5xx 指数退避重试 3 次后转对账兜底。
@@ -78,6 +79,10 @@ v1.1–v1.3 的「业务数据承接」：动态流走 `activity.push`、任务�
 文档中心走 `doc.upsert`/`doc.remove`（查看器与富文本编辑器内置：markdown 或 `content_format:"html"` + 正文中间可放任意类型附件；文档数据、附件本体与存储不归 Rallyloom）；
 看板/大盘不需要适配器——只要一个返回 `{rows:[{label,value,delta?}]}` 的 HTTPS JSON 端点，
 由 Rallyloom 超管在「挂载外部数据看板」里填 URL 即可。边界详见 integration-spec.md §9。
+
+点歌台（v1.9）：Rallyloom 不存任何音视频文件，只做播放器与排队。企业把 MP4 放在自己的 HTTPS 对象存储上，
+在 bootstrap 响应里加可选 `jukebox` 字段（歌单数组 + 每首歌的 `title`/`url` 等）即可；媒体不进 Rallyloom，
+事件 Schema 零改动，`verify-provider.mjs --bootstrap` 会连带校验这段。详见 integration-spec.md §13。
 
 多租户（v1.4）：一家公司一个工作区，**一源一司**——你的承接令牌绑定了唯一一家公司，
 报文里没有租户字段、也不需要发明一个（租户随令牌走，所以 Schema 零改动）。两家公司
