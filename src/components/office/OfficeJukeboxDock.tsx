@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import {
-  ArrowUpRight,
   AudioLines,
   LoaderCircle,
   Pause,
@@ -14,7 +13,6 @@ import {
 import type { JukeboxClient, JukeboxConfig, JukeboxTrack } from '@/lib/jukebox/types'
 import {
   adoptTrack,
-  canPlayInline,
   curatedQueue,
   feedQueue,
   playTrack,
@@ -32,7 +30,6 @@ import {
 interface OfficeJukeboxDockProps {
   config?: JukeboxConfig
   client?: JukeboxClient
-  onOpen: () => void
 }
 
 function clock(seconds: number) {
@@ -46,8 +43,9 @@ function clock(seconds: number) {
  *
  * 3D 楼层在宽屏下会在下方留出一条空间，这里放一条「办公室 BGM」玻璃播放条：
  * 曲库来自点歌台同一份数据（提供方精选歌单 / 共享曲库），播放状态跨页面共享。
+ * 它就是一个播放器：不负责跳去点歌台（用户要的就是「在这儿听」）。
  */
-export function OfficeJukeboxDock({ config, client, onOpen }: OfficeJukeboxDockProps) {
+export function OfficeJukeboxDock({ config, client }: OfficeJukeboxDockProps) {
   const player = useSyncExternalStore(subscribePlayer, playerState, playerState)
   const [feed, setFeed] = useState<JukeboxTrack[]>(() => curatedQueue(config))
   const [muted, setMuted] = useState(false)
@@ -86,20 +84,18 @@ export function OfficeJukeboxDock({ config, client, onOpen }: OfficeJukeboxDockP
   const current = player.track ?? feed[0] ?? null
   const duration = player.duration || current?.duration || 0
   const percent = duration > 0 ? Math.min(100, (player.position / duration) * 100) : 0
-  const playsInline = canPlayInline(current)
   const playing = player.playing
-  const spinning = playing && playsInline
+  const spinning = playing
 
   const toggle = useCallback(async () => {
     if (player.loading) return
-    if (!current) { onOpen(); return }
-    if (!playsInline) { onOpen(); return }
+    if (!current) return
     if (player.track?.id === current.id) {
       await togglePlayer(resolve)
       return
     }
-    await playTrack(current, { resolve, position: player.track?.id === current.id ? player.position : 0 })
-  }, [current, onOpen, player.loading, player.position, player.track?.id, playsInline, resolve])
+    await playTrack(current, { resolve })
+  }, [current, player.loading, player.track?.id, resolve])
 
   const seek = useCallback((event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>) => {
     const trackDuration = duration
@@ -141,20 +137,14 @@ export function OfficeJukeboxDock({ config, client, onOpen }: OfficeJukeboxDockP
       aria-label="办公室背景音乐播放器"
     >
       <span className="office-jukebox-pool" aria-hidden />
-      <button
-        type="button"
-        className="office-jukebox-cover ui-press"
-        aria-label={current ? `打开点歌台：${current.title}` : '打开点歌台'}
-        onClick={onOpen}
-        data-jukebox-cover
-      >
+      <div className="office-jukebox-cover" aria-hidden data-jukebox-cover>
         <span className={`office-jukebox-vinyl${spinning ? ' is-spinning' : ''}`} aria-hidden>
           {current?.poster
             ? <img className="office-jukebox-art" src={current.poster} alt="" />
             : <AudioLines size={17} strokeWidth={1.7} />}
         </span>
         {playing && <span className="office-jukebox-eq" aria-hidden><i /><i /><i /><i /></span>}
-      </button>
+      </div>
 
       <div className="office-jukebox-copy">
         <div className="office-jukebox-head">
@@ -162,11 +152,11 @@ export function OfficeJukeboxDock({ config, client, onOpen }: OfficeJukeboxDockP
             <i aria-hidden /> OFFICE BGM
           </span>
           {current?.provider === 'youtube' && <span className="office-jukebox-tag"><Youtube size={10} strokeWidth={1.8} /> YOUTUBE</span>}
-          <span className="office-jukebox-source">点歌台同步</span>
+          <span className="office-jukebox-source">点歌台曲库</span>
         </div>
         <div className="office-jukebox-title">
           <strong data-jukebox-title>{current?.title ?? '办公室还没有背景音乐'}</strong>
-          <span>{current ? current.artist || current.uploaderName || '来自共享曲库' : '去点歌台挑一首，办公室一起听'}</span>
+          <span>{current ? current.artist || current.uploaderName || '来自共享曲库' : '等待企业下发歌单'}</span>
         </div>
         <div className="office-jukebox-line">
           <div
@@ -186,9 +176,6 @@ export function OfficeJukeboxDock({ config, client, onOpen }: OfficeJukeboxDockP
           </div>
           <span className="office-jukebox-time">{clock(player.position)} / {clock(duration)}</span>
         </div>
-        {!playsInline && (
-          <p className="office-jukebox-inline-hint">YouTube 曲目 · 点播放会在点歌台打开</p>
-        )}
       </div>
 
       <div className="office-jukebox-controls">
@@ -198,7 +185,7 @@ export function OfficeJukeboxDock({ config, client, onOpen }: OfficeJukeboxDockP
         <button
           type="button"
           className="office-jukebox-play ui-press"
-          aria-label={playing ? '暂停' : playsInline ? '播放' : '在点歌台播放'}
+          aria-label={playing ? '暂停' : '播放'}
           onClick={() => void toggle()}
           data-jukebox-play
           data-state={player.loading ? 'loading' : playing ? 'playing' : 'paused'}
@@ -228,12 +215,8 @@ export function OfficeJukeboxDock({ config, client, onOpen }: OfficeJukeboxDockP
         />
       </div>
 
-      <button type="button" className="office-jukebox-open ui-press" onClick={onOpen} data-jukebox-open>
-        点歌台 <ArrowUpRight size={12} strokeWidth={2} />
-      </button>
-
       {player.error && current && <span className="office-jukebox-error" role="status" data-jukebox-error>{player.error}</span>}
-      {!current && <span className="office-jukebox-hint">点歌台为空 · 去添加第一首</span>}
+      {!current && <span className="office-jukebox-hint">暂无背景音乐</span>}
     </section>
   )
 }

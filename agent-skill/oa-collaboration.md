@@ -21,6 +21,8 @@ Bootstrap 提供 `collaboration: {version:1, scopes:[{id,label}]}`。工作区�
 
 ## 接口
 
+> 完整端点表、请求/响应字段、分页与 revision 规则、错误码与自检命令见 **[provider-api.md](provider-api.md) §7–§14**；本节保留行为约束、轮询节奏与验收分层。
+
 所有下列路径相对 `/api/v1/workspace/oa`。
 
 | 方法与路径 | 请求 / 响应 |
@@ -44,7 +46,7 @@ Bootstrap 提供 `collaboration: {version:1, scopes:[{id,label}]}`。工作区�
 
 记录公共字段：`id`、`revision`、`updatedAt`、`createdBy`；`canEdit/canDelete` 由服务端下发。任务可返回 `canManage` 区分负责人改状态与发起人/管理者改标题、截止日等。服务端必须拒绝伪造 `createdBy/ownerName/senderId/tenantId`。`sortOrder` 用于任务展示排序，分页游标独立，不能用可变排序值分页。客户端当前以4秒拉取聊天、10秒拉取资源订阅，单视图最多5000条并明确报错，不能把截断伪装成全量。
 
-通用工作汇报由 [日志汇报契约](reporting.md) 定义。提供方声明 `collaboration.reporting.version=1` 后开放 `/reports/templates` 和 `/reports/entries`，客户端根据模板字段渲染。未声明能力不展示入口。Mira 的旧 `/work-reports` 接口只为历史兼容，通用客户端不调用。
+通用工作汇报由 [日志汇报契约](reporting.md) 定义。提供方声明 `collaboration.reporting.version=1` 后开放 `/reports/templates` 和 `/reports/entries`，客户端按提供方下发的分区、文本和重复表格渲染；提交窗口和可见范围始终由提供方授权。未声明能力不展示入口。Mira 的旧 `/work-reports` 接口只为历史兼容，通用客户端不调用。
 
 `401` 需重新授权或使用主进程续期；`403` 不得重试成其他租户；`409` 保留编辑内容并提示重新载入；`400` 展示字段错误。重试失败不能显示成功。任务失败保留原状态/顺序，文档全屏切换不应重建编辑器。
 

@@ -15,7 +15,7 @@ export const OFFICE_LAYOUT = defineOfficeLayout({
       walls: { south: 'glass' },
       furniture: [
         { id: 'store-board', kind: 'whiteboard', x: .50, y: .09, rotation: 0 },
-        { id: 'store-books', kind: 'bookcase', x: .94, y: .13, rotation: 90 },
+        { id: 'store-books', kind: 'bookcase', x: .94, y: .2, rotation: 90 },
         { id: 'store-tree', kind: 'plant-large', x: .06, y: .13, rotation: 0 },
       ],
     },
@@ -26,8 +26,8 @@ export const OFFICE_LAYOUT = defineOfficeLayout({
       door: { side: 'south', offset: .45, width: 46 },
       walls: { south: 'glass' },
       furniture: [
-        { id: 'visual-books', kind: 'bookcase', x: .94, y: .13, rotation: 90 },
-        { id: 'visual-tree', kind: 'plant-large', x: .06, y: .12, rotation: 0 },
+        { id: 'visual-books', kind: 'bookcase', x: .94, y: .2, rotation: 90 },
+        { id: 'visual-tree', kind: 'plant-large', x: .0615, y: .12, rotation: 0 },
         { id: 'visual-cooler', kind: 'water-cooler', x: .06, y: .92, rotation: 0 },
       ],
     },
@@ -38,7 +38,7 @@ export const OFFICE_LAYOUT = defineOfficeLayout({
       door: { side: 'south', offset: .50, width: 56 },
       walls: { south: 'glass' },
       furniture: [
-        { id: 'fulfill-books', kind: 'bookcase', x: .97, y: .13, rotation: 90 },
+        { id: 'fulfill-books', kind: 'bookcase', x: .96, y: .2, rotation: 90 },
         { id: 'fulfill-cooler', kind: 'water-cooler', x: .06, y: .52, rotation: 0 },
         { id: 'fulfill-tree', kind: 'plant-large', x: .52, y: .12, rotation: 0 },
       ],
@@ -51,7 +51,7 @@ export const OFFICE_LAYOUT = defineOfficeLayout({
       walls: { north: 'glass' },
       furniture: [
         { id: 'service-books', kind: 'bookcase', x: .50, y: .07, rotation: 0 },
-        { id: 'service-tree', kind: 'plant-large', x: .06, y: .93, rotation: 0 },
+        { id: 'service-tree', kind: 'plant-large', x: .068, y: .9055, rotation: 0 },
       ],
     },
     {
@@ -65,7 +65,7 @@ export const OFFICE_LAYOUT = defineOfficeLayout({
         { id: 'command-tree', kind: 'plant-large', x: .05, y: .13, rotation: 0 },
         { id: 'command-cooler', kind: 'water-cooler', x: .95, y: .13, rotation: 0 },
         { id: 'command-board', kind: 'whiteboard', x: .50, y: .07, rotation: 0 },
-        { id: 'command-data-screen', kind: 'data-screen', x: .845, y: .10, rotation: 0 },
+        { id: 'command-data-screen', kind: 'data-screen', x: .8019, y: .1019, rotation: 0 },
       ],
     },
     {
@@ -76,7 +76,7 @@ export const OFFICE_LAYOUT = defineOfficeLayout({
       walls: { north: 'glass' },
       furniture: [
         { id: 'select-tree', kind: 'plant-large', x: .06, y: .13, rotation: 0 },
-        { id: 'select-books', kind: 'bookcase', x: .95, y: .90, rotation: 90 },
+        { id: 'select-books', kind: 'bookcase', x: .95, y: .7983, rotation: 90 },
       ],
     },
     {
@@ -97,9 +97,9 @@ export const OFFICE_LAYOUT = defineOfficeLayout({
       floor: '#f3efe7', floorMaterial: 'quartz',
       door: { side: 'north', offset: .50, width: 62 },
       furniture: [
-        { id: 'lobby-tree', kind: 'plant-large', x: .05, y: .13, rotation: 0 },
+        { id: 'lobby-tree', kind: 'plant-large', x: .0591, y: .13, rotation: 0 },
         { id: 'lobby-cooler', kind: 'water-cooler', x: .95, y: .13, rotation: 0 },
-        { id: 'lobby-books', kind: 'bookcase', x: .93, y: .86, rotation: 90 },
+        { id: 'lobby-books', kind: 'bookcase', x: .93, y: .7885, rotation: 90 },
       ],
     },
     {
@@ -110,8 +110,8 @@ export const OFFICE_LAYOUT = defineOfficeLayout({
       walls: { north: 'glass' },
       furniture: [
         { id: 'pantry-cooler', kind: 'water-cooler', x: .06, y: .14, rotation: 0 },
-        { id: 'pantry-books', kind: 'bookcase', x: .07, y: .86, rotation: 0 },
-        { id: 'pantry-tree', kind: 'plant-large', x: .95, y: .86, rotation: 0 },
+        { id: 'pantry-books', kind: 'bookcase', x: .1294, y: .86, rotation: 0 },
+        { id: 'pantry-tree', kind: 'plant-large', x: .9407, y: .86, rotation: 0 },
       ],
     },
   ],

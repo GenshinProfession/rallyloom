@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { LayoutState } from '@/lib/store/types'
+import { roomChannelId, type ChatClient } from '@/lib/chat/types'
 import { OfficeAssetLibrary } from './OfficeAssetLibrary'
 import type { OfficeResizeTarget } from './OfficeResizeHandle'
 import { OfficeScene, type OfficeSceneControls } from './OfficeScene'
@@ -36,10 +37,12 @@ function deskGrid(frame: RoomFrame,room?:RoomPlacement) {
     y: (Math.floor(index / columns) + .82) / rows,
   })).filter(seat=>!room?.boundary||furnitureFitsRoom({...seat,id:"candidate",kind:"workstation",rotation:0},room))
 }
-export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
+export function OfficeLayoutEditor({ layout, onPublish, onClose, chat }: {
   layout: LayoutState
   onPublish: (draft: LayoutState) => Promise<void>
   onClose: () => void
+  /** 用于删除房间前的交流室安全提示；未接入交流室时直接删除。 */
+  chat?: ChatClient
 }) {
   const [draft, setDraft] = useState<LayoutState>(() => reconcileRegions({...layout,rooms:layout.rooms.map(room=>materializeRoom(room,roomTemplates.get(room.template)!))}))
   const [inspector, setInspector] = useState<'properties' | 'assets'>('assets')
@@ -55,6 +58,10 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   // 成功/提示与校验错误共用一行状态栏，用色调区分，避免「区域已闭合」被当成报错。
   const notify = (text: string, tone: 'info' | 'error' = 'info') => { setMessage(text); setMessageTone(tone) }
   const [confirmEmpty, setConfirmEmpty] = useState(false)
+  const [archivePrompt, setArchivePrompt] = useState<{
+    rooms: { id: string; name: string; messages: number }[]
+    apply: () => void
+  } | null>(null)
   const [tool,setTool] = useState<'select'|'wall'|'door'>('select')
   const [wallSelection,setWallSelection]=useState<string>()
   /** Orthogonal lock for the wall tool (the Shift key gives the same assist on the fly). */
@@ -137,32 +144,127 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   }, [draft.assignments, validation.rooms])
   const assignmentsReleased = Object.keys(layout.assignments).length - Object.keys(publishedAssignments).length
 
-  const undoRef=useRef<() => void>(() => {})
-  const redoRef=useRef<() => void>(() => {})
-  const copyRef=useRef<() => void>(() => {})
-  const cutRef=useRef<() => void>(() => {})
-  const pasteRef=useRef<(duplicate?: boolean) => void>(() => {})
-  const deleteRef=useRef<() => void>(() => {})
-  const clipboard=useRef<{kind:'furniture';item:FurniturePlacement;roomId:string}|{kind:'room';room:RoomPlacement}|null>(null)
-  useEffect(()=>{const keys=(event:KeyboardEvent)=>{
-    if(event.key==='Escape')setTool('select')
-    if(event.target instanceof HTMLInputElement||event.target instanceof HTMLTextAreaElement)return
-    if(event.key==='Delete'){event.preventDefault();deleteRef.current();return}
-    if(!(event.metaKey||event.ctrlKey))return
-    const key=event.key.toLowerCase()
-    if(key==='z'&&!event.shiftKey){event.preventDefault();undoRef.current()}
-    else if((key==='z'&&event.shiftKey)||key==='y'){event.preventDefault();redoRef.current()}
-    else if(key==='c'){event.preventDefault();copyRef.current()}
-    else if(key==='x'){event.preventDefault();cutRef.current()}
-    else if(key==='v'){event.preventDefault();pasteRef.current()}
-    else if(key==='d'){event.preventDefault();pasteRef.current(true)}
-  };window.addEventListener('keydown',keys);return()=>window.removeEventListener('keydown',keys)},[])
-  undoRef.current=undoEdit
-  redoRef.current=redoEdit
-  copyRef.current=copySelection
-  cutRef.current=cutSelection
-  pasteRef.current=pasteClipboard
-  deleteRef.current=deleteSelection
+  const clipboard = useRef<{ kind: 'furniture'; item: FurniturePlacement; roomId: string } | { kind: 'room'; room: RoomPlacement } | null>(null)
+  const shortcutRef = useRef<(event: KeyboardEvent) => void>(() => {})
+  useEffect(() => {
+    const keys = (event: KeyboardEvent) => shortcutRef.current(event)
+    window.addEventListener('keydown', keys)
+    return () => window.removeEventListener('keydown', keys)
+  }, [])
+
+  /**
+   * 统一快捷键入口：尽量贴近常规编辑器习惯。
+   * - Delete / Backspace：删除选中家具、墙体或房间
+   * - 方向键：微调选中对象（Shift 加速 10 倍），连续微调合并为一步撤销
+   * - R / Shift+R：家具旋转 ±90°
+   * - V / W / O：选择 / 自由墙 / 开门
+   * - Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y：撤回 / 重做；Ctrl+C / X / V / D：复制、剪切、粘贴、复制一份
+   * - Ctrl+S：发布布局；Esc：取消选择并回到选择工具；0 / +/-：缩放
+   */
+  function handleShortcut(event: KeyboardEvent) {
+    const target = event.target
+    const key = event.key
+    const editable = target instanceof HTMLElement && (
+      target instanceof HTMLTextAreaElement
+      || (target instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'color'].includes(target.type))
+      || target instanceof HTMLSelectElement
+      || target.isContentEditable
+    )
+
+    if (key === 'Escape') {
+      event.preventDefault()
+      if (editable) { (target as HTMLElement).blur(); return }
+      setTool('select')
+      setWallSelection(undefined)
+      setFurnitureSelection(undefined)
+      setInspector('properties')
+      return
+    }
+    if (editable) return
+
+    if (event.metaKey || event.ctrlKey) {
+      const lower = key.toLowerCase()
+      if (lower === 'z') { event.preventDefault(); if (event.shiftKey) redoEdit(); else undoEdit(); return }
+      if (lower === 'y') { event.preventDefault(); redoEdit(); return }
+      if (lower === 'c') { event.preventDefault(); copySelection(); return }
+      if (lower === 'x') { event.preventDefault(); cutSelection(); return }
+      if (lower === 'v') { event.preventDefault(); pasteClipboard(); return }
+      if (lower === 'd') { event.preventDefault(); pasteClipboard(true); return }
+      if (lower === 's') { event.preventDefault(); void publish(); return }
+      return
+    }
+
+    if (key === 'Delete' || key === 'Backspace') { event.preventDefault(); deleteSelection(); return }
+    if (key.startsWith('Arrow')) { event.preventDefault(); nudgeSelection(key, event.shiftKey); return }
+    const lower = key.toLowerCase()
+    if (lower === 'r') { event.preventDefault(); rotateSelection(event.shiftKey ? -90 : 90); return }
+    if (lower === 'v') { event.preventDefault(); setTool('select'); return }
+    if (lower === 'w') { event.preventDefault(); setTool('wall'); return }
+    if (lower === 'o') { event.preventDefault(); setTool('door'); return }
+    if (key === '0') { event.preventDefault(); setSceneZoom(100); return }
+    if (key === '+' || key === '=') { event.preventDefault(); setSceneZoom((zoom) => Math.min(165, zoom + 10)); return }
+    if (key === '-' || key === '_') { event.preventDefault(); setSceneZoom((zoom) => Math.max(64, zoom - 10)); return }
+  }
+  shortcutRef.current = handleShortcut
+
+  const nudgeAt = useRef(0)
+  /** 方向键微调：家具或房间；Shift 加速十倍，连续按键合并为一个撤销步。 */
+  function nudgeSelection(key: string, coarse: boolean) {
+    if (busy) return
+    const step = coarse ? 20 : 2
+    const dx = key === 'ArrowLeft' ? -step : key === 'ArrowRight' ? step : 0
+    const dy = key === 'ArrowUp' ? -step : key === 'ArrowDown' ? step : 0
+    const nudge = (build: (current: LayoutState) => LayoutState) => {
+      const now = Date.now()
+      const current = draftRef.current
+      if (now - nudgeAt.current > 700) record(current)
+      nudgeAt.current = now
+      setDraft(build(current))
+    }
+    if (furnitureSelection && selection) {
+      nudge((current) => ({
+        ...current,
+        rooms: current.rooms.map((room) => {
+          if (room.id !== selection) return room
+          const next = { ...room, furniture: (room.furniture ?? []).map((item) => item.id === furnitureSelection
+            ? fitFurniture({ ...item, x: item.x + dx / room.frame.width, y: item.y + dy / room.frame.height }, room.frame)
+            : item) }
+          return next.useTemplateFurniture === false ? { ...next, seats: furnitureSeats(next) } : next
+        }),
+      }))
+      return
+    }
+    if (wallSelection) { notify('墙体不支持方向键微调，请在右侧属性里修改坐标。', 'error'); return }
+    const room = draftRef.current.rooms.find((candidate) => candidate.id === selection)
+    if (!room) { notify('先选中一个房间或家具，再用方向键微调。', 'error'); return }
+    if (room.boundary) { notify('边界房间由墙体识别，请先拆除或移动隔墙。', 'error'); return }
+    const frame = {
+      ...room.frame,
+      x: clamp(room.frame.x + dx, 0, draft.width - room.frame.width),
+      y: clamp(room.frame.y + dy, 0, draft.height - room.frame.height),
+    }
+    if (draft.rooms.some((other) => other.id !== room.id && intersects(other.frame, frame))) {
+      notify('这里会和其他房间重叠，请先调整相邻房间。', 'error')
+      return
+    }
+    nudge((current) => ({ ...current, rooms: current.rooms.map((candidate) => candidate.id === room.id ? { ...candidate, frame } : candidate) }))
+  }
+
+  /** R / Shift+R：旋转选中的家具。 */
+  function rotateSelection(delta: number) {
+    if (busy) return
+    if (!(furnitureSelection && selection)) { notify('先选中一件家具，再按 R 旋转。', 'error'); return }
+    const item = draftRef.current.rooms.find((room) => room.id === selection)?.furniture?.find((candidate) => candidate.id === furnitureSelection)
+    if (!item) return
+    updateRoom(selection, (room) => ({
+      ...room,
+      furniture: (room.furniture ?? []).map((candidate) => candidate.id === furnitureSelection
+        ? fitFurniture({ ...candidate, rotation: (((candidate.rotation + delta) % 360) + 360) % 360 }, room.frame)
+        : candidate),
+    }))
+    notify(`已旋转「${FURNITURE[item.kind].label}」${delta > 0 ? '+' : ''}${delta}°`)
+  }
+
   function selectFreeWall(id:string){setWallSelection(id);setFurnitureSelection(undefined);setInspector('properties')}
 
   /**
@@ -171,7 +273,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
    * collinear segments collapse back into one. Without that, corners miss by a few
    * pixels and the region recogniser never closes the room.
    */
-  function commitWalls(segments:readonly WallSegment[],note=''){
+  function applyWalls(segments:readonly WallSegment[],note=''){
     try{
       const next={...draftRef.current,wallSegments:segments}
       validateWallSegments(next)
@@ -179,8 +281,37 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
       setDraft(reconcileRegions(next))
       setMessage(note)
       return true
-    }catch(error){notify(error instanceof Error?error.message:'墙段无效。','error');return false}
+    }catch(error){notify(error instanceof Error?error.message:'墙体无效。','error');return false}
   }
+
+  async function roomMessageCount(roomId:string){
+    if(!chat)return 0
+    try{return await chat.historyCount(roomChannelId(roomId))}catch{return 0}
+  }
+
+  /**
+   * 拆改墙体可能让某个区域被重新识别掉。若该房间已经聊过天，先提示归档，
+   * 避免编辑办公室时误删一个已有聊天记录的交流室。
+   */
+  function commitWalls(segments:readonly WallSegment[],note=''){
+    if(!chat)return applyWalls(segments,note)
+    let next:LayoutState
+    try{
+      const candidate={...draftRef.current,wallSegments:segments}
+      validateWallSegments(candidate)
+      next=reconcileRegions(candidate)
+    }catch(error){notify(error instanceof Error?error.message:'墙体无效。','error');return false}
+    const gone=draftRef.current.rooms.filter(room=>!next.rooms.some(candidate=>candidate.id===room.id))
+    if(!gone.length)return applyWalls(segments,note)
+    void Promise.all(gone.map(async room=>({id:room.id,name:room.name,messages:await roomMessageCount(room.id)})))
+      .then(entries=>{
+        const risky=entries.filter(entry=>entry.messages>0)
+        if(!risky.length)applyWalls(segments,note)
+        else setArchivePrompt({rooms:risky,apply:()=>applyWalls(segments,note)})
+      })
+    return false
+  }
+
   function addFreeWall(wall:WallSegment){
     if(busy)return false
     const ok=commitWalls(insertWall(draft.wallSegments??[],wall))
@@ -373,9 +504,12 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
   }
 
   function deleteSelection() {
+    if (busy) return
     if (furnitureSelection && selection) { removeFurnitureItem(selection, furnitureSelection); return }
-    if (selection && !selected?.boundary) { removeRoom(selection); return }
-    if (selection && selected?.boundary) notify('边界房间由墙体自动识别，删除请先拆除围合它的墙体', 'error')
+    if (wallSelection) { removeFreeWall(wallSelection); return }
+    if (selection && !selected?.boundary) { requestRemoveRoom(selection); return }
+    if (selection && selected?.boundary) { notify('边界房间由墙体自动识别，删除请先拆除围合它的墙体', 'error'); return }
+    notify('先选中家具、墙体或房间，再按 Delete 删除。', 'error')
   }
 
   function removeFurnitureItem(roomId: string, itemId: string) {
@@ -415,7 +549,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
       removeFurnitureItem(selection, data.item.id)
       notify(`已剪切家具「${FURNITURE[data.item.kind].label}」`)
     } else if (data.kind === 'room') {
-      removeRoom(data.room.id)
+      requestRemoveRoom(data.room.id)
       notify(`已剪切房间「${data.room.name}」`)
     }
   }
@@ -510,7 +644,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
     selectRoom(room.id);setMessage('')
   }
 
-  function removeRoom(id: string) {
+  function removeRoomNow(id: string) {
     const current=draftRef.current
     record(current)
     const rooms = current.rooms.filter((room) => room.id !== id).map((room) => {
@@ -520,6 +654,18 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
     setDraft({ ...current, rooms })
     setSelection(undefined)
     setFurnitureSelection(undefined)
+  }
+
+
+  /** 删除房间：没聊过天直接删；聊过天先提示房间交流室会归档。 */
+  function requestRemoveRoom(id: string) {
+    if (busy) return
+    const room = draftRef.current.rooms.find((candidate) => candidate.id === id)
+    if (!chat || !room) { removeRoomNow(id); return }
+    void roomMessageCount(id).then((messages) => {
+      if (messages > 0) setArchivePrompt({ rooms: [{ id, name: room.name, messages }], apply: () => removeRoomNow(id) })
+      else removeRoomNow(id)
+    })
   }
 
   async function publish() {
@@ -547,7 +693,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
         </div>
       </WorkspaceHeader>
       <p className="office-editor-shortcut-hint" aria-hidden="true">
-        Ctrl+Z 撤回 · Ctrl+Shift+Z 重做 · Ctrl+C 复制 · Ctrl+X 剪切 · Ctrl+V 粘贴 · Ctrl+D 复制一份 · Delete 删除
+        Ctrl+Z 撤回 · Ctrl+Shift+Z 重做 · Ctrl+C/X/V/D 复制/剪切/粘贴/复制一份 · Delete 删除选中 · 方向键微调（Shift 加速）· R 旋转 · V/W/O 选择/墙/开门 · Ctrl+S 发布 · Esc 取消
       </p>
       {(message || validation.error) && <p className={`office-editor-note${(validation.error || messageTone === 'error') ? ' is-error' : ''}`} role={validation.error || messageTone === 'error' ? 'alert' : undefined}>{message || validation.error}</p>}
       {!validation.error && assignmentsReleased > 0 && <p className="office-editor-seat-notice">
@@ -661,7 +807,7 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
                 </div>
                 </details>}
                 <OfficeRoomSurfaces key={selected.id} room={selected} disabled={busy} onUpdate={(update) => updateRoom(selected.id, update)} />
-                {!selected.boundary&&<button className="office-delete-object" type="button" disabled={busy} onClick={() => removeRoom(selected.id)}><Trash2 size={13}/>删除房间</button>}{selected.boundary&&<p className="office-region-note">边界由墙体自动识别。移动或删除隔墙后，区域会重新计算；家具模板仅用于布置。</p>}
+                {!selected.boundary&&<button className="office-delete-object" type="button" disabled={busy} onClick={() => requestRemoveRoom(selected.id)}><Trash2 size={13}/>删除房间</button>}{selected.boundary&&<p className="office-region-note">边界由墙体自动识别。移动或删除隔墙后，区域会重新计算；家具模板仅用于布置。</p>}
                 {!!selected.furniture?.length && <div className="office-object-list"><h3 className="office-inspector-subtitle">房间内的对象</h3>
                   {selected.furniture.map((item, index) => <button type="button" key={item.id}
                     aria-pressed={furnitureSelection === item.id} onClick={() => setFurnitureSelection(item.id)}>
@@ -671,6 +817,24 @@ export function OfficeLayoutEditor({ layout, onPublish, onClose }: {
             </section>}
           </aside>
         </div>
+      {archivePrompt && (
+        <div className="office-archive-backdrop" role="dialog" aria-modal="true" aria-labelledby="office-archive-title">
+          <div className="office-archive-dialog" data-office-archive>
+            <h2 id="office-archive-title">房间已经聊过天，确认删除？</h2>
+            <ul>
+              {archivePrompt.rooms.map((room) => (
+                <li key={room.id}>「{room.name}」已有 {room.messages} 条聊天记录</li>
+              ))}
+            </ul>
+            <p>删除后，房间与交流室会归档并从办公室移除；聊天记录保留在企业数据库中，直到管理员在 Mira 彻底删除这条房间数据。从未聊过天的房间会直接删除。</p>
+            <div className="office-archive-actions">
+              <Button variant="toolbar" size="sm" onClick={() => setArchivePrompt(null)}>取消</Button>
+              <Button variant="toolbar" size="sm" disabled={busy}
+                onClick={() => { const apply = archivePrompt.apply; setArchivePrompt(null); apply() }}>归档并删除</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

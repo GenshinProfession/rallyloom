@@ -35,9 +35,19 @@ export function rosterOf(layout: LayoutState, team: TeamMember[], demo = true, i
     }
   }
   if (includeUnassigned) {
-    const known = new Set(out.map(member => member.id))
-    for (const member of team) if (!known.has(member.id) && member.officeAssignable !== false)
+    /* 已入座的演示成员在 assignments 里用办公室档案 id（如 store-0），
+       团队成员的 id 是 tm-demo-store-0、idpId 是 demo-u-store-0。
+       必须按「办公室档案 id」判重，否则同一人会被追加一次 roomId 为空的
+       「未入座」副本，覆盖真实座位归属（聊天室房间频道人数因此变 0）。 */
+    const seated = new Set(out.map((member) => member.id))
+    const officeIdOf = (member: TeamMember) =>
+      member.idpId.startsWith('demo-u-') ? member.idpId.slice('demo-u-'.length) : null
+    for (const member of team) {
+      if (member.officeAssignable === false) continue
+      const officeId = officeIdOf(member)
+      if (seated.has(member.id) || (officeId && seated.has(officeId))) continue
       out.push({ id: member.id, name: member.displayName, role: member.roleName ?? '', roomId: '', presence: member.presence, current: '', ...DEFAULT_VISUAL })
+    }
   }
   return out
 }

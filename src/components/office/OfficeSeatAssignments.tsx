@@ -76,6 +76,7 @@ export function OfficeSeatAssignments({ layout, rooms, team, onSave, onClose, ta
       <DialogHeader>
         <DialogTitle>分配工位</DialogTitle>
         <DialogDescription>将员工拖到房间卡片，或使用员工右侧的下拉框。</DialogDescription>
+        <p className="office-seat-hint">保存后，成员会自动加入对应房间的交流室；从工位移除即退出该房间交流室。</p>
       </DialogHeader>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <div className="office-seat-targets">

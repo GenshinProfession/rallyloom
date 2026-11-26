@@ -19,7 +19,7 @@
 
 ## 办公室家具
 
-`PATCH /api/v1/workspace/layout` 与 bootstrap 使用同一份布局。房间可选的 `furniture` 数组保存用户摆放的物件。条目示例为 `{"id":"sofa-1","kind":"sofa","x":0.4,"y":0.7,"rotation":90}`。物件的中心相对房间坐标归一化为 0–1，`rotation` 是平面图中的顺时针角度，范围为 0 至小于 360。支持的完整型号见下方“独立家具与空白房间”。工作区内物件 ID 唯一，每个房间最多 60 件。
+`PATCH /api/v1/workspace/layout` 与 bootstrap 使用同一份布局。房间可选的 `furniture` 数组保存用户摆放的物件。条目示例为 `{"id":"sofa-1","kind":"sofa","x":0.4,"y":0.7,"rotation":90}`。物件的中心相对房间坐标归一化为 0–1，`rotation` 是平面图中的顺时针角度，范围为 0 至小于 360。支持的完整型号见下方“独立家具与空白房间”。工作区内物件 ID 唯一，每个房间最多 60 件。完整 37 种 kind 白名单、默认尺寸、可选 `color/elevation/size` 及房间/墙/座位校验规则见 **[provider-api.md](provider-api.md) §6** 与 `schemas/office-layout.schema.json`；服务端白名单必须与桌面端保持一致，否则保存布局会被 400 拒绝。
 
 `useTemplateFurniture: false` 隐藏房间模板生成的家具。房间名称、门墙、工位分配和绑定的业务看板仍按原字段处理。缺少家具字段的旧布局按原模板渲染。提供方在服务器持久化这些字段，并独立校验 `layout.edit`。
 

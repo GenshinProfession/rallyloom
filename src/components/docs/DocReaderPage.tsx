@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 /* 文档中心 — 全页面阅读器
    只读 TipTap 渲染（与编辑器同一套 node/mark），代码块带语法高亮与复制，
    正文中的附件卡片可直接下载，右侧为文档大纲。 */
@@ -7,7 +7,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 import {
-  ArrowLeft, Check, ChevronRight, Copy, Download, ExternalLink, FileText, PencilLine, Trash2,
+  ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FileText, ListTree, Maximize2,
+  Minimize2, Minus, Pencil, PencilLine, Plus, Trash2,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ import { attachmentUrl, docTime, documentUrl, fileSize, type DocRecord } from '@
 import { docHtml, textStats } from '@/lib/docs/format'
 import { attachmentKind } from './editor/attachment-node'
 import { docExtensions } from './editor/extensions'
+import { DocImageViewer, useImageLightbox } from './DocImageViewer'
 import './docs-editor.css'
 
 interface OutlineItem { level: number; text: string }
@@ -59,15 +61,20 @@ export interface DocReaderPageProps {
   doc: DocRecord
   canEdit: boolean
   onEdit: () => void
+  onRename?: () => void
   onDelete: () => void
   toolbarActions?: ReactNode
   onBack: () => void
 }
 
-export function DocReaderPage({ doc, canEdit, onEdit, onDelete, onBack, toolbarActions }: DocReaderPageProps) {
+export function DocReaderPage({ doc, canEdit, onEdit, onRename, onDelete, onBack, toolbarActions }: DocReaderPageProps) {
   const html = useMemo(() => docHtml(doc), [doc])
   const stats = useMemo(() => textStats(doc.format === 'link' ? (doc.url ?? '') : html.replace(/<[^>]+>/g, ' ')), [doc, html])
   const [outline, setOutline] = useState<OutlineItem[]>([])
+  const [zoom, setZoom] = useState(100)
+  const [outlineOpen, setOutlineOpen] = useState(true)
+  const [wide, setWide] = useState(false)
+  const lightbox = useImageLightbox()
 
   const editor = useEditor({
     extensions: docExtensions(),
@@ -113,6 +120,10 @@ export function DocReaderPage({ doc, canEdit, onEdit, onDelete, onBack, toolbarA
               <Button type="button" size="sm" variant="outline" className="h-7" onClick={onEdit} data-doc-edit="true">
                 <PencilLine /> 编辑
               </Button>
+              <Button type="button" size="icon" variant="ghost" className="size-7 text-muted-foreground" aria-label="重命名文档" title="重命名文档"
+                onClick={onRename} data-doc-rename="true">
+                <Pencil />
+              </Button>
               <Button type="button" size="icon" variant="ghost" className="size-7 text-muted-foreground hover:text-destructive"
                 aria-label="删除文档" title="删除文档" onClick={onDelete} data-doc-delete="true">
                 <Trash2 />
@@ -120,12 +131,41 @@ export function DocReaderPage({ doc, canEdit, onEdit, onDelete, onBack, toolbarA
             </>
           )}
           {toolbarActions}
+          <span className="doc-reader-tools" data-doc-reader-tools="true">
+            <button type="button" className="doc-reader-tool ui-press" aria-label="缩小字号" title="缩小字号"
+              data-doc-zoom-out="true" onClick={() => setZoom((value) => Math.max(80, value - 10))}>
+              <Minus className="size-3.5" strokeWidth={2} />
+            </button>
+            <span className="doc-reader-zoom tabular" data-doc-zoom="true" title="阅读缩放">{zoom}%</span>
+            <button type="button" className="doc-reader-tool ui-press" aria-label="放大字号" title="放大字号"
+              data-doc-zoom-in="true" onClick={() => setZoom((value) => Math.min(160, value + 10))}>
+              <Plus className="size-3.5" strokeWidth={2} />
+            </button>
+            <button type="button" className={`doc-reader-tool ui-press${wide ? ' is-active' : ''}`}
+              aria-label={wide ? '退出全宽阅读' : '全宽阅读'} aria-pressed={wide} title="全宽阅读（隐藏大纲）"
+              data-doc-wide="true"
+              onClick={() => {
+                setWide((value) => !value)
+                setOutlineOpen(false)
+              }}>
+              {wide ? <Minimize2 className="size-3.5" strokeWidth={1.9} /> : <Maximize2 className="size-3.5" strokeWidth={1.9} />}
+            </button>
+            <button type="button" className={`doc-reader-tool ui-press${outlineOpen && !wide ? ' is-active' : ''}`}
+              aria-label={outlineOpen && !wide ? '收起大纲' : '展开大纲'} aria-pressed={outlineOpen && !wide}
+              title="大纲" data-doc-outline-toggle="true"
+              onClick={() => {
+                setWide(false)
+                setOutlineOpen((value) => !value)
+              }}>
+              <ListTree className="size-3.5" strokeWidth={1.9} />
+            </button>
+          </span>
         </div>
       </header>
 
-      <div className="doc-page-body doc-reader-body">
-        <main className="doc-reader-main" role="article">
-          <div className="doc-paper doc-reader-paper">
+      <div className={`doc-page-body doc-reader-body${wide ? ' is-wide' : ''}${outlineOpen && !wide ? '' : ' is-collapsed'}`}>
+        <main className="doc-reader-main" role="article" onDoubleClick={lightbox.open}>
+          <div className="doc-paper doc-reader-paper" style={{ zoom: `${zoom}%` } as CSSProperties} data-doc-reader-paper="true">
           <h1 className="doc-reader-title">{doc.title}</h1>
           <p className="doc-reader-meta">
             <span>{doc.ownerName ?? '未署名'}</span>
@@ -167,8 +207,13 @@ export function DocReaderPage({ doc, canEdit, onEdit, onDelete, onBack, toolbarA
           </div>
         </main>
 
+        {outlineOpen && !wide && (
         <aside className="doc-outline" aria-label="文档大纲">
-          <p className="doc-outline-title">大纲</p>
+          <button type="button" className="doc-outline-title ui-press" aria-label="收起大纲" title="收起大纲"
+            data-doc-outline-collapse="true" onClick={() => setOutlineOpen(false)}>
+            <span>大纲</span>
+            <ChevronLeft className="size-3" strokeWidth={2} aria-hidden />
+          </button>
           {outline.length === 0
             ? <p className="doc-outline-empty"><FileText className="size-3.5" strokeWidth={1.7} /> 本文暂无标题</p>
             : <ol>
@@ -185,9 +230,12 @@ export function DocReaderPage({ doc, canEdit, onEdit, onDelete, onBack, toolbarA
               ))}
             </ol>}
         </aside>
+        )}
       </div>
+      {lightbox.source && <DocImageViewer source={lightbox.source} onClose={lightbox.close} />}
     </div>
   )
 }
 
 export default DocReaderPage
+

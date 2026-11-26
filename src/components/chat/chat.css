@@ -211,3 +211,75 @@
 .chat-message[data-own=true] .chat-bubble { background:#e8f0f8; border-color:#dce7f1; }
 @media(max-width:1150px) { .chat-channels { flex-basis:200px; } .chat-thread-context { display:none; } .chat-members-panel { flex-basis:220px; } .chat-member-stack { display:none; } }
 @media(max-width:900px) { .chat-conversation { position:relative; } .chat-members-panel { position:absolute; right:0; top:0; bottom:0; width:min(280px,85%); z-index:8; box-shadow:-8px 0 25px #263e5312; } }
+
+/* ── 交流室 v0.18：整面加载遮罩 + 玻璃表面 ──────────────────────────────
+   旧的半截加载态只盖住消息列表，输入框仍露出白底，割裂感明显。
+   现在加载遮罩覆盖整个会话（页头 + 消息 + 输入框），并在载入完成后淡出；
+   同时把整块聊天表面做成玻璃材质，透出页面品牌底纹，去掉「白板 + 一圈灰底」的接缝。 */
+.workspace-chat-surface {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .72);
+  border-radius: 14px;
+  background: linear-gradient(168deg, rgba(255, 255, 255, .76), rgba(252, 253, 253, .62));
+  box-shadow:
+    0 26px 52px -38px rgba(24, 42, 62, .42),
+    0 2px 8px -4px rgba(24, 42, 62, .08),
+    inset 0 1px 0 rgba(255, 255, 255, .85);
+  backdrop-filter: blur(18px) saturate(1.28);
+}
+
+.chat-canvas { background-color: var(--rl-canvas); }
+.chat-canvas .workspace-chat-surface { margin-top: 0; }
+
+.chat-channels { background: rgba(247, 249, 250, .62); border-right-color: rgba(214, 223, 231, .7); }
+.chat-thread { position: relative; }
+.chat-thread-header { background: rgba(255, 255, 255, .56); border-bottom-color: rgba(224, 231, 237, .74); backdrop-filter: blur(6px); }
+.chat-thread .cs-message-list { background: transparent; }
+.chat-composer { background: rgba(255, 255, 255, .68); border-color: rgba(214, 224, 232, .9); }
+.chat-members-panel { background: rgba(250, 251, 252, .74); backdrop-filter: blur(12px); }
+
+.chat-thread-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px;
+  text-align: center;
+  background:
+    radial-gradient(520px 320px at 50% 42%, rgba(63, 114, 181, .1), transparent 70%),
+    linear-gradient(172deg, rgba(247, 248, 245, .95), rgba(240, 245, 247, .93));
+  backdrop-filter: blur(9px) saturate(1.2);
+  animation: rl-chat-veil-in .22s ease both;
+}
+
+.chat-thread-veil.is-leaving {
+  animation: rl-chat-veil-out .26s ease both;
+  pointer-events: none;
+}
+
+.chat-thread-veil-mark {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 17px;
+  background: linear-gradient(150deg, rgba(63, 114, 181, .17), rgba(47, 143, 134, .13));
+  box-shadow: inset 0 0 0 1px rgba(63, 114, 181, .16), 0 12px 24px -18px rgba(28, 48, 70, .55);
+  color: #3f6d9b;
+}
+
+.chat-thread-veil strong { font-size: 13px; font-weight: 620; letter-spacing: .01em; color: #2b3f52; }
+.chat-thread-veil small { font-size: 10.5px; color: #6d8091; }
+
+@keyframes rl-chat-veil-in { from { opacity: 0; transform: scale(.994); } to { opacity: 1; transform: none; } }
+@keyframes rl-chat-veil-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(1.004); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-thread-veil,
+  .chat-thread-veil.is-leaving { animation-duration: .01ms; }
+}
+

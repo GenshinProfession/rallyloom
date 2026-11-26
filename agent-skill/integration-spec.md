@@ -1,6 +1,6 @@
 # Rallyloom OA 接入规范（Integration Spec）
 
-版本：`v2.0`（schema_version = 1；v1.1 追加 `activity.push` 与 §9 数据外部化，v1.2 追加 `task.upsert` / `task.remove` 任务承接，v1.3 追加公告与文档承接，v1.4 追加 §10 多租户，v1.5 追加 §10.1 集团与租户联邦，v1.6 追加登录页 Origin 排错，v1.7 追加富文本与文档附件，v1.8 追加接入排错地图，v1.9/v1.10 增加可选精选歌曲；v2.0 将 §13 定义为共享曲库运行时 API、MP4 上传和每日统一随机选歌。事件 Schema 未变化，向后兼容）
+版本：`v2.2`（schema_version = 1；v1.1 追加 `activity.push` 与 §9 数据外部化，v1.2 追加 `task.upsert` / `task.remove` 任务承接，v1.3 追加公告与文档承接，v1.4 追加 §10 多租户，v1.5 追加 §10.1 集团与租户联邦，v1.6 追加登录页 Origin 排错，v1.7 追加富文本与文档附件，v1.8 追加接入排错地图，v1.9/v1.10 增加可选精选歌曲；v2.0 将 §13 定义为共享曲库运行时 API、MP4 上传和每日统一随机选歌；v2.1 追加完整 Provider REST 契约；v2.2 扩展通用汇报的分区、重复表格和提交窗口，旧模板继续兼容）
 适用对象：要把自家系统的「人 / 组 / 成员关系」接入 Rallyloom 开源 OA 的任何团队或 AI Agent。
 Rallyloom 在接入关系中是**承接方**：提供入口、规范与身份容器；**不假设源系统有任何特定的组织模型**。
 
@@ -509,3 +509,25 @@ dailyTrackId 对同一工作区和北京时间自然日保持稳定；只有曲�
 ### 13.5 给 AI Agent 的一句话
 
 > 点歌台是工作区内置共享曲库：让拥有 jukebox.use 的成员上传 MP4、播放同事分享的歌曲，并由服务端按公司范围和北京时间每天稳定随机选歌；按本节 API、两个 Schema 和租户授权约束实现，不要要求成员找媒体直链或填写说明。
+
+
+---
+
+## 14. Provider REST 完整契约（v2.2）
+
+本文件 §§1–13 描述**事件推送与身份承接**的语义；企业服务端为了让桌面端完整可用，还需要实现一组 **REST 接口**（discovery、OIDC、bootstrap、办公室布局、房间数据看板、`/oa` 业务接口）。
+
+这些接口的逐端点、逐字段、逐错误码契约统一放在 **[provider-api.md](provider-api.md)**，配套机器可读约束：
+
+- `schemas/workspace-bootstrap.schema.json` —— bootstrap 响应体（含 tenant/member/team/permissions/collaboration/layout/dataSlots/jukebox）
+- `schemas/office-layout.schema.json` —— 办公室布局（PATCH `/api/v1/workspace/layout` 请求体，含 37 种家具白名单）
+- `schemas/jukebox.schema.json` —— bootstrap 可选精选歌单
+
+离线自检：
+
+```bash
+node reference/verify-provider.mjs --bootstrap bootstrap.json
+node reference/verify-provider.mjs --layout layout.json --team bootstrap.json
+```
+
+一句话：**事件 Schema 管「数据怎么同步进来」，provider-api.md 管「桌面端怎么读和写你的系统」**——两者都要实现，但互不重复。

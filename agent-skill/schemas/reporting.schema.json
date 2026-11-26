@@ -52,13 +52,18 @@
           "minLength": 1,
           "maxLength": 120
         },
+        "section": {
+          "type": "string",
+          "maxLength": 80
+        },
         "type": {
           "enum": [
             "text",
             "multiline",
             "number",
             "date",
-            "select"
+            "select",
+            "table"
           ]
         },
         "required": {
@@ -73,6 +78,28 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 120
+          }
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/column" }
+        },
+        "minRows": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "maxRows": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "initialRows": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": {
+              "oneOf": [
+                { "type": "string", "maxLength": 2000 },
+                { "type": "number" },
+                { "type": "null" }
+              ]
+            }
           }
         }
       },
@@ -90,8 +117,49 @@
               "options"
             ]
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "table" }
+            }
+          },
+          "then": {
+            "required": ["columns"],
+            "properties": {
+              "maxRows": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "minRows": { "type": "integer", "minimum": 0, "maximum": 100 }
+            }
+          }
         }
       ]
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "type"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,80}$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "type": { "enum": ["text", "number"] },
+        "required": { "type": "boolean" }
+      }
+    },
+    "submissionWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["days", "reportPeriod"],
+      "properties": {
+        "days": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "prefixItems": [{ "const": "SATURDAY" }, { "const": "SUNDAY" }],
+          "items": false
+        },
+        "reportPeriod": { "enum": ["PREVIOUS_WEEK"] }
+      }
     },
     "template": {
       "type": "object",
@@ -101,6 +169,7 @@
         "cadence",
         "enabled",
         "revision",
+        "canWrite",
         "fields"
       ],
       "properties": {
@@ -130,6 +199,8 @@
         "canWrite": {
           "type": "boolean"
         },
+        "writeWindowOpen": { "type": "boolean" },
+        "submissionWindow": { "$ref": "#/$defs/submissionWindow" },
         "fields": {
           "type": "array",
           "minItems": 1,
@@ -139,7 +210,13 @@
           }
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "submissionWindow": { "type": "object" } } },
+          "then": { "required": ["writeWindowOpen"], "properties": { "cadence": { "const": "WEEKLY" } } }
+        }
+      ]
     }
   }
 }

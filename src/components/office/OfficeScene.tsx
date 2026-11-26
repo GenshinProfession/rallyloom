@@ -178,6 +178,9 @@ export function OfficeScene({
     <div
       className="office-viewport"
       data-walking={walking || undefined}
+      data-seats={overlay?.seats.length || undefined}
+      data-seated={overlay?.seats.filter(seat => seat.occupant).length || undefined}
+      data-people={overlay?.people.length || undefined}
       ref={viewport}
       data-seat-locked={seatLocked || undefined}
       data-wall-tool={editing?.freeWalls?.active || undefined}

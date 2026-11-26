@@ -11,16 +11,16 @@ import type { Editor, JSONContent } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { Extension } from '@tiptap/core'
 import {
-  ArrowLeft, Check, ChevronRight, FileText, FolderInput, ImagePlus, Loader2, Paperclip, Save,
+  ArrowLeft, Check, ChevronRight, FileText, ImagePlus, Loader2, Paperclip, Save,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import type { DocDraft, DocRecord } from '@/lib/docs/types'
 import { fileSize } from '@/lib/docs/types'
 import { docHtml, textStats } from '@/lib/docs/format'
 import { DocToolbar } from './DocToolbar'
 import { docExtensions } from './editor/extensions'
+import { DocImageViewer, useImageLightbox } from './DocImageViewer'
 import './docs-editor.css'
 
 const MAX_FILE = 2 * 1024 * 1024
@@ -96,14 +96,15 @@ export interface DocEditorPageProps {
   onCancel: () => void
 }
 
-export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirtyChange, toolbarActions }: DocEditorPageProps) {
+export function DocEditorPage({ doc, location, onSave, onCancel, onDirtyChange, toolbarActions }: DocEditorPageProps) {
   const initialRevision = useRef(doc?.revision)
-  const spaces = Array.from(new Set(records.map((item) => item.space))).filter(Boolean)
-  const defaultSpace = location[0] ?? spaces[0] ?? '制度规范'
-
+  const defaultSpace = location[0] ?? '制度规范'
+  /* 大标题就是文档的名字：新建时默认「无标题文档」，可直接在正文上方改名；
+     所在文件夹仍由文档中心决定，改名也可以走目录/卡片的右键菜单。 */
   const [title, setTitle] = useState(doc?.title ?? '')
-  const [space, setSpace] = useState(doc?.space ?? defaultSpace)
-  const [folder, setFolder] = useState((doc?.folderPath ?? location.slice(1)).join(' / '))
+  const titleText = title.trim() || '无标题文档'
+  const space = doc?.space ?? defaultSpace
+  const folder = (doc?.folderPath ?? location.slice(1)).join(' / ')
   const [dirty, setDirty] = useState(false)
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
   const [saving, setSaving] = useState(false)
@@ -111,6 +112,7 @@ export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirt
   const [outline, setOutline] = useState<OutlineItem[]>([])
   const [stats, setStats] = useState({ chars: 0, words: 0, readMinutes: 1 })
   const [attachmentCount, setAttachmentCount] = useState(0)
+  const lightbox = useImageLightbox()
   const [slash, setSlash] = useState<SlashState>(CLOSED_SLASH)
 
   const editorRef = useRef<Editor | null>(null)
@@ -284,12 +286,10 @@ export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirt
   async function save() {
     const instance = editorRef.current
     if (!instance || saving) return
-    const nextTitle = title.trim()
-    if (!nextTitle) { setError('请先填写文档标题。'); return }
     const folderPath = folder.split('/').map((part) => part.trim()).filter(Boolean)
     const draft: DocDraft = {
       revision: initialRevision.current,
-      title: nextTitle,
+      title: titleText,
       space: space.trim() || defaultSpace,
       folderPath,
       format: 'rich',
@@ -347,44 +347,41 @@ export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirt
       <div className="doc-page-body">
         <main className="doc-editor-main">
           <div className="doc-paper">
-          <div className="doc-editor-meta">
-            <label className="doc-meta-field">
-              <span>知识库</span>
-              <Input list="doc-space-options" value={space} onChange={(event) => { setSpace(event.target.value); setDirty(true) }} className="h-7 w-[96px]" aria-label="知识库" />
-            </label>
-            <datalist id="doc-space-options">{spaces.map((name) => <option key={name} value={name} />)}</datalist>
-            <label className="doc-meta-field">
-              <span>文件夹</span>
-              <span className="doc-meta-folder">
-                <FolderInput className="size-3.5 text-muted-foreground" aria-hidden />
-                <Input value={folder} onChange={(event) => { setFolder(event.target.value); setDirty(true) }} placeholder="例如：人事制度 / 员工手册" className="h-7 w-[158px] py-0" aria-label="文件夹路径" />
-              </span>
-            </label>
-            <span className="doc-meta-stats">
-              <span className="tabular">{stats.words} 字</span>
-              <span aria-hidden>·</span>
-              <span className="tabular">约 {stats.readMinutes} 分钟</span>
-              {attachmentCount > 0 && <><span aria-hidden>·</span><span>{attachmentCount} 个附件</span></>}
-            </span>
-          </div>
-
           <input
             className="doc-editor-title"
-            value={title}
-            autoFocus={!doc}
-            onChange={(event) => { setTitle(event.target.value); setDirty(true) }}
-            placeholder="无标题文档"
+            data-doc-title-input="true"
             aria-label="文档标题"
-            data-doc-title="true" />
+            value={title}
+            placeholder="无标题文档"
+            spellCheck={false}
+            onChange={(event) => {
+              setTitle(event.target.value)
+              setDirty(true)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                editorRef.current?.commands.focus('end')
+              }
+            }}
+          />
+          <p className="doc-editor-subhead">
+            <span>{doc ? '编辑文档' : '新文档'}</span>
+            <span aria-hidden>·</span>
+            <span className="tabular">{stats.words} 字</span>
+            <span aria-hidden>·</span>
+            <span className="tabular">约 {stats.readMinutes} 分钟</span>
+            {attachmentCount > 0 && <><span aria-hidden>·</span><span>{attachmentCount} 个附件</span></>}
+          </p>
 
           <DocToolbar editor={editor} onImage={() => imageInput.current?.click()} onAttachment={() => fileInput.current?.click()} />
 
-          <div className="doc-editor-scroll">
+          <div className="doc-editor-scroll" onDoubleClick={lightbox.open}>
             <EditorContent editor={editor} className="doc-editor-content" />
           </div>
 
           <footer className="doc-editor-foot">
-            <span>支持粘贴/拖拽图片，附件可任意类型；保存内容按 doc.upsert 契约承接。</span>
+            <span>支持粘贴/拖拽图片，附件可任意类型。</span>
             <span className="doc-shortcuts">
               <kbd>Ctrl</kbd>+<kbd>S</kbd> 保存 · <kbd>/</kbd> 插入菜单 · <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>1/2/3</kbd> 标题
             </span>
@@ -439,6 +436,7 @@ export function DocEditorPage({ doc, records, location, onSave, onCancel, onDirt
         onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void pickAttachment(file) }} />
       {attachmentCount > 0 && <span className="sr-only" data-doc-attachments={attachmentCount}>{fileSize(attachmentCount)}</span>}
       {doc && <span className="sr-only" data-doc-origin={doc.origin}>{doc.origin}</span>}
+      {lightbox.source && <DocImageViewer source={lightbox.source} onClose={lightbox.close} />}
     </div>
   )
 }

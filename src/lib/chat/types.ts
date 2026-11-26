@@ -77,6 +77,8 @@ export interface ChatClient {
   participants(channelId: string): Promise<readonly ChatParticipant[]>
   /** 拉取某频道的历史消息 */
   history(channelId: string, limit?: number): Promise<ChatMessage[]>
+  /** 频道已有聊天记录条数；用于删除房间前的安全提示（演示实现不会触发示例消息播种） */
+  historyCount(channelId: string): Promise<number>
   /** 发送消息；正式实现走后端，演示实现本地回显 + 自动回复 */
   send(channelId: string, draft: ChatDraft, sender: ChatPerson): Promise<ChatMessage>
   mentionOptions(channelId: string): Promise<MentionOptions>

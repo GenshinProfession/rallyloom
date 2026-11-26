@@ -5,9 +5,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import {
-  AlignCenter, AlignLeft, AlignRight, Bold, ChevronDown, Code2, Eraser, Highlighter, ImagePlus,
-  Italic, Link2, List, ListChecks, ListOrdered, Minus, Paperclip, Pilcrow, Quote, Redo2, SquareCode,
-  Strikethrough, Table2, Trash2, Underline, Undo2, Unlink,
+  AlignCenter, AlignLeft, AlignRight, Bold, Check, ChevronDown, Code2, Eraser, Heading1, Heading2, Heading3,
+  Highlighter, ImagePlus, Italic, Link2, List, ListChecks, ListOrdered, Minus, Paperclip, Pilcrow, Quote,
+  Redo2, SquareCode, Strikethrough, Table2, Trash2, Underline, Undo2, Unlink,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -48,6 +48,13 @@ function headingValue(editor: Editor): number {
   return 0
 }
 
+function headingIcon(level: number): LucideIcon {
+  if (level === 1) return Heading1
+  if (level === 2) return Heading2
+  if (level === 3) return Heading3
+  return Pilcrow
+}
+
 export function DocToolbar({ editor, onImage, onAttachment }: {
   editor: Editor | null
   onImage: () => void
@@ -55,7 +62,7 @@ export function DocToolbar({ editor, onImage, onAttachment }: {
 }) {
   const [linkBar, setLinkBar] = useState(false)
   const [linkValue, setLinkValue] = useState('')
-  const [menu, setMenu] = useState<'table' | null>(null)
+  const [menu, setMenu] = useState<'table' | 'heading' | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -102,22 +109,51 @@ export function DocToolbar({ editor, onImage, onAttachment }: {
       <ToolButton icon={Redo2} label="重做" shortcut="Ctrl+Shift+Z" disabled={!editor.can().redo()} onClick={() => chain().redo().run()} />
       <span className="doc-tool-sep" aria-hidden />
 
-      <label className="doc-tool-select" title="段落样式">
-        <Pilcrow className="size-3.5" strokeWidth={1.75} aria-hidden />
-        <select
+      <div className="doc-tool-dropdown">
+        <button
+          type="button"
+          className={`doc-tool-select${menu === 'heading' ? ' is-open' : ''}`}
           aria-label="段落样式"
-          value={heading}
-          onChange={(event) => {
-            const level = Number(event.target.value)
-            if (level === 0) chain().setParagraph().run()
-            else chain().setHeading({ level: level as 1 | 2 | 3 }).run()
-          }}>
-          {HEADING_OPTIONS.map((option) => (
-            <option key={option.level} value={option.level}>{option.label}</option>
-          ))}
-        </select>
-        <ChevronDown className="size-3 text-muted-foreground" aria-hidden />
-      </label>
+          aria-haspopup="menu"
+          aria-expanded={menu === 'heading'}
+          title="段落样式"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setMenu((current) => (current === 'heading' ? null : 'heading'))}>
+          {(() => {
+            const Icon = headingIcon(heading)
+            return <Icon className="size-3.5" strokeWidth={1.75} aria-hidden />
+          })()}
+          <span>{HEADING_OPTIONS.find((option) => option.level === heading)?.label ?? '正文'}</span>
+          <ChevronDown className={`size-3 doc-tool-select-caret${menu === 'heading' ? ' is-open' : ''}`} aria-hidden />
+        </button>
+        {menu === 'heading' && (
+          <div className="doc-heading-menu" role="menu" aria-label="段落样式">
+            {HEADING_OPTIONS.map((option) => {
+              const Icon = headingIcon(option.level)
+              const active = option.level === heading
+              return (
+                <button
+                  key={option.level}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={active}
+                  className={`doc-heading-item${active ? ' is-active' : ''}`}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (option.level === 0) chain().setParagraph().run()
+                    else chain().setHeading({ level: option.level as 1 | 2 | 3 }).run()
+                    setMenu(null)
+                  }}>
+                  <Icon className="size-3.5" strokeWidth={1.75} aria-hidden />
+                  <span>{option.label}</span>
+                  <span className="doc-heading-tag">{option.level === 0 ? 'P' : `H${option.level}`}</span>
+                  {active && <Check className="size-3 doc-heading-check" strokeWidth={2.6} aria-hidden />}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
       <span className="doc-tool-sep" aria-hidden />
 
       <ToolButton icon={Bold} label="加粗" shortcut="Ctrl+B" active={editor.isActive('bold')} onClick={() => chain().toggleBold().run()} />

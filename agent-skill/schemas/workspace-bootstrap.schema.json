@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rallyloom.dev/schema/workspace/bootstrap/v1",
+  "title": "Rallyloom workspace bootstrap (GET /api/v1/workspace/bootstrap)",
+  "description": "工作区引导载荷。桌面端在完成 OIDC 登录后携带 Bearer 令牌请求 GET /api/v1/workspace/bootstrap；同一份结构也必须由 PATCH /api/v1/workspace/layout 与 PATCH /api/v1/workspace/rooms/{roomId}/slot 返回。租户（tenant）由令牌绑定，客户端不可选择；不要下发展示墙以外的租户数据。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["installation_id", "workspace_id", "tenant", "member_id", "permissions", "team", "policy", "layout", "dataSlots"],
+  "properties": {
+    "installation_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "安装实例 id；必须与 discovery 返回的一致，否则桌面端判 WORKSPACE_CHANGED" },
+    "workspace_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "工作区 id；必须与 discovery/绑定一致" },
+    "api_version": { "const": "v1", "description": "可选回显；桌面端仅接受 v1" },
+    "tenant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "description": "可选；桌面端以绑定里的 workspace_id 为准" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200, "description": "显示名，例如「平台总部」" }
+      }
+    },
+    "member_id": { "type": "string", "minLength": 1, "maxLength": 256, "description": "当前登录成员在 team 中的 id；team 必须包含该成员" },
+    "permissions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+      "contains": { "const": "office.view" },
+      "description": "当前成员权限字符串；必须包含 office.view。无 team.view 时只能返回本人这一名成员。其余可用值见 provider-api.md 权限表。"
+    },
+    "team": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": { "$ref": "#/$defs/member" },
+      "description": "可见成员目录；每名成员的角色与在线态字段必填，至少包含 member_id 本人"
+    },
+    "policy": {
+      "type": "object",
+      "description": "身份同步策略（可传 {}）。字段：groups[]{id,name,mapToRole}、roleMaps{sourceId:{sourceRole:localRole}} 等；客户端只做本地展示与演示兜底。"
+    },
+    "collaboration": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "可选能力声明。缺省视为全部关闭；只声明你真正实现的能力",
+      "properties": {
+        "version": { "const": 1 },
+        "scopes": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9_-]+$", "description": "业务域/公司范围 id，作为 /oa 请求的 X-Rallyloom-Scope" },
+              "label": { "type": "string", "minLength": 1, "maxLength": 80 }
+            }
+          }
+        },
+        "documents": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "folders": { "type": "boolean", "description": "是否支持知识库文件夹（entryType=folder / folderPath）" } }
+        },
+        "seating": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "version": { "const": 1, "description": "声明后启用日常入座/离座（GET /office/seats、PUT /office/seats/self）" } }
+        },
+        "reporting": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "version": { "const": 1, "description": "声明后启用工作汇报模块（/oa/reports/*）" } }
+        }
+      }
+    },
+    "layout": {
+      "$ref": "https://rallyloom.dev/schema/workspace/layout/v1",
+      "description": "办公室布局；字段与校验规则见 office-layout.schema.json"
+    },
+    "dataSlots": {
+      "type": "object",
+      "description": "房间数据看板槽位（可为 {}）。键为房间 id；客户端按 slot.url 拉取 {rows:[{label,value,delta?}]} 显示在数据屏上。",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "name", "url", "refreshSec"],
+        "properties": {
+          "kind": { "const": "external-api" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "url": { "type": "string", "pattern": "^https://", "maxLength": 2048, "description": "必须与工作区 baseUrl 同源" },
+          "refreshSec": { "type": "integer", "minimum": 15, "maximum": 600 }
+        }
+      }
+    },
+    "jukebox": {
+      "$ref": "https://rallyloom.dev/schema/workspace/jukebox/v1",
+      "description": "可选：企业精选歌单（播放器曲库）；不提供则只有成员自分享曲目"
+    },
+    "roleSettings": {
+      "type": "object",
+      "description": "可选角色设置回显，客户端不强制校验"
+    }
+  },
+  "$defs": {
+    "member": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "connectorId", "idpId", "displayName", "attrs", "presence"],
+      "anyOf": [
+        { "required": ["roleId", "roleName"] },
+        { "required": ["role"] }
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "成员 id，全局唯一；assignments/seatAssignments/工位 API 都使用它" },
+        "connectorId": { "type": "string", "minLength": 1, "maxLength": 128, "description": "身份源/连接器 id" },
+        "idpId": { "type": "string", "minLength": 1, "maxLength": 256, "description": "外部身份提供方中的用户 id（sub）" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "email": { "type": "string", "maxLength": 320 },
+        "attrs": {
+          "type": "object",
+          "maxProperties": 64,
+          "additionalProperties": { "type": "string", "maxLength": 200 },
+          "description": "自由属性（部门/岗位/公司等由提供方定义，客户端只展示）"
+        },
+        "roleId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "roleName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "role": { "enum": ["owner", "admin", "member", "guest"], "description": "旧版兼容字段；推荐 roleId+roleName" },
+        "sourceRoleName": { "type": "string", "maxLength": 80 },
+        "presence": { "enum": ["online", "busy", "away", "offline"], "description": "在线态。offline 只影响「在岗」统计，不影响入座显示（v0.19.1 起座位与在线态解耦）" },
+        "externalGroups": { "type": "array", "maxItems": 256, "items": { "type": "string", "maxLength": 128 } },
+        "officeAssignable": { "type": "boolean", "description": "是否允许被安排到办公室工位，缺省参与" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "syncedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

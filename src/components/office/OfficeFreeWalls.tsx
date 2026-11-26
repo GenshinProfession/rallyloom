@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { WALL_HEIGHT } from './rooms/api'
 import type { OfficeLayout, PlanPoint, WallSegment } from './rooms/api'
 import { MIN_WALL_LENGTH, snapWallPointDetailed, wallLength, type WallGuide, type WallSnapKind, type WallSnapResult } from './rooms/free-walls'
 import { wallNodes } from './rooms/weld-walls'
@@ -162,7 +163,7 @@ export function OfficeFreeWalls({ stage, engine, layout, editing }: {
     if (autoClose && start && end && chainIds.current.length >= 2) {
       const gap = Math.hypot(end.x - start.x, end.y - start.y)
       if (gap >= MIN_WALL_LENGTH && gap <= 26) {
-        const closing: WallSegment = { id: crypto.randomUUID(), start: { ...end }, end: { ...start }, height: 26, thickness: 6, finish: 'solid' }
+        const closing: WallSegment = { id: crypto.randomUUID(), start: { ...end }, end: { ...start }, height: WALL_HEIGHT, thickness: 6, finish: 'solid' }
         closed = latest.current.editing.add(closing)
         if (closed) latest.current.editing.message('已自动闭合区域')
       }
@@ -332,7 +333,7 @@ export function OfficeFreeWalls({ stage, engine, layout, editing }: {
       const start = chain.current ?? snapFor(point, undefined, {}).point
       let end = start
       let moved = false
-      const make = (): WallSegment => ({ id: crypto.randomUUID(), start, end, height: 26, thickness: 6, finish: 'solid' })
+      const make = (): WallSegment => ({ id: crypto.randomUUID(), start, end, height: WALL_HEIGHT, thickness: 6, finish: 'solid' })
       const move = (e: PointerEvent) => {
         if (e.pointerId !== event.pointerId) return
         const raw = at(e)
@@ -427,7 +428,7 @@ export function OfficeFreeWalls({ stage, engine, layout, editing }: {
       const start = chain.current
       const snapped = snapFor(raw, start, { shift: event.shiftKey })
       showFeedback(snapped, engine.current?.screenPoint(snapped.point.x, snapped.point.y), start)
-      preview({ id: 'preview', start, end: snapped.point, height: 26, thickness: 6, finish: 'solid' })
+      preview({ id: 'preview', start, end: snapped.point, height: WALL_HEIGHT, thickness: 6, finish: 'solid' })
     }
     const click = (event: MouseEvent) => {
       if (event.target instanceof HTMLCanvasElement && (skipClick.current || latest.current.editing.active)) {

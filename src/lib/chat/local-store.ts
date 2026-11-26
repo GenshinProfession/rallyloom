@@ -82,6 +82,13 @@ export class LocalChatStore {
     return history
   }
 
+  /** 只统计已有消息，不写入示例消息。 */
+  async countMessages(channelId: string): Promise<number> {
+    const db = await this.open()
+    const index = db.transaction('messages', 'readonly').objectStore('messages').index('channelTime')
+    return resultOf(index.count(IDBKeyRange.bound([channelId], [channelId, []])))
+  }
+
   async directThreads(personId: string): Promise<DirectThread[]> {
     const db = await this.open()
     return resultOf(db.transaction('directs').objectStore('directs').index('participant').getAll(personId))

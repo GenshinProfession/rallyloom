@@ -17,10 +17,11 @@ description: 为企业接入 Rallyloom 开源 OA。用于设计企业部署、�
 ## 0. 先读什么（按顺序）
 
 1. 本文件（你正在读）
-2. `integration-spec.md` —— 现有事件和身份契约（三种接入模式、数据格式、幂等、错误码和角色边界）
-3. `schemas/*.json` —— 机器可读契约（JSON Schema 2020-12；按本次模块读取相应文件）
-4. `reference/adapter-demo.mjs` —— 推送适配器的参考实现（零依赖 Node 18+）
-5. `reference/verify-provider.mjs` —— 提供方接入体检脚本：`<域名>` 查 discovery + 授权页 Referrer-Policy + 真实表单 POST 的 Origin（v1.6）；`--bootstrap <json>` 离线校验 bootstrap 响应体的每个字段（v1.8，v2.0 起校验可选精选歌曲）
+2. `provider-api.md` —— **完整 Provider 接口契约**（v2.2）：discovery/OIDC、bootstrap 全字段、办公室布局与 37 种家具白名单、数据看板/data-screen 取数、工位入座、`/oa` 下全部 REST 端点（任务/文档/通知/聊天/汇报/点歌台）、权限字符串、错误码与验收命令。企业服务端要对接，先按它实现。
+3. `integration-spec.md` —— 现有事件和身份契约（三种接入模式、数据格式、幂等、错误码和角色边界）
+4. `schemas/*.json` —— 机器可读契约（JSON Schema 2020-12；按本次模块读取相应文件；工作区侧见 `workspace-bootstrap.schema.json` / `office-layout.schema.json`）
+5. `reference/adapter-demo.mjs` —— 推送适配器的参考实现（零依赖 Node 18+）
+6. `reference/verify-provider.mjs` —— 提供方接入体检脚本：`<域名>` 查 discovery + 授权页 Referrer-Policy + 真实表单 POST 的 Origin（v1.6）；`--bootstrap <json>` 离线校验 bootstrap 响应体的每个字段（v1.8，v2.0 起校验可选精选歌曲）；`--layout <json> [--team bootstrap.json]` 离线校验办公室布局与成员归属（v2.1）
 
 人类同事也适用本 skill：把整个目录给他即可，不需要额外上下文。
 
@@ -83,6 +84,8 @@ v1.1–v1.3 的「业务数据承接」：动态流走 `activity.push`、任务�
 
 点歌台（v2.0）：这是跨企业通用的共享曲库，工作区成员可拖放 MP4、播放同事分享的歌曲，服务端按工作区每天稳定随机选歌。接入需实现 integration-spec.md §13 的授权 API 与文件存储；bootstrap.jukebox.playlists 可选提供精选歌曲，事件 Schema 不变。详见 integration-spec.md §13 与两个 jukebox Schema。
 
+完整 Provider REST 契约（v2.2）：上面各段讲的是「语义」，**逐端点、逐字段、逐错误码的实现清单统一在 `provider-api.md`**——包括 `GET /api/v1/workspace/{discovery,bootstrap}`、`PATCH /layout`、`PATCH /rooms/{roomId}/slot`、`GET /data-slots/{roomId}`、`/oa/records/{task|doc|notice}`、`/oa/task-board`、`/oa/chat/*`、`/oa/reports/*`、`/oa/jukebox*`、`/oa/office/seats`，以及 `permissions` 权限字符串与 `collaboration` 能力声明。汇报支持字段分区、重复表格与企业时区提交窗口；写入与跨成员查看由提供方权限控制。写实现前请先读它；机器可读约束见 `schemas/workspace-bootstrap.schema.json` 与 `schemas/office-layout.schema.json`。
+
 多租户（v1.4）：一家公司一个工作区，**一源一司**——你的承接令牌绑定了唯一一家公司，
 报文里没有租户字段、也不需要发明一个（租户随令牌走，所以 Schema 零改动）。两家公司
 接同一套源系统 = 注册两个 source_id 各领各的令牌；收到 403 = 令牌绑定的公司与你预期
@@ -125,6 +128,11 @@ v1.1–v1.3 的「业务数据承接」：动态流走 `activity.push`、任务�
 - ❌ 忽略 `groups: []` 合法性——空组的人是合法成员，照推
 - ❌ 让自渲染的登录/MFA 页返回 `Referrer-Policy: no-referrer`——表单 POST 的 Origin 会变 null 被 403（§11，先用 verify-provider.mjs 体检）
 - ❌ 用「应用时钟」写授权码有效期、用数据库 `CURRENT_TIMESTAMP` 校验——`TIMESTAMP` 无时区，会话时区非 UTC 时码会「刚发出就过期」，只看到 `invalid_grant`（§12.2）
+- ❌ 自造家具 `kind`、权限字符串或 `collaboration` 能力名——以 `provider-api.md` 与 `office-layout.schema.json` 为准；服务端家具白名单必须与桌面端 37 种一致，否则用户保存布局会被 400 拒绝
+- ❌ `PATCH /api/v1/workspace/layout`（以及 `PATCH /rooms/{roomId}/slot`）返回简化结果——必须返回**完整 bootstrap**，否则桌面端报 `INVALID_RESPONSE`
+- ❌ 让 `/oa/records/doc` 返回空数组而不实现读写
+- ❌ 让房间交流室频道与 `layout.assignments` 脱钩——分配工位就是把人聚到 `room:<roomId>` 交流室，移出工位即退出（provider-api.md §12.3）
+- ❌ 删除有聊天记录的房间时物理删除消息——应归档频道、保留历史直到管理员彻底清除（provider-api.md §12.3）——文档中心会是 0 篇空态；要让文档有内容必须实现 list/create/update/delete（见 provider-api.md §10）
 
 ## 6. 验收标准（全部满足才算完成）
 
@@ -136,6 +144,11 @@ v1.1–v1.3 的「业务数据承接」：动态流走 `activity.push`、任务�
 ⑦ （A 模式必测，v1.8）抓一份 `/api/v1/workspace/bootstrap` 响应体，跑
 `node reference/verify-provider.mjs --bootstrap bootstrap.json` 输出 PASS——
 这一条能提前排掉 90% 的「登录成功却进不去办公室」问题。
+⑧ （A 模式必测，v2.1）抓一份 `PATCH /api/v1/workspace/layout` 的请求体保存为 `layout.json`，跑
+`node reference/verify-provider.mjs --layout layout.json --team bootstrap.json` 输出 PASS；
+并用 `schemas/workspace-bootstrap.schema.json` / `schemas/office-layout.schema.json` 对真实响应做一次 JSON Schema 校验。
+⑨ （A 模式必测，v2.1）确认服务端家具白名单已放行 `provider-api.md §6.2` 的 37 种 kind（含 `data-screen`），
+编辑器保存布局不再返回「家具位置、旋转或型号无效」。
 （可选加演：`activity.push` 推 3 条动态 → Rallyloom 动态流原样展示且 actor 正确挂头像；
 `task.upsert` 推 3 条任务 → 看板出现、attrs 自动出列、重推无重复；
 `notice.push` 推 2 条公告 → 办公室顶部横幅流动展示、通知中心可读；

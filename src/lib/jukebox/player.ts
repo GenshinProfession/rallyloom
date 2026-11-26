@@ -3,10 +3,10 @@ import { youtubeVideoId, type JukeboxConfig, type JukeboxFeed, type JukeboxTrack
 /**
  * 全局单例音乐播放器（办公室底栏 / 点歌台共享）。
  *
- * - 只有一个真正的媒体元素（懒创建、挂在 document.body 之外），切页面不中断播放；
- * - 只负责「播放/暂停/上下曲/进度/音量」这类与界面无关的能力，界面各自订阅；
+ * - 直链/共享曲库音频用一个 `<audio>`；YouTube 曲目用一只隐藏的 `<webview>` 播放 watch 页（同一套控制语义）。
+ * - 只负责「播放/暂停/上下曲/进度/音量」这类与界面无关的能力，界面各自订阅。
  * - 点歌台页有自己的舞台（视频 / YouTube / 上传试听），这里只做「最近播放」的交接：
- *   点歌台播放某首时通过 adoptTrack 把曲目与进度交给播放器，回到办公室后底栏可继续听。
+ *   点歌台播放某首时通过 adoptTrack 把曲目与进度交给播放器，切回办公室后底栏可继续听。
  */
 
 export interface JukeboxPlayerState {
@@ -39,6 +39,12 @@ let audio: HTMLAudioElement | null = null
 let objectUrl: string | null = null
 let loadToken = 0
 
+let ytView: YoutubeView | null = null
+let ytVideoId: string | null = null
+let ytHost: HTMLDivElement | null = null
+let ytPoll: number | null = null
+let ytKick: number | null = null
+
 function emit(patch: Partial<JukeboxPlayerState>) {
   state = { ...state, ...patch }
   for (const listener of listeners) listener()
@@ -58,6 +64,8 @@ function releaseObjectUrl() {
   URL.revokeObjectURL(objectUrl)
   objectUrl = null
 }
+
+/* ---------------- 直链音频引擎 ---------------- */
 
 function element(): HTMLAudioElement {
   if (audio) return audio
@@ -84,8 +92,143 @@ function element(): HTMLAudioElement {
   return next
 }
 
-/** 把提供方下发的歌单展开成一条顺序队列（与点歌台「精选」列表同一套 id 规则）。 */
-/** 提供方可能只给 YouTube 链接而不写 provider，这里统一补上，避免底栏把它当直链音频播放。 */
+/* ---------------- YouTube 引擎（隐藏 <webview>） ----------------
+   YouTube 的 embed 播放器在桌面端会被判为「播放器配置错误（153）」，但 watch 页面本身
+   可以正常播放。这里用一只隐藏的 <webview> 加载 watch 页，再通过 executeJavaScript
+   直接控制页面里的 <video>，对上层暴露与 <audio> 一致的能力。 */
+
+interface YoutubeView extends HTMLElement {
+  executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>
+}
+
+/** 在页面里播放 video，必要时先静音起播再恢复（自动播放策略兜底）。 */
+const YT_VIDEO_PLAY = `(async () => {
+  const v = document.querySelector('video')
+  if (!v) return null
+  try { await v.play() } catch (error) {
+    const old = v.muted
+    v.muted = true
+    try { await v.play() } catch { v.muted = old; return null }
+    v.muted = old
+  }
+  return true
+})()`
+
+const YT_VIDEO_INFO = `(() => {
+  const v = document.querySelector('video')
+  if (!v) return null
+  return { t: v.currentTime, d: v.duration, paused: v.paused, ended: v.ended }
+})()`
+
+function youtubeHost(): HTMLDivElement {
+  if (ytHost) return ytHost
+  const host = document.createElement('div')
+  host.id = 'rallyloom-youtube-engine'
+  host.setAttribute('aria-hidden', 'true')
+  host.style.cssText = 'position:fixed;left:-9999px;top:0;width:320px;height:180px;overflow:hidden;opacity:0;pointer-events:none;'
+  document.body.appendChild(host)
+  ytHost = host
+  return host
+}
+
+function ytAvailable(): boolean {
+  if (typeof document === 'undefined') return false
+  const probe = document.createElement('webview') as unknown as YoutubeView
+  return typeof probe.executeJavaScript === 'function'
+}
+
+async function ytEval<T = unknown>(code: string): Promise<T | null> {
+  const view = ytView
+  if (!view) return null
+  try {
+    return (await view.executeJavaScript(code)) as T
+  } catch {
+    return null
+  }
+}
+
+function stopYtPoll() {
+  if (ytPoll !== null) { window.clearInterval(ytPoll); ytPoll = null }
+}
+
+function startYtPoll() {
+  stopYtPoll()
+  ytPoll = window.setInterval(() => {
+    if (!ytView) return
+    void ytEval<{ t: number; d: number; paused: boolean; ended: boolean }>(YT_VIDEO_INFO).then((info) => {
+      if (!info) return
+      const duration = Number.isFinite(info.d) && info.d > 0 ? info.d : state.duration
+      if (info.ended) {
+        emit({ playing: false, position: duration })
+        void step(1, true)
+        return
+      }
+      if (info.paused) {
+        if (state.playing) emit({ playing: false })
+        return
+      }
+      emit({ playing: true, loading: false, position: info.t, duration })
+    })
+  }, 600)
+}
+
+function destroyYoutube() {
+  stopYtPoll()
+  if (ytKick !== null) { window.clearTimeout(ytKick); ytKick = null }
+  const view = ytView
+  ytView = null
+  ytVideoId = null
+  try { view?.remove() } catch { /* 忽略 */ }
+  ytHost?.replaceChildren()
+}
+
+function ytTrackId(track: JukeboxTrack | null): string | null {
+  if (!track?.url) return null
+  return track.provider === 'youtube' || youtubeVideoId(track.url) ? youtubeVideoId(track.url) : null
+}
+
+/** 起播兜底：页面里的 video 若被自动播放策略拦下，就再尝试一次静音起播。 */
+function kickYoutube() {
+  if (ytKick !== null) window.clearTimeout(ytKick)
+  ytKick = window.setTimeout(() => {
+    ytKick = null
+    if (state.playing) return
+    void ytEval(YT_VIDEO_PLAY)
+  }, 1200)
+}
+
+async function ensureYoutube(videoId: string): Promise<void> {
+  if (ytView && ytVideoId === videoId) return
+  destroyYoutube()
+  if (!ytAvailable()) throw new Error('当前环境不支持内嵌 YouTube 播放')
+  const view = document.createElement('webview') as unknown as YoutubeView
+  view.setAttribute('partition', 'persist:rallyloom-media')
+  view.setAttribute('src', `https://www.youtube.com/watch?v=${videoId}&autoplay=1&mute=0&playsinline=1`)
+  view.setAttribute('aria-hidden', 'true')
+  view.style.cssText = 'width:320px;height:180px;border:0;background:#000;'
+  ytVideoId = videoId
+  ytView = view
+  youtubeHost().appendChild(view)
+
+  let ready = false
+  const at = Date.now()
+  while (Date.now() - at < 20000) {
+    await new Promise((resolve) => { window.setTimeout(resolve, 400) })
+    if (ytView !== view) throw new Error('YouTube 播放已取消')
+    ready = Boolean(await ytEval<boolean>(`(() => { const v = document.querySelector('video'); return Boolean(v && v.readyState >= 1) })()`))
+    if (ready) break
+  }
+  if (!ready) {
+    destroyYoutube()
+    throw new Error('YouTube 播放器加载超时')
+  }
+  await ytEval(`(() => { const v = document.querySelector('video'); if (v) { v.volume = ${state.volume}; v.muted = false } return true })()`)
+  startYtPoll()
+}
+
+/* ---------------- 队列与播放控制 ---------------- */
+
+/** 提供方可能只给 YouTube 链接而不写 provider，这里统一补上。 */
 function withProvider(track: JukeboxTrack): JukeboxTrack {
   if (track.provider || !track.url) return track
   return youtubeVideoId(track.url) ? { ...track, provider: 'youtube' } : track
@@ -101,7 +244,7 @@ export function curatedQueue(config?: JukeboxConfig): JukeboxTrack[] {
   })))
 }
 
-/** 共享曲库返回的曲目保留服务端 id，仅剔除不可播放的条目。 */
+/** 共享曲库返回的曲目保留服务端 id，仅剔除重复条目。 */
 export function feedQueue(feed?: JukeboxFeed): JukeboxTrack[] {
   if (!feed) return []
   const tracks = [...(feed.dailyTrack ? [feed.dailyTrack] : []), ...feed.tracks]
@@ -129,7 +272,7 @@ function queueIndex(track: JukeboxTrack | null, offset: number) {
   return (base + offset + queue.length) % queue.length
 }
 
-async function load(track: JukeboxTrack, position: number, resolve?: TrackUrlResolver) {
+async function loadAudio(track: JukeboxTrack, position: number, resolve?: TrackUrlResolver) {
   const token = ++loadToken
   const media = element()
   media.pause()
@@ -165,16 +308,33 @@ async function load(track: JukeboxTrack, position: number, resolve?: TrackUrlRes
   return true
 }
 
-/**
- * 播放指定曲目。
- * @returns false 表示这首曲目不能在本机播放（例如 YouTube 嵌入），调用方应引导去点歌台。
- */
-export async function playTrack(track: JukeboxTrack, options: { position?: number; resolve?: TrackUrlResolver } = {}): Promise<boolean> {
-  if (track.provider === 'youtube') {
-    emit({ track, playing: false, loading: false, position: 0, duration: track.duration ?? 0, error: '' })
+async function playYoutube(track: JukeboxTrack, position = 0): Promise<boolean> {
+  const videoId = ytTrackId(track)
+  if (!videoId) {
+    emit({ track, playing: false, loading: false, error: '曲目缺少 YouTube 视频地址' })
     return false
   }
-  const ok = await load(track, options.position ?? 0, options.resolve)
+  audio?.pause()
+  emit({ track, playing: false, loading: true, position, duration: track.duration ?? 0, error: '' })
+  try {
+    await ensureYoutube(videoId)
+    if (state.track?.id !== track.id) return false
+    if (position > 0) {
+      await ytEval(`(() => { const v = document.querySelector('video'); if (v) v.currentTime = ${Math.max(0, position)}; return true })()`)
+    }
+    await ytEval(YT_VIDEO_PLAY)
+    kickYoutube()
+    emit({ loading: false })
+    return true
+  } catch (error) {
+    emit({ playing: false, loading: false, error: error instanceof Error ? error.message : 'YouTube 曲目暂时无法播放' })
+    return false
+  }
+}
+
+export async function playTrack(track: JukeboxTrack, options: { position?: number; resolve?: TrackUrlResolver } = {}): Promise<boolean> {
+  if (ytTrackId(track)) return playYoutube(track, options.position ?? 0)
+  const ok = await loadAudio(track, options.position ?? 0, options.resolve)
   if (!ok) return false
   try {
     await element().play()
@@ -186,17 +346,31 @@ export async function playTrack(track: JukeboxTrack, options: { position?: numbe
   }
 }
 
-/** 播放/暂停当前曲目；尚未加载过媒体时按需加载。 */
 export async function togglePlayer(resolve?: TrackUrlResolver): Promise<void> {
   const current = state.track
   if (!current) return
+  const videoId = ytTrackId(current)
+  if (videoId) {
+    if (state.playing) {
+      await ytEval('(() => { document.querySelector("video")?.pause(); return true })()')
+      emit({ playing: false })
+      return
+    }
+    if (ytView && ytVideoId === videoId) {
+      await ytEval(YT_VIDEO_PLAY)
+      kickYoutube()
+      return
+    }
+    await playYoutube(current, state.position)
+    return
+  }
   const media = element()
   if (state.playing) {
     media.pause()
     return
   }
   if (!media.src) {
-    const ok = await load(current, state.position, resolve)
+    const ok = await loadAudio(current, state.position, resolve)
     if (!ok) return
   }
   try {
@@ -219,6 +393,13 @@ export function playerNext(resolve?: TrackUrlResolver) { void step(1, true, reso
 export function playerPrevious(resolve?: TrackUrlResolver) { void step(-1, true, resolve) }
 
 export function seekPlayer(seconds: number) {
+  const current = state.track
+  if (current && ytTrackId(current) && ytView) {
+    const target = Math.min(Math.max(seconds, 0), state.duration || seconds)
+    void ytEval(`(() => { const v = document.querySelector('video'); if (v) v.currentTime = ${target}; return true })()`)
+    emit({ position: target })
+    return
+  }
   const media = element()
   const duration = Number.isFinite(media.duration) ? media.duration : state.duration
   const target = Math.min(Math.max(seconds, 0), duration || seconds)
@@ -229,6 +410,7 @@ export function seekPlayer(seconds: number) {
 export function setPlayerVolume(volume: number) {
   const next = Math.min(Math.max(volume, 0), 1)
   if (audio) audio.volume = next
+  void ytEval(`(() => { const v = document.querySelector('video'); if (v) { v.volume = ${next}; v.muted = ${next === 0} } return true })()`)
   emit({ volume: next })
 }
 
@@ -241,18 +423,20 @@ export function adoptTrack(track: JukeboxTrack, position = 0) {
     audio.removeAttribute('src')
     audio.load()
   }
+  if (ytTrackId(track) !== ytVideoId) destroyYoutube()
+  else {
+    void ytEval('(() => { document.querySelector("video")?.pause(); return true })()')
+  }
   emit({ track, position: Math.max(0, position), duration: track.duration ?? 0, playing: false, loading: false, error: '' })
 }
 
-/** 是否能在底栏直接播放（YouTube 嵌入只能回点歌台）。 */
-/** 自动播放被浏览器拦截时提示再点一次；其它错误说明媒体地址本身不可播。 */
+/** 自动播放被浏览器策略拦截时不打扰用户（用户本来就点了播放键），其它错误才提示。 */
 function playbackErrorText(error: unknown): string {
   return error instanceof DOMException && error.name === 'NotAllowedError'
-    ? '点击播放键即可开始'
-    : '这首曲子的媒体地址暂时无法播放，可以到点歌台试试'
+    ? ''
+    : '这首曲子的媒体地址暂时无法播放'
 }
 
 export function canPlayInline(track: JukeboxTrack | null): boolean {
-  if (!track) return false
-  return track.provider !== 'youtube' && !(track.url && youtubeVideoId(track.url))
+  return Boolean(track && (track.url || track.mediaId))
 }

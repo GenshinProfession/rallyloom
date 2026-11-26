@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { formatDuration, type JukeboxClient, type JukeboxConfig, type JukeboxFeed, type JukeboxTrack, youtubeVideoId } from '@/lib/jukebox/types'
 import { adoptTrack } from '@/lib/jukebox/player'
+import { loadYoutubeApi, type YoutubePlayer } from '@/lib/jukebox/youtube'
 import { cn } from '@/lib/utils'
 import './jukebox.css'
 
@@ -16,60 +17,6 @@ interface JukeboxPageProps {
   config?: JukeboxConfig
   client?: JukeboxClient
   demo: boolean
-}
-
-interface YoutubePlayer {
-  destroy(): void
-  playVideo(): void
-  pauseVideo(): void
-  getPlayerState(): number
-  setVolume(volume: number): void
-}
-
-interface YoutubePlayerEvent { target: YoutubePlayer; data: number }
-interface YoutubeApi {
-  PlayerState: { ENDED: number; PLAYING: number; PAUSED: number }
-  Player: new (element: HTMLElement, options: {
-    videoId: string
-    playerVars?: Record<string, number | string>
-    events: {
-      onReady: (event: YoutubePlayerEvent) => void
-      onStateChange: (event: YoutubePlayerEvent) => void
-      onError: (event: YoutubePlayerEvent) => void
-    }
-  }) => YoutubePlayer
-}
-
-declare global {
-  interface Window { YT?: YoutubeApi; onYouTubeIframeAPIReady?: () => void }
-}
-
-let youtubeApiPromise: Promise<YoutubeApi> | undefined
-
-function loadYoutubeApi(): Promise<YoutubeApi> {
-  if (window.YT?.Player) return Promise.resolve(window.YT)
-  if (youtubeApiPromise) return youtubeApiPromise
-  youtubeApiPromise = new Promise<YoutubeApi>((resolve, reject) => {
-    let timer: number | undefined
-    const previousReady = window.onYouTubeIframeAPIReady
-    window.onYouTubeIframeAPIReady = () => {
-      previousReady?.()
-      if (timer) window.clearTimeout(timer)
-      if (window.YT?.Player) resolve(window.YT)
-      else reject(new Error('YouTube 播放器初始化失败'))
-    }
-    let script = document.querySelector<HTMLScriptElement>('script[data-jukebox-youtube-api]')
-    if (!script) {
-      script = document.createElement('script')
-      script.src = 'https://www.youtube.com/iframe_api'
-      script.async = true
-      script.dataset.jukeboxYoutubeApi = 'true'
-      document.head.appendChild(script)
-    }
-    script.onerror = () => { if (timer) window.clearTimeout(timer); youtubeApiPromise = undefined; reject(new Error('无法连接 YouTube 播放器')) }
-    timer = window.setTimeout(() => { youtubeApiPromise = undefined; reject(new Error('YouTube 播放器连接超时')) }, 15000)
-  })
-  return youtubeApiPromise
 }
 
 function curatedTracks(config?: JukeboxConfig): JukeboxTrack[] {

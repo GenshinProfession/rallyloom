@@ -18,6 +18,8 @@ import { OfficeLayoutEditor } from './OfficeLayoutEditor'
 import { OfficeSeatAssignments } from './OfficeSeatAssignments'
 import { OfficeWorkPanel, type OfficeTaskDraft, type OfficeWorkAccess } from './OfficeWorkPanel'
 import { OfficeJukeboxDock } from './OfficeJukeboxDock'
+import { OfficeAnnouncement } from '@/components/notify/OfficeAnnouncement'
+import type { NoticeRecord } from '@/lib/notify/types'
 import type { JukeboxClient, JukeboxConfig } from '@/lib/jukebox/types'
 import { gmvMetric, useRoomMetrics } from './room-metrics'
 import { resolveOfficeLayout, roomTemplates } from './rooms'
@@ -45,7 +47,9 @@ interface OfficePageProps {
   onSelectRoom: (roomId: string | null) => void
   editing?: { team: TeamMember[]; publish: (layout: LayoutState) => Promise<void> }
   /** 办公室底栏音乐：曲库与点歌台同源；未接入时整条播放器隐藏。 */
-  jukebox?: { config?: JukeboxConfig; client?: JukeboxClient; onOpen: () => void }
+  jukebox?: { config?: JukeboxConfig; client?: JukeboxClient }
+  /** 顶部公告浮窗：企业公告优先，客户端系统公告兜底。 */
+  announcement?: { notices: readonly NoticeRecord[]; unread?: number; onRead?: (id: string) => void; onOpen?: () => void }
   work?: OfficeWorkAccess
   chat?: {
     client: ChatClient
@@ -59,7 +63,7 @@ interface OfficePageProps {
 
 export function OfficePage({
   workspaceName, seatingEnabled, demo, layoutState: layout, members, slots, meSeatId, meName, searchHit,
-  selectedRoom, onSelectRoom, chat, work, editing, jukebox,
+  selectedRoom, onSelectRoom, chat, work, editing, jukebox, announcement,
 }: OfficePageProps) {
   const [focusedMember, setFocusedMember] = useState<string | null>(null)
   const [mode, setMode] = useState<OfficeMode>('daily')
@@ -72,6 +76,13 @@ export function OfficePage({
   const [seatError, setSeatError] = useState('')
   const seatPending = useRef(false)
   const seatEpoch = useRef(0)
+  const [seatNotice, setSeatNotice] = useState('')
+  const seatNoticeTimer = useRef<number | undefined>(undefined)
+  function announceSeat(message: string) {
+    setSeatNotice(message)
+    window.clearTimeout(seatNoticeTimer.current)
+    seatNoticeTimer.current = window.setTimeout(() => setSeatNotice(''), 3200)
+  }
   useEffect(() => {
     if (!seatingEnabled) return
     setSeatReady(false);setSeatStates([])
@@ -91,9 +102,18 @@ export function OfficePage({
     }catch(e){setSeatError(e instanceof Error?e.message:'这个座位暂时无法使用，请刷新后重试。');return false}
     finally{seatPending.current=false;setSeatBusy(false)}
   }
-  /** 入座不再瞬移：先让角色走到工位，到达后再提交入座。 */
+  /** 入座不再瞬移：先让角色走到工位，到达后再提交入座；同时只允许坐在自己的工位上。 */
   function requestSeat(roomId: string, seatIndex: number, seated: boolean) {
     if (!seated || !meSeatId) { void changeSeat(roomId, seatIndex, false); return }
+    const live = seatStates.find((row) => row.memberId === meSeatId)
+    const assignedRoom = layout.assignments[meSeatId]
+    const seatMap = (layout as { seatAssignments?: Record<string, number> }).seatAssignments
+    const assignedIndex = live?.seated ? live.seatIndex : seatMap?.[meSeatId]
+    const mine = assignedRoom && roomId === assignedRoom && (assignedIndex === undefined || seatIndex === assignedIndex)
+    if (!mine) {
+      announceSeat('只能坐在自己的工位上；想换工位需要管理员在「分配工位」里重新安排。')
+      return
+    }
     setWalkTarget((current) => current && current.roomId === roomId && current.seatIndex === seatIndex ? null : { roomId, seatIndex })
   }
   /** 到达工位后先等入座提交完成，再收掉走路状态；否则走路的人会被收起、旧座位上的静止形象先出现，看起来就是「瞬移」。 */
@@ -243,7 +263,7 @@ export function OfficePage({
   const workEnabled = !!work && Boolean(work.tasks || work.docs || work.notices || chat)
 
   if (editingOpen && editing) {
-    return <OfficeLayoutEditor layout={layout} onPublish={editing.publish} onClose={() => setEditingOpen(false)} />
+    return <OfficeLayoutEditor layout={layout} onPublish={editing.publish} onClose={() => setEditingOpen(false)} chat={chat?.client} />
   }
 
   return (
@@ -264,6 +284,7 @@ export function OfficePage({
           </div>
         </WorkspaceHeader>
         {seatError && <p role="status" className="office-seat-error">{seatError}</p>}
+        {seatNotice && <p role="status" className="office-seat-error office-seat-guard" data-seat-guard>{seatNotice}</p>}
         {assigningSeats && editing && <OfficeSeatAssignments layout={layout} rooms={rooms} team={editing.team} target={assignmentTarget}
           onSave={editing.publish} onClose={() => {setAssigningSeats(false);setAssignmentTarget(undefined)}} />}
 
@@ -309,7 +330,8 @@ export function OfficePage({
             canChatWith: (personId) => Boolean(chat.peers.get(personId) && chat.peers.get(personId) !== chat.sender.id),
           } : undefined}
         />}
-        {jukebox && <OfficeJukeboxDock config={jukebox.config} client={jukebox.client} onOpen={jukebox.onOpen} />}
+        {announcement && <OfficeAnnouncement notices={announcement.notices} unread={announcement.unread} onRead={announcement.onRead} onOpen={announcement.onOpen} />}
+        {jukebox && <OfficeJukeboxDock config={jukebox.config} client={jukebox.client} />}
         {chatError && <p className="office-chat-action-error" role="alert">{chatError}</p>}
         {chat && quick && (
           <OfficeQuickChat key={quick.request} channel={quick.channel} anchor={quick.anchor} client={chat.client} sender={chat.sender}

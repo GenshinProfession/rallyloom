@@ -41,29 +41,29 @@ export function regionLabelPoint(room:RoomPlacement):Point{
   return anchor
 }
 /**
- * 房间名优先贴房间上沿左侧居中显示（像平面图的房间标题），
- * 并避开家具占地；找不到干净的位置时回退到房间内部点。
+ * 房间名统一贴在房间左上角（平面图标题位），所有房间使用同一套 inset：
+ * 横向固定在 f.x + 18，纵向从 f.y + 16 起，遇到门洞带时只按固定步长下移。
+ * 不再逐格搜索「干净位置」——那会让每个房间的标题落在不同高度，看起来没有章法。
  */
 export type CaptionAvoid={x:number;y:number;width:number;height:number}
 export function regionCaptionPoint(room:RoomPlacement,avoid:readonly CaptionAvoid[]=[]):Point{
   const f=room.frame
   if(!room.boundary)return{x:f.x+12,y:f.y+5}
   const boundary=room.boundary
-  const furniture=(room.furniture??[]).map(item=>({x:f.x+item.x*f.width,y:f.y+item.y*f.height}))
-  const rows=[f.y+14,f.y+26,f.y+40,f.y+58,f.y+74]
-  const inset=20,labelWidth=150,labelHeight=34
-  for(const y of rows){
-    for(let x=f.x+inset;x<=f.x+f.width-labelWidth-8;x+=18){
-      const p={x,y}
-      if(!boundaryContains(boundary,p,false))continue
-      if(!boundaryContains(boundary,{x:x+labelWidth,y},false))continue
-      if(!boundaryContains(boundary,{x,y:y+labelHeight},false))continue
-      const clash=furniture.some(item=>item.x>x-40&&item.x<x+labelWidth+24&&item.y>y-52&&item.y<y+labelHeight+22)
-      if(clash)continue
-      // 门洞上方不放房间名：标签会挡住门，也不好点进门里
-      const blocked=avoid.some(rect=>x<rect.x+rect.width+10&&x+labelWidth+10>rect.x&&y<rect.y+rect.height+10&&y+labelHeight+10>rect.y)
-      if(!blocked)return p
-    }
+  const labelWidth=150
+  const labelHeight=34
+  const x=f.x+18
+  const fits=(point:Point)=>{
+    if(!boundaryContains(boundary,point,false))return false
+    if(!boundaryContains(boundary,{x:point.x+labelWidth,y:point.y},false))return false
+    if(!boundaryContains(boundary,{x:point.x,y:point.y+labelHeight},false))return false
+    if(!boundaryContains(boundary,{x:point.x+labelWidth,y:point.y+labelHeight},false))return false
+    return true
+  }
+  const blocked=(point:Point)=>avoid.some(rect=>point.x<rect.x+rect.width+10&&point.x+labelWidth+10>rect.x&&point.y<rect.y+rect.height+10&&point.y+labelHeight+10>rect.y)
+  for(let step=0;step<8;step+=1){
+    const point={x,y:f.y+16+step*(labelHeight+6)}
+    if(fits(point)&&!blocked(point))return point
   }
   return regionLabelPoint(room)
 }

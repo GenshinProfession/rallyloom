@@ -1,10 +1,18 @@
 /* Rallyloom — Electron 主进程（CommonJS）
    深链 rallyloom://callback：系统浏览器回跳，主进程验证并完成企业授权。 */
 
-const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, session, shell } = require('electron')
 const path = require('node:path')
 const { appendFileSync, existsSync, statSync, writeFileSync } = require('node:fs')
 const { registerWorkspaceAuth } = require('./workspace-auth.cjs')
+
+// 隐藏的 <webview> 会播放 YouTube 背景音乐：起播不依赖窗口内的一次性手势
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+app.commandLine.appendSwitch('disable-features', 'MediaSessionService')
+// YouTube 会按 UA 判断播放器配置：Electron 默认 UA 会被拒（embed 报 153），
+// 因此只给「办公室背景音乐」用的 webview 分区换标准 Chrome UA，主窗口保持 Electron UA。
+const MEDIA_PARTITION = 'persist:rallyloom-media'
+const CHROME_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL
 const SNAPSHOT = process.env.RALLYLOOM_SNAPSHOT
@@ -78,6 +86,12 @@ if (!gotLock) {
       deepLinkLog(`protocol-registration-failed ${err && err.message}`)
     }
 
+    try {
+      session.fromPartition(MEDIA_PARTITION).setUserAgent(CHROME_UA)
+    } catch (err) {
+      deepLinkLog(`media-session-setup-failed ${err && err.message}`)
+    }
+
     ipcMain.handle('win:minimize', () => win && win.minimize())
     ipcMain.handle('win:toggleMaximize', () => {
       if (!win) return
@@ -116,6 +130,8 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      // 办公室 BGM：YouTube 曲目在 <webview> 里播放（file:// 页面里的 iframe 会被 YouTube 拒绝）
+      webviewTag: true,
     },
   })
 

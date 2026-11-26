@@ -11,7 +11,6 @@ import { DocsPage } from '@/components/docs/DocsPage'
 import { NoticePage } from '@/components/notify/NoticePage'
 import { JukeboxPage } from '@/components/jukebox/JukeboxPage'
 import { OaJukeboxClient } from '@/lib/jukebox/client'
-import { OfficeNotice } from '@/components/notify/OfficeNotice'
 import { seatIdOf } from '@/data/team'
 import { can } from '@/lib/identity/rbac'
 import type { IdentityConnector, TeamMember } from '@/lib/identity/types'
@@ -216,7 +215,8 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
       const person = directory.get(member.id)
       if (!person || (demo && !can(person.role, 'chat.use'))) continue
       officeChatPeers.set(member.id, person.id)
-      assignedRooms.set(person.id, member.roomId)
+      /* 只记录真实座位：未入座副本的 roomId 是空串，不能覆盖已入座成员的房间归属。 */
+      if (member.roomId) assignedRooms.set(person.id, member.roomId)
     }
     const chatMembers = team.filter(({ role }) => !demo || can(role, 'chat.use')).map((person): ChatParticipant => {
       const seatId = seatIdOf(person.id, team)
@@ -368,9 +368,6 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
       <div key={activePage} className="workspace-route flex min-h-0 min-w-0 flex-1" data-enter={animateNavigation}>
         {activePage === 'office' ? (
           <div className="flex min-w-0 flex-1 flex-col">
-            {canNotify && (
-              <OfficeNotice notices={notices} unread={noticeUnread} onOpenAll={() => navigate('notify')} />
-            )}
             <div className="flex min-h-0 flex-1">
               <Suspense fallback={<div className="grid flex-1 place-items-center text-[12px] text-muted-foreground" role="status">正在加载办公室…</div>}>
                 <OfficePage
@@ -383,7 +380,12 @@ function WorkspaceShell({ entry, onHome, onPreview, onAccessLost, onEnterWorkspa
                   jukebox={canJukebox ? {
                     config: snapshot.jukebox,
                     client: jukeboxClient,
-                    onOpen: () => navigate('jukebox'),
+                  } : undefined}
+                  announcement={canNotify ? {
+                    notices,
+                    unread: noticeUnread,
+                    onRead: noticeClient ? (id: string) => { void noticeClient.markRead([id]) } : undefined,
+                    onOpen: () => navigate('notify'),
                   } : undefined}
                   meSeatId={meSeatId}
                   meName={me.displayName}

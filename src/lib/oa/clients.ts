@@ -86,6 +86,7 @@ export class OaChatClient implements ChatClient {
   readonly label = '企业交流室'
   channels() { return oa<ChatChannel[]>('GET', '/chat/channels') }
   history(id: string, limit = 200) { return oa<ChatMessage[]>('GET', `/chat/channels/${encodeURIComponent(id)}/messages?limit=${limit}`) }
+  async historyCount(id: string) { return (await this.history(id, 200)).length }
   async send(id: string, draft: ChatDraft, _sender: ChatPerson) { return oa<ChatMessage>('POST', `/chat/channels/${encodeURIComponent(id)}/messages`, { text: draft.text, mentions: draft.mentions, files: await Promise.all(draft.files.map(fileData)) }) }
   async participants(id: string) {
     const people = await oa<ChatParticipant[]>('GET', `/chat/channels/${encodeURIComponent(id)}/members`)

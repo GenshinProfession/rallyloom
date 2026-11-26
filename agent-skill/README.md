@@ -1,6 +1,6 @@
 正式工作区协作接口、能力、对象范围与验收先读 [OA 协作契约](oa-collaboration.md)。目录事件推送是另一条可选链路，不能替代正式 OA API。
 
-# Rallyloom 接入 Skill 包（agent-skill/）· v2.0
+# Rallyloom 接入 Skill 包（agent-skill/）· v2.2
 
 企业可以用这个包规划自托管接入、工作区授权与多租户划分，也可以交给开发者或 AI Agent 为已有 OA 部署编写源系统适配器。
 首次接入、基础数据库访问和定制流程见 [企业接入与授权方案](enterprise-authorization.md)（设计草案）。
@@ -9,7 +9,7 @@ v1.1 新增 `activity.push`（动态承接）与 §9 数据外部化边界；v1.
 `doc.upsert` / `doc.remove`（文档中心承接——对方数据库里的文档记录格式即 payload 字段集）；
 v1.4 新增 §10 多租户（一家公司一个工作区、一源一司、租户随令牌绑定——**全部事件 Schema 零改动**）。
 v1.5 新增 §10.1 集团与租户联邦（可选管辖层：合并租户 = 归属同一管辖体系的配置，数据仍硬隔离；不属集团的公司零感知——依旧零改动）。
-v1.6 记录提供方登录页 Origin 与排错脚本；v1.7 支持富文本和附件；v1.8 增加接入排错地图；v1.9 增加静态精选歌曲契约；v2.0 将点歌台定义为工作区共享曲库：成员上传 MP4，Mira 接收并按租户隔离，每天由服务端统一随机选歌，并新增运行时 feed Schema。事件 Schema 无需变化。
+v1.6 记录提供方登录页 Origin 与排错脚本；v1.7 支持富文本和附件；v1.8 增加接入排错地图；v1.9 增加静态精选歌曲契约；v2.0 将点歌台定义为工作区共享曲库：成员上传 MP4，Mira 接收并按租户隔离，每天由服务端统一随机选歌，并新增运行时 feed Schema。v2.1 新增 `provider-api.md`（企业服务端要实现的全部 REST 接口、字段、权限与错误码的单一完整契约）及完整布局 Schema；v2.2 为通用汇报补充分区、重复表格、周末提交窗口和 `reports.review/configure` 权限定义。事件 Schema 与原有报文兼容。
 
 ## 目录内容
 
@@ -17,6 +17,7 @@ v1.6 记录提供方登录页 Origin 与排错脚本；v1.7 支持富文本和�
 |------|------|
 | `SKILL.md` | Agent 的第一入口：任务使命、心智模型、开发步骤、禁止事项、验收标准 |
 | `enterprise-authorization.md` | 企业接入、授权与撤销、正式绑定、数据库适配和 Demo 隔离的设计草案 |
+| `provider-api.md` | **Provider 完整 REST 契约（v2.2）**：discovery/OIDC、bootstrap 全字段、布局与 37 家具白名单、数据看板/data-screen、工位、`/oa` 全部端点（任务/文档/通知/聊天/汇报/点歌台）、权限表、错误码、自检与最小对接清单 |
 | `integration-spec.md` | 规范本体：三种接入模式、中性身份容器、事件契约、幂等/错误码、角色边界、数据外部化边界、多租户（§10 一源一司）、验收清单 |
 | `schemas/envelope.schema.json` | 事件信封（JSON Schema 2020-12） |
 | `schemas/person-upsert.schema.json` | 人 · 新建/更新载荷 |
@@ -32,8 +33,10 @@ v1.6 记录提供方登录页 Origin 与排错脚本；v1.7 支持富文本和�
 | `schemas/doc-remove.schema.json` | 文档下架载荷（v1.3） |
 | `schemas/jukebox.schema.json` | bootstrap 可选精选歌曲 |
 | `schemas/jukebox-feed.schema.json` | 共享曲库运行时 API 的歌曲及每日随机结果 |
+| `schemas/workspace-bootstrap.schema.json` | Provider bootstrap 响应完整契约（tenant/team/permissions/collaboration/layout/dataSlots/jukebox） |
+| `schemas/office-layout.schema.json` | 办公室布局契约（画布/房间/边界/墙/座位/37 种家具/PATCH layout 请求体） |
 | `reference/adapter-demo.mjs` | 可运行参考适配器（零依赖 Node 18+） |
-| `reference/verify-provider.mjs` | 提供方接入体检脚本：`<域名>` 查 discovery / Referrer-Policy / 真实 POST 的 Origin（v1.6）；`--bootstrap <json>` 离线逐字段校验 bootstrap 响应体（v1.8） |
+| `reference/verify-provider.mjs` | 提供方接入体检脚本：`<域名>` 查 discovery / Referrer-Policy / 真实 POST 的 Origin（v1.6）；`--bootstrap <json>` 离线逐字段校验 bootstrap 响应体（v1.8，含 collaboration/dataSlots/jukebox）；`--layout <json> [--team <bootstrap.json>]` 离线校验布局与成员归属（v2.1） |
 | `workspace-provider.md` | 正式工作区的企业角色名称、会话能力、成员可见范围和管理配置契约 |
 
 ## 怎么丢给一个 Agent

@@ -1,3 +1,4 @@
+import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useEffect, useId, useMemo, useState } from 'react'
 import { BookOpen, ChevronRight, ExternalLink, FileText, Folder, FolderOpen } from 'lucide-react'
 import type { DocRecord } from '@/lib/docs/types'
@@ -19,7 +20,10 @@ export function folderTree(docs: readonly DocRecord[]) {
   const ordered = [...docs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.title.localeCompare(b.title, 'zh-CN'))
   for (const doc of ordered) {
     let parent = root
-    for (const name of (doc.entryType === 'folder' ? [...documentPath(doc),doc.title] : documentPath(doc))) {
+    const path = doc.entryType === 'folder' ? [...documentPath(doc), doc.title] : documentPath(doc)
+    /* 顶层文件夹：space 与名称相同且没有 folderPath 时只算一个节点，避免出现「231 / 231」。 */
+    const chain = doc.entryType === 'folder' && (doc.folderPath?.length ?? 0) === 0 && path.length === 2 && path[0] === path[1] ? [path[0]] : path
+    for (const name of chain) {
       let next = parent.folders.get(name)
       if (!next) {
         next = { path: [...parent.path, name], count: 0, folders: new Map(), documents: [] }
@@ -42,6 +46,7 @@ interface BranchProps {
   onToggle: (key: string, open: boolean) => void
   onSelect: (id: string) => void
   onFolderSelect?: (path: string[]) => void
+  onMenu?: (event: ReactMouseEvent<HTMLElement>, target: { kind: 'folder'; path: string[] } | { kind: 'doc'; doc: DocRecord }) => void
 }
 
 function Branch(props: BranchProps) {
@@ -57,6 +62,7 @@ function Branch(props: BranchProps) {
     <li>
       <button type="button" className="docs-folder ui-press" data-doc-folder={name} data-space={space ? name : undefined}
         title={name} aria-expanded={open} aria-controls={listId} onClick={() =>  { onToggle(key, !open); props.onFolderSelect?.(node.path) }}
+        onContextMenu={(event) => { props.onMenu?.(event, { kind: 'folder', path: node.path }) }}
       >
         <ChevronRight className="docs-folder-chevron" size={13} aria-hidden />
         <Icon size={14} strokeWidth={1.7} aria-hidden />
@@ -69,8 +75,9 @@ function Branch(props: BranchProps) {
         )}
         {open && node.documents.map((doc) => (
           <li key={doc.id}>
-            <button type="button" data-doc-id={doc.id} className="docs-leaf ui-press" title={doc.title}
+            <button type="button" data-doc-id={doc.id} className="docs-leaf ui-press" title={`${doc.title}（右键可重命名/删除）`}
               aria-current={doc.id === selected?.id || undefined} onClick={() => onSelect(doc.id)}
+              onContextMenu={(event) => { props.onMenu?.(event, { kind: 'doc', doc }) }}
             >
               <FileText size={14} strokeWidth={1.7} aria-hidden />
               <span>{doc.title}</span>
@@ -83,10 +90,11 @@ function Branch(props: BranchProps) {
   )
 }
 
-export function DocumentTree({ records, query, selected, onSelect, location, onFolderSelect }: {
+export function DocumentTree({ records, query, selected, onSelect, location, onFolderSelect, onMenu }: {
   records: readonly DocRecord[]
   location?: readonly string[]
   onFolderSelect?: (path: string[]) => void
+  onMenu?: (event: ReactMouseEvent<HTMLElement>, target: { kind: 'folder'; path: string[] } | { kind: 'doc'; doc: DocRecord }) => void
   query: string
   selected: DocRecord | null
   onSelect: (id: string) => void
@@ -119,6 +127,7 @@ export function DocumentTree({ records, query, selected, onSelect, location, onF
             onToggle={(key, open) => setExpanded((current) => ({ ...current, [key]: open }))}
             onSelect={onSelect}
             onFolderSelect={onFolderSelect}
+            onMenu={onMenu}
           />
         ))}</ul>
       )}

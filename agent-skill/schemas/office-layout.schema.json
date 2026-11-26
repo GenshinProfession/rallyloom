@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rallyloom.dev/schema/workspace/layout/v1",
+  "title": "Rallyloom office layout (PATCH /api/v1/workspace/layout)",
+  "description": "办公室布局请求体。客户端在 PATCH /api/v1/workspace/layout 发送本对象，服务端校验并持久化后，必须返回完整的 bootstrap 载荷（同一份 /bootstrap 响应体结构）。坐标：画布使用世界单位（默认 unitsPerMeter=50，即 1 米 = 50 单位）；家具位置使用房间内归一化坐标 0–1。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["width", "height", "rooms", "assignments"],
+  "properties": {
+    "width": { "type": "integer", "minimum": 500, "maximum": 4000, "description": "画布宽度（世界单位）" },
+    "height": { "type": "integer", "minimum": 300, "maximum": 4000, "description": "画布高度（世界单位）" },
+    "unitsPerMeter": { "type": "number", "minimum": 10, "maximum": 1000, "description": "多少世界单位等于 1 米，缺省 50" },
+    "revision": { "type": "integer", "minimum": 0, "description": "乐观锁版本；读取时返回，写入时应带上当前值，冲突返回 409" },
+    "rooms": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 80,
+      "description": "房间/区域列表；房间多边形（boundary）不得重叠，frame 必须等于 boundary 外环包围盒",
+      "items": { "$ref": "#/$defs/room" }
+    },
+    "wallSegments": {
+      "type": "array",
+      "maxItems": 240,
+      "description": "独立自由墙；房间之间的共享墙由相邻矩形自动封闭，不需要重复列出",
+      "items": { "$ref": "#/$defs/wallSegment" }
+    },
+    "assignments": {
+      "type": "object",
+      "description": "成员 → 房间 id；成员必须在 bootstrap.team 内，每间分配人数 ≤ 该房间 seats 数量。键为成员 id，值为房间 id。",
+      "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "seatAssignments": {
+      "type": "object",
+      "description": "成员 → 固定工位序号（0–59）；必须已有 assignments 归属。缺省时客户端按顺序自动填位。",
+      "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 59 }
+    }
+  },
+  "$defs": {
+    "point": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["x", "y"], "properties": { "x": { "type": "number" }, "y": { "type": "number" } } },
+        { "type": "array", "prefixItems": [{ "type": "number" }, { "type": "number" }], "minItems": 2, "maxItems": 2 }
+      ],
+      "description": "推荐写法 {x,y}；兼容旧写法 [x,y]"
+    },
+    "room": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "template", "frame"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60, "description": "房间显示名（如「运营部」）" },
+        "note": { "type": "string", "maxLength": 200 },
+        "template": {
+          "enum": ["desk-grid", "studio", "fulfillment", "support-pods", "command", "showroom", "meeting", "reception", "pantry", "empty", "room-shell"],
+          "description": "房间模板：desk-grid 开放办公 / studio 技术部 / fulfillment 仓储 / support-pods 客服 / command 指挥台 / showroom 展示 / meeting 会议室 / reception 前台 / pantry 茶水 / empty 空房 / room-shell 通用壳"
+        },
+        "frame": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["x", "y", "width", "height"],
+          "properties": {
+            "x": { "type": "number", "minimum": 0 },
+            "y": { "type": "number", "minimum": 0 },
+            "width": { "type": "number", "minimum": 0 },
+            "height": { "type": "number", "minimum": 0 }
+          },
+          "description": "房间矩形包围盒（世界单位）；有 boundary 时必须等于外环包围盒"
+        },
+        "boundary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outer"],
+          "properties": {
+            "outer": { "type": "array", "minItems": 3, "maxItems": 256, "items": { "$ref": "#/$defs/point" } },
+            "holes": { "type": "array", "maxItems": 32, "items": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/point" } } }
+          },
+          "description": "可选多边形边界（L 形房间等）；outer 为外环，holes 为内部孔洞；顶点必须在 frame 内"
+        },
+        "floor": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "可选地板底色" },
+        "floorMaterial": { "enum": ["wood", "tile", "concrete", "quartz", "terrazzo"], "description": "地板材质；缺省 wood" },
+        "useTemplateFurniture": { "type": "boolean", "description": "是否使用模板自带家具；true/缺省时客户端按模板渲染，false 时只渲染 furniture 列表" },
+        "walls": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "north": { "$ref": "#/$defs/wallFinish" },
+            "east": { "$ref": "#/$defs/wallFinish" },
+            "south": { "$ref": "#/$defs/wallFinish" },
+            "west": { "$ref": "#/$defs/wallFinish" }
+          },
+          "description": "四向隔墙类型"
+        },
+        "door": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["side", "offset", "width"],
+          "properties": {
+            "side": { "enum": ["north", "east", "south", "west"] },
+            "offset": { "type": "number", "minimum": 0, "maximum": 1, "description": "门洞中心在墙上的相对位置 0–1" },
+            "width": { "type": "number", "minimum": 12, "description": "门洞宽度（世界单位）；距墙角至少 6" }
+          }
+        },
+        "seats": {
+          "type": "array",
+          "maxItems": 60,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["x", "y"],
+            "properties": {
+              "x": { "type": "number", "minimum": 0, "maximum": 1 },
+              "y": { "type": "number", "minimum": 0, "maximum": 1 },
+              "facing": { "enum": ["north", "south"] },
+              "rotation": { "type": "number", "minimum": 0, "maximum": 360 }
+            }
+          },
+          "description": "工位/座位（房间内归一化坐标）；assignments 每间人数不得超过这里定义的座位数"
+        },
+        "furniture": {
+          "type": "array",
+          "maxItems": 60,
+          "items": { "$ref": "#/$defs/furniture" },
+          "description": "自定义家具（≤60 件/间）；位置为房间内归一化坐标"
+        },
+        "appearance": { "type": "object", "description": "旧版外观字段，客户端已不再读取，可省略" }
+      }
+    },
+    "wallFinish": { "enum": ["solid", "glass", "open"], "description": "实体墙 / 玻璃 / 开放" },
+    "wallSegment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "start", "end"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "start": { "$ref": "#/$defs/point" },
+        "end": { "$ref": "#/$defs/point" },
+        "thickness": { "type": "number", "minimum": 2, "maximum": 24, "description": "墙厚（世界单位），缺省 6" },
+        "height": { "type": "number", "minimum": 8, "maximum": 100, "description": "墙高，缺省 26" },
+        "finish": { "enum": ["solid", "glass"], "description": "缺省 solid" },
+        "opening": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["offset", "width"],
+          "properties": {
+            "offset": { "type": "number", "minimum": 0, "maximum": 1 },
+            "width": { "type": "number", "minimum": 12 }
+          },
+          "description": "墙上门洞；带门洞的墙不会被自动焊接/拆分"
+        }
+      },
+      "description": "自由墙；start/end 必须落在画布内，长度 ≥12"
+    },
+    "furniture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "x", "y"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "kind": {
+          "enum": [
+            "desk", "shelf", "plant", "sofa", "coffee", "lamp", "workstation", "chair",
+            "meeting-table", "round-table", "coffee-table", "counter", "cabinet", "display-shelf",
+            "clothes-rack", "rug", "partition", "screen", "studio-light", "camera", "carton",
+            "printer", "trolley", "microwave", "sink", "cup", "notebook", "monitor", "bench",
+            "desk-l", "bookcase", "whiteboard", "tv", "water-cooler", "plant-large",
+            "conference-table", "data-screen"
+          ],
+          "description": "家具型号白名单（37 种）。企业服务端必须与桌面端保持一致：新增型号需同时放行，否则 PATCH 布局会被客户端拒绝或服务端 400。"
+        },
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "rotation": { "type": "number", "minimum": 0, "maximum": 360, "description": "绕 Y 轴旋转角度（度），缺省 0" },
+        "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "可选颜色覆盖" },
+        "elevation": { "type": "number", "minimum": 0, "maximum": 200, "description": "可选离地高度（世界单位）" },
+        "size": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["width", "depth"],
+          "properties": {
+            "width": { "type": "number", "minimum": 1, "maximum": 800 },
+            "depth": { "type": "number", "minimum": 1, "maximum": 800 },
+            "height": { "type": "number", "minimum": 1, "maximum": 800 }
+          },
+          "description": "可选尺寸覆盖（世界单位）；缺省使用型号默认尺寸"
+        }
+      }
+    }
+  }
+}

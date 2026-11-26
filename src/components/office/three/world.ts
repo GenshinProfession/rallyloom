@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { SeatPresence } from '../seat-presence'
 import type { Member } from '@/data/office'
-import { WALL_THICKNESS, type OfficeLayout, type ResolvedRoom } from '../rooms/api'
+import { WALL_HEIGHT, WALL_THICKNESS, type OfficeLayout, type ResolvedRoom } from '../rooms/api'
 import { sharedWallRuns } from '../rooms/shared-walls'
 import { seatOrder } from '../rooms/seat-order'
 import { officeChair } from '../rooms/furniture'
@@ -32,7 +32,7 @@ function walls(room: ResolvedRoom, rooms: readonly ResolvedRoom[], parent: THREE
     const middle = start + length / 2
     const x = horizontal ? middle : side === 'east' ? width : 0
     const z = horizontal ? side === 'south' ? height : 0 : middle
-    const wallHeight = shared ? 24 : side === 'north' ? 34 : 16
+    const wallHeight = WALL_HEIGHT
     const wallWidth = horizontal ? length : WALL_THICKNESS
     const wallDepth = horizontal ? WALL_THICKNESS : length
     if (finish === 'glass') {
@@ -123,7 +123,7 @@ export function buildOfficeWorld(
     let cursor = 0
     for (const [start, end] of [...intervals, [length, length]].sort((a,b)=>a[0]-b[0])) {
       if (start > cursor) {
-        const middle = (cursor + start) / 2, wallHeight = side === 'north' ? 34 : 16
+        const middle = (cursor + start) / 2, wallHeight = WALL_HEIGHT
         solids.push(model.box(scene, horizontal ? middle : side === 'east' ? width : 0, 0,
           horizontal ? side === 'south' ? height : 0 : middle,
           horizontal ? start - cursor : WALL_THICKNESS, wallHeight, horizontal ? WALL_THICKNESS : start - cursor, WALL_COLOR))
@@ -264,7 +264,9 @@ export function buildOfficeWorld(
       const occupied = presence.find(value => value.seated && value.roomId === room.id && value.seatIndex === index)
       const original = orderedMembers[index]
       const candidate = occupied ? allMembers.get(occupied.memberId) : original && !overrides.has(original.id) ? original : undefined
-      const member = candidate && (candidate.presence !== 'offline' || candidate.id === meId) ? { ...candidate, roomId: room.id } : undefined
+      // 座位占用与「是否在线」解耦：企业接入常常只提供当前账号的在线态，
+      // 其余成员即便 offline 也应该显示在自己被分配的工位上（在线人数另算）。
+      const member = candidate ? { ...candidate, roomId: room.id } : undefined
       seatTargets.push({ roomId: room.id, seatIndex: index, position: new THREE.Vector3(frame.x + x, 18, frame.y + z), occupant: member?.id ?? occupied?.memberId, supported: seatSupported(x, z) })
       if (member?.id === meId) {
         mySeat = new THREE.Vector3(frame.x + x, 0, frame.y + z)
@@ -276,7 +278,7 @@ export function buildOfficeWorld(
         halo.position.y = .17
         station.add(halo)
       }
-      if (!member || (member.presence === 'offline' && member.id !== meId)) continue
+      if (!member) continue
       const occupant = avatars.seated(member)
       occupant.name = member.id
       station.add(occupant)
@@ -288,7 +290,7 @@ export function buildOfficeWorld(
     }
     for (const state of presence.filter(value => !value.seated && value.roomId === room.id)) {
       const member = allMembers.get(state.memberId), seat = room.seats[state.seatIndex]
-      if (!member || !seat || (member.presence === 'offline' && member.id !== meId)) continue
+      if (!member || !seat) continue
       const stand = avatars.standing(member).body
       const x = seat.x * frame.width + 19, z = seat.y * frame.height + 15
       stand.position.set(x, 0, z); group.add(stand)

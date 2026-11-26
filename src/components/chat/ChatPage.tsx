@@ -1,6 +1,6 @@
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, Hash, LayoutGrid, MessageCircle, UsersRound, Search, X, RotateCw } from 'lucide-react'
+import { ArrowUpRight, Hash, LayoutGrid, LoaderCircle, MessageCircle, UsersRound, Search, X, RotateCw } from 'lucide-react'
 import '@chatscope/chat-ui-kit-styles/dist/default/styles.min.css'
 import { MessageList, TypingIndicator } from '@chatscope/chat-ui-kit-react'
 import { Input } from '@/components/ui/input'
@@ -44,6 +44,12 @@ function ChatThread({ channel, client, sender, targetId, focusRequest, onLocateR
   const roomId = channel.roomId
   const thread = useChatThread(client, channelId)
   const { messages, status, typing } = thread
+  const [veil, setVeil] = useState(status === 'loading')
+  useEffect(() => {
+    if (status === 'loading') { setVeil(true); return }
+    const timer = window.setTimeout(() => setVeil(false), 260)
+    return () => window.clearTimeout(timer)
+  }, [status])
   const seen = useRef(new Set<string>())
   const located = useRef<string | null>(null)
 
@@ -81,7 +87,6 @@ function ChatThread({ channel, client, sender, targetId, focusRequest, onLocateR
         )}
       </header>
       <MessageList
-        loading={status === 'loading'}
         typingIndicator={typing ? <TypingIndicator content={`${typing} 正在输入`} /> : undefined}
       >
         <MessageList.Content>
@@ -92,12 +97,19 @@ function ChatThread({ channel, client, sender, targetId, focusRequest, onLocateR
             </div>
           )}
           {status === 'ready' && messages.length === 0 && (
-            <div className="chat-empty"><MessageCircle size={21} strokeWidth={1.5} aria-hidden /><p>还没有消息</p></div>
+            <div className="chat-empty"><MessageCircle size={21} strokeWidth={1.5} aria-hidden /><p>还没有消息</p><small>聊天记录来自企业工作区，发送第一条消息即可开始。</small></div>
           )}
           <ChatTranscript messages={messages} meId={sender.id} client={client} targetId={targetId} />
         </MessageList.Content>
       </MessageList>
       <ChatComposer disabled={status !== 'ready'} onSend={(draft) => thread.send(draft, sender)} client={client} channelId={channelId} focusRequest={focusRequest} />
+      {veil && (
+        <div className={status === 'loading' ? 'chat-thread-veil' : 'chat-thread-veil is-leaving'} data-chat-veil={status} role="status" aria-live="polite">
+          <span className="chat-thread-veil-mark" aria-hidden><LoaderCircle size={24} strokeWidth={1.6} className="animate-spin" /></span>
+          <strong>正在载入消息…</strong>
+          <small>{channel.name} · 聊天记录来自企业工作区</small>
+        </div>
+      )}
     </section>
     {showMembers && <aside className="chat-members-panel" aria-label="群成员列表">
       <header><div><h3>{channel.peerId ? '会话成员' : '群成员'}</h3><p>{memberStatus === 'ready' ? `${people.length} 位成员 · ${online} 人在线` : '成员由企业系统提供'}</p></div><button type="button" aria-label="关闭群成员" onClick={() => setShowMembers(false)}><X size={15} /></button></header>
@@ -144,6 +156,39 @@ export function ChatPage({ sender, client, channelId, targetId, mentions, onChan
   const [channelQuery, setChannelQuery] = useState('')
   const [failed, setFailed] = useState(false)
   const [focus, setFocus] = useState({ channelId: '', request: 0 })
+  const [rosterStatus, setRosterStatus] = useState<Record<string, 'loading' | 'error'>>({})
+  const requestedRosters = useRef(new Set<string>())
+
+  // 预取所有频道的成员信息：这样列表里直接能看到人数与在线数，不必先点开频道。
+  useEffect(() => {
+    const pending = channels.filter(({ id }) => !requestedRosters.current.has(id))
+    if (!pending.length) return
+    for (const channel of pending) requestedRosters.current.add(channel.id)
+    setRosterStatus(current => {
+      const next = { ...current }
+      for (const channel of pending) next[channel.id] = 'loading'
+      return next
+    })
+    const queue = pending.slice()
+    const worker = async () => {
+      for (;;) {
+        const channel = queue.shift()
+        if (!channel) return
+        try {
+          const list = await client.participants(channel.id)
+          onRoster(channel.id, list)
+          setRosterStatus(current => {
+            const next = { ...current }
+            delete next[channel.id]
+            return next
+          })
+        } catch {
+          setRosterStatus(current => ({ ...current, [channel.id]: 'error' }))
+        }
+      }
+    }
+    void Promise.all([worker(), worker(), worker()])
+  }, [channels, client, onRoster])
 
   useEffect(() => {
     let active = true
@@ -157,7 +202,7 @@ export function ChatPage({ sender, client, channelId, targetId, mentions, onChan
   const current = channels.find(({ id }) => id === channelId) ?? channels[0]
 
   return (
-    <main data-chat="root" className="workspace-view bg-[#f3f3f2]">
+    <main data-chat="root" className="workspace-view chat-canvas">
       <WorkspaceHeader title="交流室" description={`${channels.filter(({ peerId }) => !peerId).length} 个群聊`} />
 
       <div className="workspace-content flex min-h-0 flex-1 py-3">
@@ -169,6 +214,16 @@ export function ChatPage({ sender, client, channelId, targetId, mentions, onChan
             {channels.filter(channel => channel.name.toLocaleLowerCase().includes(channelQuery.trim().toLocaleLowerCase())).map((channel) => {
               const group = rosters[channel.id]
               const online = group?.filter(({ presence }) => presence === 'online').length
+              const rosterState = rosterStatus[channel.id]
+              const memberLabel = channel.peerId
+                ? '私聊'
+                : group
+                  ? `${group.length} 人 · ${online} 在线`
+                  : rosterState === 'loading'
+                    ? '正在同步成员…'
+                    : rosterState === 'error'
+                      ? '成员暂不可用'
+                      : '群聊'
               const alert = mentions.get(channel.id)
               return (
                 <button key={channel.id} type="button" className="chat-channel ui-press"
@@ -181,7 +236,7 @@ export function ChatPage({ sender, client, channelId, targetId, mentions, onChan
                   }}
                 >
                   <span className="chat-channel-icon" aria-hidden>{channel.peerId ? <MessageCircle size={14} /> : <Hash size={14} strokeWidth={1.7} />}</span>
-                  <span><strong>{channel.name}</strong><small>{channel.peerId ? '私聊' : group ? `${group.length} 人 · ${online} 在线` : '群聊'}</small></span>
+                  <span><strong>{channel.name}</strong><small>{memberLabel}</small></span>
                   {alert && <span className="chat-channel-mention">{alert.mention === 'all' ? '全体提醒' : '提到了你'}</span>}
                 </button>
               )

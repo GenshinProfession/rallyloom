@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rallyloom.dev/schema/workspace/jukebox/v1",
   "title": "Optional curated songs for the Rallyloom shared jukebox",
   "$comment": "bootstrap 中可选的精选歌曲；成员分享曲目通过工作区 OA jukebox API 管理。note 仅为旧数据兼容保留，不显示在成员点歌台。",
   "type": "object",
